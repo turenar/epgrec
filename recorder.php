@@ -294,7 +294,7 @@ try{
 				@mysql_query( $sqlstr );
 				$sqlstr = "update mt_cds_object set metadata='dc:description=".mysql_real_escape_string($rrec->description)."&epgrec:id=".$reserve_id."' where dc_title='".$rrec->path."'";
 				@mysql_query( $sqlstr );
-				$sqlstr = "update mt_cds_object set dc_title='".mysql_real_escape_string($rrec->title)."(".date("Y/m/d").")' where dc_title='".$rrec->path."'";
+				$sqlstr = "update mt_cds_object set dc_title='".mysql_real_escape_string($rrec->title)."(".date("Y/m/d", $starttime).")' where dc_title='".$rrec->path."'";
 				@mysql_query( $sqlstr );
 			}
 		}
