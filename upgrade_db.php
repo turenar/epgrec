@@ -42,9 +42,8 @@ if( $dbh !== FALSE ) {
 	$sqlstr = "use ".$settings->db_name;
 	mysql_query( $sqlstr );
 
-	$sqlstr = "set NAMES 'utf8'";
-	mysql_query( $sqlstr );
-	
+	mysql_set_charset('utf8');
+
 	// RESERVE_TBL
 
 	$sqlstrs = array (

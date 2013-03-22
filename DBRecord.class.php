@@ -25,8 +25,7 @@ class DBRecord {
 			$sqlstr = "use ".self::$__settings->db_name;
 			$res = $this->__query($sqlstr);
 			if( $res === false ) throw new exception("construct: " . $sqlstr );
-			$sqlstr = "set NAMES utf8";
-			$res = $this->__query($sqlstr);
+			mysql_set_charset('utf8', self::$__dbh);
 		}
 		$this->__table = self::$__settings->tbl_prefix.$table;
 		
