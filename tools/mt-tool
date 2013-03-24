@@ -1,0 +1,317 @@
+#!/usr/bin/php
+<?php
+if(!defined('STDIN')){
+	echo 'stdin is not defined\n';
+	die;
+}
+
+error_reporting(E_ALL);
+
+function help($page=NULL){
+	if($page===NULL || $page==='copy_metadata'){
+		println('--copy-metadata    <file:src> <file:dest>');
+		println('');
+		println('    copy metadata of <src> to <dest>');
+		println('');
+	}
+	if($page===NULL){
+		println('--hash             <loc:location>');
+		println('');
+		println('    calculate hash of <location> (for `mt_cds_object`.`location_hash` row');
+		println('');
+	}
+	if($page===NULL || $page==='create_container'){
+		println('--create-container <path:into> <name>');
+		println('');
+		println('    create container which has <name> as title into <into>');
+		println('');
+	}
+	if($page===NULL || $page==='copy_file'){
+		println('--copy-file        <file:src> <file:dest>');
+		println('');
+		println('    USE --copy-metadata');
+		println('    If <dest> is not found, mediatomb\'s import.js OVERWRITE <dest> record');
+		println('');
+	}
+	println('Argument Type:');
+	println('    file    Specify real file path');
+	println('              (such as /tmp/12345.mp4)');
+	println('    loc     Specify file identifier used in `location` row');
+	println('              (such as F/tmp/12345.mp4 V/Video/12345.mp4)');
+	println('    path    Specify virtual file path in mediatomb');
+	println('              (such as /Video/12345.mp4)');
+	exit;
+}
+
+function println($str){
+	echo $str.PHP_EOL;
+}
+
+function sql_query($query, $dbh){
+	$ret = mysql_query($query, $dbh);
+	$err = mysql_error();
+	if($err !== ''){
+		throw new exception($err);
+	}
+	return $ret;
+}
+
+function copy_metadata(){
+	global $argc, $argv, $settings;
+	if($argc <= 3 || $argc>= 6){
+		help("copy_metadata");
+		die;
+	}
+	$orig_filename = $argv[2];
+	$dest_filename = $argv[3];
+	#$orig_filename = trim(exec("readlink -f '{$argv[1]}'"));
+	#$dest_filename = trim(exec("readlink -f '{$argv[2]}'"));
+	$title_suffix = isset($argv[4]) ? $argv[4] : '';
+	$dbh = mysql_connect($settings->db_host, $settings->db_user, $settings->db_pass);
+	if($dbh !== false){
+		$sqlstr = 'use '.$settings->db_name;
+		sql_query($sqlstr, $dbh);
+		mysql_set_charset('utf8');
+		$sqlstr = "SELECT `metadata`, `dc_title` FROM `mt_cds_object` WHERE `location` = 'F".mysql_real_escape_string($orig_filename)."'";
+		$response = sql_query($sqlstr, $dbh);
+		if(mysql_num_rows($response)<=0){
+			println("No data matched. Abort.");
+			die;
+		}
+		$mt_row = mysql_fetch_row($response);
+		print_r($mt_row);
+		$sqlstr = "UPDATE `mt_cds_object` SET `metadata` = '".mysql_real_escape_string($mt_row[0])."', `dc_title` = '".mysql_real_escape_string($mt_row[1].$title_suffix)."' WHERE `location` = 'F".mysql_real_escape_string($dest_filename)."'";
+		sql_query($sqlstr, $dbh);
+	}
+}
+
+function string_hash($str){
+	$hash = gmp_init("5381");
+	$arr = str_split($str);
+	foreach ($arr as $chr){
+		$hash =
+			gmp_xor(
+				gmp_and(
+					gmp_init('0xffffffff'),
+					gmp_mul($hash, 33)),
+				gmp_init(ord($chr)));
+	}
+	return gmp_strval(gmp_and($hash, gmp_init('0xffffffff')));
+}
+
+function search_container1($dbh, $parent_id, $name){
+	println("parent_id: $parent_id, name: $name");
+	$q = "SELECT `id`, `upnp_class` FROM `mt_cds_object`
+		WHERE `parent_id` = %d AND `dc_title` = '%s'";
+	$response = sql_query(sprintf($q, $parent_id, $name), $dbh);
+	if(mysql_num_rows($response) != 0){
+		$result = mysql_fetch_assoc($response);
+		if($result['upnp_class'] == 'object.container') {
+			return $result['id'];
+		}
+	} else {
+		return null;
+	}
+}
+
+function search_container($dbh, $path){
+	$path_list = explode('/', $path);
+	$id = 0;
+	foreach($path_list as $name){
+		if($name === ''){
+			continue;
+		}
+
+		$id = search_container1($dbh, $id, $name);
+		if($id === null){
+			return null;
+		}
+	}
+	return $id;
+}
+
+function create_container(){
+	global $argc, $argv, $settings;
+	if($argc != 4){
+		help("create_container");
+		die;
+	}
+	$into = $argv[2];
+	$name = $argv[3];
+	$dbh = mysql_connect($settings->db_host, $settings->db_user, $settings->db_pass);
+	if($dbh !== false){
+		$sqlstr = 'use '.$settings->db_name;
+		sql_query($sqlstr, $dbh);
+		mysql_set_charset('utf8');
+
+		$id = search_container($dbh, $into);
+		if($id === null){
+			println("Not found.");
+			die;
+		}
+
+		$q = "SELECT count(`id`) FROM `mt_cds_object` WHERE `parent_id` = %d AND `dc_title` = '%s'";
+		$q = sprintf($q, $id, mysql_real_escape_string($name));
+		$res = sql_query($q, $dbh);
+		if(mysql_result($res, 0) != 0){
+			println('already exists');
+			return;
+		}
+
+		$location = "V{$into}/{$name}";
+		$q = "INSERT INTO `mt_cds_object` (`parent_id`, `object_type`, `upnp_class`, `dc_title`, `location`, `location_hash`, `flags`) VALUES (%d, 1, 'object.container', '%s', '%s', '%s', 1);";
+		$q = sprintf($q, $id, mysql_real_escape_string($name), mysql_real_escape_string($location), string_hash($location));
+		sql_query($q, $dbh);
+		println('done.');
+	}
+}
+
+function copy_file(){
+	global $argc, $argv, $settings;
+	if($argc != 4){
+		help('copy_file');
+		die;
+	}
+	$src = $argv[2];
+	$dst = $argv[3];
+	$dbh = mysql_connect($settings->db_host, $settings->db_user, $settings->db_pass);
+	if($dbh !== false){
+		mysql_select_db($settings->db_name, $dbh);
+		mysql_set_charset('utf8');
+
+		$q = "SELECT * FROM `mt_cds_object` WHERE `location` = 'F%s'";
+		$q = sprintf($q, mysql_real_escape_string($src));
+		$srcinfo = sql_query($q, $dbh);
+		if(mysql_num_rows($srcinfo) == 0){
+			println("src ($src) is not found");
+			die;
+		}
+
+		$srcinfoarr = mysql_fetch_assoc($srcinfo);
+
+		$dstdir = '/PC Directory/'.substr($dst, 0, strrpos($dst, '/'));
+		$dstname = substr($dst, strrpos($dst, '/')+1);
+		println("dstdir: $dstdir, dstname: $dstname");
+		$dstdirid = search_container($dbh, $dstdir);
+		if($dstdirid === null){
+			println("dst ($dst) is not found or not container.");
+			die;
+		}
+		$q = "SELECT * FROM `mt_cds_object` WHERE `parent_id` = %d AND `dc_title` = '%s'";
+		$q = sprintf($q, $dstdirid, mysql_real_escape_string($srcinfoarr['dc_title']));
+		$dstinfo = sql_query($q, $dbh);
+		$dstinfoarr = mysql_fetch_assoc($dstinfo);
+
+		if(mysql_num_rows($dstinfo) == 0){
+			$loc = "F$dst";
+			$q = "INSERT INTO `mt_cds_object`(`parent_id`, `object_type`, `upnp_class`, `dc_title`, `location`, `location_hash`, `metadata`, `resources`, `update_id`, `mime_type`, `flags`) VALUES (%d, %d, '%s', '%s', '%s', %d, '%s', '%s', %d, '%s', %d)";
+			$q = sprintf($q, $dstdirid, $srcinfoarr['object_type'], mysql_real_escape_string($srcinfoarr['upnp_class']), mysql_real_escape_string($srcinfoarr['dc_title']), mysql_real_escape_string($loc), string_hash($loc), mysql_real_escape_string($srcinfoarr['metadata']), mysql_real_escape_string($srcinfoarr['resources']), $srcinfoarr['update_id'], mysql_real_escape_string($srcinfoarr['mime_type']), $srcinfoarr['flags']);
+			sql_query($q, $dbh);
+
+			// done message
+			$q = "SELECT * FROM `mt_cds_object` WHERE `parent_id` = %d AND `dc_title` = '%s'";
+			$q = sprintf($q, $dstdirid, mysql_real_escape_string($srcinfoarr['dc_title']));
+			$dstinfo = sql_query($q, $dbh);
+			$dstinfoarr = mysql_fetch_assoc($dstinfo);
+			println("Inserted id:{$dstinfoarr['id']}");
+		} else {
+			println("dst ($dst) is already exist.");
+		}
+	}
+}
+
+function link_file(){
+	global $argc, $argv, $settings;
+	if($argc != 4){
+		help('copy_file');
+		die;
+	}
+	$src = $argv[2];
+	$dst = $argv[3];
+	$dbh = mysql_connect($settings->db_host, $settings->db_user, $settings->db_pass);
+	if($dbh !== false){
+		mysql_select_db($settings->db_name, $dbh);
+		mysql_set_charset('utf8');
+
+		if($src[0] != '/'){ // 'V/' or 'F/'
+			$q = "SELECT * FROM `mt_cds_object` WHERE `location` = '%s'";
+			$q = sprintf($q, mysql_real_escape_string($src));
+			$srcinfo = sql_query($q, $dbh);
+			if(mysql_num_rows($srcinfo) == 0){
+				println("src ($src) is not found");
+				die;
+			}
+		} else {
+			$srcdir = substr($src, 0, strrpos($src, '/'));
+			$srcname = substr($src, strrpos($src, '/')+1);
+			println("$srcdir $srcname");
+			$srcdirid = search_container($dbh, $srcdir);
+			$q = "SELECT * FROM `mt_cds_object` WHERE `parent_id` = %d AND `dc_title` = '%s'";
+			$q = sprintf($q, $srcdirid, mysql_real_escape_string($srcname));
+			$srcinfo = sql_query($q, $dbh);
+			if(mysql_num_rows($srcinfo) == 0){
+				println("src (mt:$src) is not found");
+				die;
+			}
+		}
+
+
+		$srcinfoarr = mysql_fetch_assoc($srcinfo);
+
+		$dstdirid = search_container($dbh, $dst);
+		if($dstdirid === null){
+			println("dst ($dst) is not found or not container.");
+			die;
+		}
+		$q = "SELECT * FROM `mt_cds_object` WHERE `parent_id` = %d AND `dc_title` = '%s'";
+		$q = sprintf($q, $dstdirid, mysql_real_escape_string($srcinfoarr['dc_title']));
+		$dstinfo = sql_query($q, $dbh);
+		$dstinfoarr = mysql_fetch_assoc($dstinfo);
+
+		if(mysql_num_rows($dstinfo) == 0){
+			$q = "INSERT INTO `mt_cds_object` (`ref_id`, `parent_id`, `object_type`, `dc_title`, `update_id`, `mime_type`, `flags`) VALUES (%d, %d, %d, '%s', 0, '%s', 1)";
+			$q = sprintf($q, $srcinfoarr['id'], $dstdirid, $srcinfoarr['object_type'], mysql_real_escape_string($srcinfoarr['dc_title']), mysql_real_escape_string($srcinfoarr['mime_type']));
+			sql_query($q, $dbh);
+
+			// done message
+			$q = "SELECT * FROM `mt_cds_object` WHERE `parent_id` = %d AND `dc_title` = '%s'";
+			$q = sprintf($q, $dstdirid, mysql_real_escape_string($srcinfoarr['dc_title']));
+			$dstinfo = sql_query($q, $dbh);
+			$dstinfoarr = mysql_fetch_assoc($dstinfo);
+			println("Inserted id:{$dstinfoarr['id']}");
+		} else {
+			if($srcinfoarr['id'] === $dstinfoarr['id']){
+				println("src and dst seems to be equal");
+			}
+			$q = "UPDATE `mt_cds_object` SET `ref_id`=%d, `object_type`=%d, `dc_title`='%s', `mime_type`='%s' WHERE `id` = %d";
+			$q = sprintf($q, $srcinfoarr['id'], $srcinfoarr['object_type'], mysql_real_escape_string($srcinfoarr['dc_title']), mysql_real_escape_string($srcinfoarr['mime_type'], $dstinfoarr['id']));
+			sql_query($q, $dbh);
+			println("Updated id:{$dstinfoarr['id']}");
+		}
+	}
+}
+
+
+
+$script_path = dirname(__FILE__);
+chdir($script_path.'/..');
+require_once($script_path . '/../config.php');
+include_once(INSTALL_PATH . '/DBRecord.class.php');
+include_once(INSTALL_PATH . '/Settings.class.php');
+include_once(INSTALL_PATH . '/recLog.inc.php');
+include_once(INSTALL_PATH . '/reclib.php');
+$settings = Settings::factory();
+error_reporting(E_ALL);
+
+if($argc <= 1){
+	help();
+	die;
+}
+
+switch($argv[1]){
+	case '--copy-metadata': copy_metadata(); break;
+	case '--create-container': create_container(); break;
+	case '--copy-file': copy_file(); break;
+	case '--hash': echo string_hash($argv[2]); break;
+	default: help(); break;
+}
