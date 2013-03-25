@@ -100,7 +100,7 @@ function string_hash($str){
 }
 
 function search_container1($dbh, $parent_id, $name){
-	println("parent_id: $parent_id, name: $name");
+	println("  parent_id: $parent_id, name: $name");
 	$q = "SELECT `id`, `upnp_class` FROM `mt_cds_object`
 		WHERE `parent_id` = %d AND `dc_title` = '%s'";
 	$response = sql_query(sprintf($q, $parent_id, $name), $dbh);
@@ -204,7 +204,7 @@ function copy_file(){
 
 		if(mysql_num_rows($dstinfo) == 0){
 			$loc = "F$dst";
-			$q = "INSERT INTO `mt_cds_object`(`parent_id`, `object_type`, `upnp_class`, `dc_title`, `location`, `location_hash`, `metadata`, `resources`, `update_id`, `mime_type`, `flags`) VALUES (%d, %d, '%s', '%s', '%s', %d, '%s', '%s', %d, '%s', %d)";
+			$q = "INSERT INTO `mt_cds_object`(`parent_id`, `object_type`, `upnp_class`, `dc_title`, `location`, `location_hash`, `metadata`, `resources`, `update_id`, `mime_type`, `flags`) VALUES (%d, %d, '%s', '%s', '%s', '%s', '%s', '%s', %d, '%s', %d)";
 			$q = sprintf($q, $dstdirid, $srcinfoarr['object_type'], mysql_real_escape_string($srcinfoarr['upnp_class']), mysql_real_escape_string($srcinfoarr['dc_title']), mysql_real_escape_string($loc), string_hash($loc), mysql_real_escape_string($srcinfoarr['metadata']), mysql_real_escape_string($srcinfoarr['resources']), $srcinfoarr['update_id'], mysql_real_escape_string($srcinfoarr['mime_type']), $srcinfoarr['flags']);
 			sql_query($q, $dbh);
 
@@ -223,7 +223,7 @@ function copy_file(){
 function link_file(){
 	global $argc, $argv, $settings;
 	if($argc != 4){
-		help('copy_file');
+		help('link_file');
 		die;
 	}
 	$src = $argv[2];
@@ -255,39 +255,62 @@ function link_file(){
 			}
 		}
 
-
 		$srcinfoarr = mysql_fetch_assoc($srcinfo);
-
 		$dstdirid = search_container($dbh, $dst);
 		if($dstdirid === null){
 			println("dst ($dst) is not found or not container.");
 			die;
 		}
+
+		if($srcinfoarr['upnp_class'] == 'object.container'){
+			println("src seems to be object.container, so link all item of src");
+			_link_file_dirscan($dbh, $srcinfoarr['id'], $dstdirid);
+		} else {
+			_link_file($dbh, $srcinfoarr, $dstdirid);
+		}
+	}
+}
+
+function _link_file_dirscan($dbh, $srcdirid, $dstdirid){
+	$q = "SELECT * FROM `mt_cds_object` WHERE `parent_id` = %d";
+	$q = sprintf($q, $srcdirid);
+	$childinfo = sql_query($q, $dbh);
+
+	while(($info=mysql_fetch_assoc($childinfo)) !== FALSE){
+		if($info['upnp_class'] == 'object.container'){
+			println("{$info['location']} seems to be object.container, too.");
+			println("Not supported recursive link");
+		} else {
+			_link_file($dbh, $info, $dstdirid);
+		}
+	}
+}		
+
+function _link_file($dbh, $srcinfoarr, $dstdirid){
+	$q = "SELECT * FROM `mt_cds_object` WHERE `parent_id` = %d AND `dc_title` = '%s'";
+	$q = sprintf($q, $dstdirid, mysql_real_escape_string($srcinfoarr['dc_title']));
+	$dstinfo = sql_query($q, $dbh);
+	$dstinfoarr = mysql_fetch_assoc($dstinfo);
+
+	if(mysql_num_rows($dstinfo) == 0){
+		$q = "INSERT INTO `mt_cds_object` (`ref_id`, `parent_id`, `object_type`, `dc_title`, `update_id`, `mime_type`, `flags`) VALUES (%d, %d, %d, '%s', 0, '%s', 1)";
+		$q = sprintf($q, $srcinfoarr['id'], $dstdirid, $srcinfoarr['object_type'], mysql_real_escape_string($srcinfoarr['dc_title']), mysql_real_escape_string($srcinfoarr['mime_type']));
+		sql_query($q, $dbh);
+
+		// done message
 		$q = "SELECT * FROM `mt_cds_object` WHERE `parent_id` = %d AND `dc_title` = '%s'";
 		$q = sprintf($q, $dstdirid, mysql_real_escape_string($srcinfoarr['dc_title']));
 		$dstinfo = sql_query($q, $dbh);
 		$dstinfoarr = mysql_fetch_assoc($dstinfo);
-
-		if(mysql_num_rows($dstinfo) == 0){
-			$q = "INSERT INTO `mt_cds_object` (`ref_id`, `parent_id`, `object_type`, `dc_title`, `update_id`, `mime_type`, `flags`) VALUES (%d, %d, %d, '%s', 0, '%s', 1)";
-			$q = sprintf($q, $srcinfoarr['id'], $dstdirid, $srcinfoarr['object_type'], mysql_real_escape_string($srcinfoarr['dc_title']), mysql_real_escape_string($srcinfoarr['mime_type']));
-			sql_query($q, $dbh);
-
-			// done message
-			$q = "SELECT * FROM `mt_cds_object` WHERE `parent_id` = %d AND `dc_title` = '%s'";
-			$q = sprintf($q, $dstdirid, mysql_real_escape_string($srcinfoarr['dc_title']));
-			$dstinfo = sql_query($q, $dbh);
-			$dstinfoarr = mysql_fetch_assoc($dstinfo);
-			println("Inserted id:{$dstinfoarr['id']}");
-		} else {
-			if($srcinfoarr['id'] === $dstinfoarr['id']){
-				println("src and dst seems to be equal");
-			}
-			$q = "UPDATE `mt_cds_object` SET `ref_id`=%d, `object_type`=%d, `dc_title`='%s', `mime_type`='%s' WHERE `id` = %d";
-			$q = sprintf($q, $srcinfoarr['id'], $srcinfoarr['object_type'], mysql_real_escape_string($srcinfoarr['dc_title']), mysql_real_escape_string($srcinfoarr['mime_type'], $dstinfoarr['id']));
-			sql_query($q, $dbh);
-			println("Updated id:{$dstinfoarr['id']}");
+		println("Inserted id:{$dstinfoarr['id']}");
+	} else {
+		if($srcinfoarr['id'] === $dstinfoarr['id']){
+			println("src and dst seems to be equal");
 		}
+		$q = "UPDATE `mt_cds_object` SET `ref_id`=%d, `object_type`=%d, `dc_title`='%s', `mime_type`='%s' WHERE `id` = %d";
+		$q = sprintf($q, $srcinfoarr['id'], $srcinfoarr['object_type'], mysql_real_escape_string($srcinfoarr['dc_title']), mysql_real_escape_string($srcinfoarr['mime_type'], $dstinfoarr['id']));
+		sql_query($q, $dbh);
+		println("Updated id:{$dstinfoarr['id']}");
 	}
 }
 
@@ -312,6 +335,7 @@ switch($argv[1]){
 	case '--copy-metadata': copy_metadata(); break;
 	case '--create-container': create_container(); break;
 	case '--copy-file': copy_file(); break;
+	case '--link-file': link_file(); break;
 	case '--hash': echo string_hash($argv[2]); break;
 	default: help(); break;
 }
