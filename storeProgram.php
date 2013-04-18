@@ -40,13 +40,13 @@
   $settings = Settings::factory();
   
   if( file_exists( $file ) ) {
+	$shm_id = shm_attach( 2 );
 	$ch_id = storeProgram( $type, $file );
 	@unlink( $file );
 //  garbageClean();			//  不要プログラム削除
 	if( $ch_id != -1 ){
-		$shm_id = shm_attach( 2 );
 		doKeywordReservation( $type, $shm_id );	// キーワード予約
-		shm_detach( $shm_id );
 	}
+	shm_detach( $shm_id );
   }
 ?>

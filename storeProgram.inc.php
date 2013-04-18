@@ -69,7 +69,10 @@ function doKeywordReservation( $wave_type = '*', $shm_id ) {
 function storeProgram( $type, $xmlfile ) {
 	global $BS_CHANNEL_MAP, $GR_CHANNEL_MAP, $CS_CHANNEL_MAP;
 	global $settings;
-	
+	global $shm_id;
+
+	$key_stk = array();
+	$key_cnt = 0;
 	// チャンネルマップファイルの準備
 	$map = array();
 	if( $type == 'BS' ) $map = $BS_CHANNEL_MAP;
@@ -213,6 +216,7 @@ function storeProgram( $type, $xmlfile ) {
 								foreach( $revs as $rev ){
 									if( (int)$rev->autorec ){
 										// 自動キーワードはキャンセルのみ
+										$key_stk[$key_cnt++] = (int)$rev->autorec;
 										Reservation::cancel( $rev->id );
 									}else{
 										// 手動予約
@@ -996,6 +1000,7 @@ NEXT_SUB:;
 											array_push( $stk_rev, $arr );
 										}else{
 //											reclog( $rev_ds.'は時間変更の可能性があり予約取り消し' );
+											$key_stk[$key_cnt++] = (int)$reserve->autorec;
 										}
 										Reservation::cancel( $reserve->id );
 									}
@@ -1141,6 +1146,7 @@ reclog( $event_sch[$sch_cnt]['starttime'].'　'.$event_sch[$sch_cnt]['endtime'] 
 										// dirtyが立っていない録画予約であるなら
 										if( $sch_obtain && (int)($reserve->autorec) && strcmp( $reserve->title, $title_old )==0 ){
 											//自動キーワード再予約のためキャンセル
+											$key_stk[$key_cnt++] = (int)$reserve->autorec;
 											Reservation::cancel( $reserve->id );
 										}else{
 											$reserve->title       = $title;
@@ -1224,6 +1230,24 @@ reclog( $event_sch[$sch_cnt]['starttime'].'　'.$event_sch[$sch_cnt]['endtime'] 
 		}
 		unset( $event_sch );
 		unset( $event_pf );
+	}
+
+	// 自動キーワ−ド再予約
+	// 残りのEPG処理に時間がかかる場合に直近番組が始まってしまい再予約に失敗する対策
+//	doKeywordReservation( $type, $shm_id );
+	if( $key_cnt ){
+		while(1){
+			$sem_key = sem_get( SEM_KEY, 1, 0666 );
+			if( $sem_key === FALSE )
+				usleep( 100 );
+			else
+				break;
+		}
+		$result = array_unique( $key_stk, SORT_NUMERIC );		// keyword IDの重複解消
+		foreach( $result as $keyword_id ){
+			$rec = new Keyword( 'id', $keyword_id );
+			$rec->reservation( $type, $shm_id, $sem_key );
+		}
 	}
 
 	// 廃止チャンネルの自動削除
