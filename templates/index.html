@@ -139,7 +139,7 @@
 
 			str += '</form>';
 			
-			str += '<div style="margin:2em 0 1em 0;text-align:center;"><a href="javascript:PRG.chupdate()" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">更新</a></div>';
+			str += '<div style="margin:2em 0 1em 0;text-align:center;"><a href="javascript:PRG.chupdate()" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">更新</a>  <a href="javascript:PRG.singleEPG()" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">EPG更新</a></div>';
 			
 			$('#channelDialog').html(str);
 			$('#channelDialog').dialog('open', 'center');
@@ -187,6 +187,27 @@
 				$('#channelDialog').dialog('close');
 			});
 		},
+		singleEPG:function() {
+			var v_channel_disc = $('#id_disc').val();
+			var v_mode = 1;
+			var str = '<div style="margin:2em 0 1em 0;text-align:center;">EPGを更新中です</div>';
+
+			$('#channelDialog').dialog('close');
+			$('#channelDialog').html(str);
+			$('#channelDialog').dialog('open', 'center');
+			$.get('scoutEpg.php', { disc: v_channel_disc,
+						 mode: v_mode,
+						    }, function(data) {
+				if(data.match(/^error/i)){
+					alert(data);
+					$('#channelDialog').dialog('close');
+				}
+				else {
+					$('#channelDialog').dialog('close');
+					location.reload(true);
+				}
+			});
+		},
 		rec:function(id){
 			$.get(INISet.prgRecordURL, { program_id: id } ,function(data){
 				document.getElementById("id_rec").disabled = true;
@@ -219,12 +240,17 @@
 			// 1番組に複数の予約がある場合に最初に予約した物しかキャンセルされない
 			var tmp_disc = $('#id_autorec').attr('checked');
 			var id_autorec = tmp_disc ? 1 : 0;
+			var str = '<div style="margin:2em 0 1em 0;text-align:center;">予約を削除中です</div>';
+
+			$('#channelDialog').html(str);
+			$('#channelDialog').dialog('open', 'center');
 			$.get(INISet.prgCancelURL, { program_id: id,
 							autorec: id_autorec } ,function(data){
 				document.getElementById("id_cancel").disabled = true;
 				if(data.match(/^error/i)){
 					alert(data);
 					$('#floatBox4Dialog').dialog('close');
+					$('#channelDialog').dialog('close');
 				}else{
 					var reload = parseInt(data);
 					if( reload ){
@@ -241,6 +267,7 @@
 							TG.children('.prg_autorec').html('0');
 						}
 						$('#floatBox4Dialog').dialog('close');
+						$('#channelDialog').dialog('close');
 					}
 				}
 			});

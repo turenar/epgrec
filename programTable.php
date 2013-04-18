@@ -29,8 +29,8 @@ $autorec_modes = $RECORD_MODE;
 $enable = TRUE;
 $search = "";
 $use_regexp = 0;
-$ena_title  = TRUE;
-$ena_desc   = TRUE;
+$ena_title  = FALSE;
+$ena_desc   = FALSE;
 $type = "*";
 $typeGR      = TRUE;
 $typeBS      = TRUE;
@@ -60,10 +60,12 @@ if(isset( $_POST['do_search'] )) {
 		}
 		if( !isset($_POST['ena_title'])){
 			$ena_title = FALSE;
-		}
+		}else
+			$ena_title = TRUE;
 		if( !isset($_POST['ena_desc'])){
 			$ena_desc = FALSE;
-		}
+		}else
+			$ena_desc = TRUE;
 	}
 	if( isset($_POST['enable'])) {
 		if( !(boolean)$_POST['enable'] )
@@ -153,10 +155,12 @@ if(isset( $_POST['do_search'] )) {
 			}
 			if( isset($_GET['ena_title'])){
 				$ena_title = (boolean)$_GET['ena_title'];
-			}
+			}else
+				$ena_title = TRUE;
 			if( isset($_GET['ena_desc'])){
 				$ena_desc = (boolean)$_GET['ena_desc'];
-			}
+			}else
+				$ena_desc = FALSE;
 			$do_keyword = 1;
 		}
 		if( isset($_GET['station'])) {
@@ -210,7 +214,7 @@ if( $type === '-' ){
 	$enable = FALSE;
 }
 
-if( !$ena_title && !$ena_desc ){
+if( $search!=NULL && !$ena_title && !$ena_desc ){
 	$ena_title  = TRUE;
 	$ena_desc   = TRUE;
 }

@@ -252,7 +252,7 @@ function storeProgram( $type, $xmlfile ) {
 	}
 	// channel 終了
 
-	$single_ch =  strncmp( $xmlfile, $settings->temp_xml.'_', strlen( $settings->temp_xml )+1 ) ? TURE : FALSE;
+	$single_ch =  strncmp( $xmlfile, $settings->temp_xml.'_', strlen( $settings->temp_xml )+1 ) ? TRUE : FALSE;
 	$ed_tm_sft = (int)$settings->former_time + (int)$settings->rec_switch_time;
 	$smf_type  = $type==='GR' ? 'GR' : 'BS';
 	$first_epg = TRUE;
@@ -391,11 +391,12 @@ function storeProgram( $type, $xmlfile ) {
 				while(1){
 					if( $ev_cnt < $ev_lmt ){
 						if( $event_sch[$ev_cnt]['eid'] == $event_pf[$cnt]['eid'] ){
-							$event_pf[$cnt++]['sch_pnt'] = $ev_cnt++;
-							$tmp_cnt                     = $ev_cnt;
-							continue;
-						}
-						$ev_cnt++;
+							$event_pf[$cnt]['sch_pnt'] = $ev_cnt++;
+							$tmp_cnt                   = $ev_cnt;
+							if( ++$cnt >= $pf_lmt )
+								break 2;
+						}else
+							$ev_cnt++;
 					}else{
 						$event_pf[$cnt]['sch_pnt'] = -1;
 						break;
@@ -553,13 +554,13 @@ function storeProgram( $type, $xmlfile ) {
 
 		$sch_sync['cnt']       = -1;
 		$sch_sync['pre_check'] = FALSE;
+		$debug_msg             = '';
 		if( $pf_lmt ){
 			// EIT[schedule]とEIT[pf]をマージ
 			$pf_cnt = 0;
 			for( $ev_cnt=0; $ev_cnt<$ev_lmt; $ev_cnt++ ){
 				$start_cmp = strcmp( $event_sch[$ev_cnt]['starttime'], $event_pf[$pf_cnt]['starttime'] );
 				if( $start_cmp >= 0 ){
-					$debug_msg = $channel_disc.' ( 0:'.$event_pf[$pf_cnt]['starttime'].') (';
 					$del_tm = 0;
 					if( $event_pf[$pf_cnt]['sch_pnt'] != -1 ){
 						//$debug_buf = $pf_cnt.'ev_cnt::'.$ev_cnt.' event_pf[$pf_cnt]['sch_pnt']::'.$event_pf[$pf_cnt]['sch_pnt'];
@@ -567,7 +568,7 @@ function storeProgram( $type, $xmlfile ) {
 							//番組繰り上がり
 							$erase_cnt = $event_pf[$pf_cnt]['sch_pnt'] - $ev_cnt;
 							array_splice( $event_sch, $ev_cnt, $erase_cnt );
-							$debug_msg .= '[array_splice():'.$ev_lmt.'>'.count( $event_sch ).']';
+							$debug_msg = '[array_splice():'.$ev_lmt.'>'.count( $event_sch ).']';
 							$ev_lmt -= $erase_cnt;
 							for( $e_cnt=$pf_cnt+1; $e_cnt<$pf_lmt; $e_cnt++ )
 								if( $event_pf[$e_cnt]['sch_pnt'] != -1 )
@@ -588,7 +589,7 @@ function storeProgram( $type, $xmlfile ) {
 						$event_sch[$ev_cnt]['multi_type'] = $event_pf[$pf_cnt]['multi_type'];
 					}else{
 						//$debug_buf = '[pf insert]';
-						$debug_msg .= '[pf insert]';
+						$debug_msg = '[pf insert]';
 						// 番組挿入
 //						array_splice( $event_sch, $ev_cnt, 0, $event_pf[$pf_cnt] );		//番組挿入
 						for( $ev_sft=$ev_lmt; $ev_sft>$ev_cnt; $ev_sft-- ){
@@ -631,38 +632,48 @@ function storeProgram( $type, $xmlfile ) {
 								$event_pf[$e_cnt]['sch_pnt']++;
 					}
 					if( $event_pf[$pf_cnt]['status'] == DURATION_UNCERTAINTY ){
+						$now_time = time();
 						if( $pf_cnt+1==$pf_lmt || $event_pf[$pf_cnt+1]['status']==START_TIME_UNCERTAINTY ){
 							if( $event_pf[$pf_cnt]['sch_pnt'] != -1 ){
 								$duration = toTimestamp( $event_sch[$ev_cnt]['endtime'] ) - toTimestamp( $event_sch[$ev_cnt]['starttime'] );
 								$end_time = toTimestamp( $event_pf[$pf_cnt]['starttime'] ) + $duration;
 							}else{
-								if( $ev_cnt+1 < $ev_lmt )
-									$end_time = toTimestamp( $event_sch[$ev_cnt+1]['starttime'] );
-								else
-									$end_time = toTimestamp( $event_pf[$pf_cnt]['starttime'] ) + EXTENDING_TIME;		//終了時刻不明
-							}
-							goto BORDER_CHK;
-						}else
-							$end_time = toTimestamp( $event_pf[$pf_cnt+1]['starttime'] );
-						if( $ev_cnt+1==$ev_lmt || strcmp( $event_pf[$pf_cnt+1]['starttime'], $event_sch[$ev_cnt+1]['starttime'] )>=0 ){
-BORDER_CHK:;
-							$now_time = time();
-							if( $end_time < $now_time ){
+								//終了時刻不明 たぶん臨時放送
 								if( $now_time%60 )
-									$now_time = $now_time + 60 - $now_time%60 + EXTENDING_TIME;
-								else
-									$now_time += EXTENDING_TIME;
-								$del_tm    = $now_time - $end_time;
-								$end_time  = $now_time;
-							}else
-								if( $end_time-$now_time < 60 ){
-									$end_time += EXTENDING_TIME;
-									$del_tm    = EXTENDING_TIME;
-								}
-						}
-						$next_start = toDatetime( $end_time );
+									$now_time = $now_time + 60 - $now_time%60;
+								if( $ev_cnt+1 < $ev_lmt ){
+									$next_start = $event_sch[$ev_cnt+1]['starttime'];
+									$duration   = toTimestamp( $next_start ) - toTimestamp( $event_pf[$pf_cnt]['starttime'] );
+									if( $duration > 2*60*60 )		// 2hは定期EPG更新周期より
+										$duration = 2*60*60;
+									$stk_end = toDatetime( $now_time + $duration );
+								}else
+									$stk_end  = $next_start = toDatetime( $now_time + EXTENDING_TIME );
+								$event_sch[$ev_cnt]['desc'] .= '(終了時刻不明)';
+								goto BORDER_CHK_THR;
+							}
+						}else
+							if( $ev_cnt+1==$ev_lmt || ( $pf_cnt+1<$pf_lmt && strcmp( $event_pf[$pf_cnt+1]['starttime'], $event_sch[$ev_cnt+1]['starttime'] )>=0 ) )
+								$end_time = toTimestamp( $event_pf[$pf_cnt+1]['starttime'] );
+							else{
+								$stk_end = $next_start = $event_pf[$pf_cnt+1]['starttime'];
+								goto BORDER_CHK_THR;
+							}
+						if( $end_time < $now_time ){
+							if( $now_time%60 )
+								$now_time = $now_time + 60 - $now_time%60;
+							$now_time += EXTENDING_TIME;
+							$del_tm    = $now_time - $end_time;
+							$end_time  = $now_time;
+						}else
+							if( $end_time-$now_time < 60 ){
+								$end_time += EXTENDING_TIME;
+								$del_tm    = EXTENDING_TIME;
+							}
+						$stk_end = $next_start = toDatetime( $end_time );
+BORDER_CHK_THR:;
 					}else
-						$next_start = $event_pf[$pf_cnt]['endtime'];
+						$stk_end = $next_start = $event_pf[$pf_cnt]['endtime'];
 					if( $event_pf[$pf_cnt]['sch_pnt']!=-1 && $start_cmp!=0 )
 						$event_sch[$ev_cnt]['starttime'] = $event_pf[$pf_cnt]['starttime'];
 
@@ -679,8 +690,8 @@ BORDER_CHK:;
 					if( $ev_cnt>0 && strcmp( $event_sch[$ev_cnt-1]['endtime'], $event_pf[$pf_cnt]['starttime'] ) > 0 ){
 						$event_sch[$ev_cnt-1]['endtime'] = $event_pf[$pf_cnt]['starttime'];
 					}
-					$event_sch[$ev_cnt]['endtime'] = $next_start;
-					$debug_msg .= ' '.($pf_cnt+1).'['.$event_pf[$pf_cnt]['status'].':'.$event_pf[$pf_cnt]['eid'].']:'.$next_start.')';
+					$event_sch[$ev_cnt]['endtime'] = $stk_end;
+					$debug_msg .= $channel_disc.' ( '.$pf_cnt.'['.$event_pf[$pf_cnt]['status'].':'.$event_pf[$pf_cnt]['eid'].']:'.$event_pf[$pf_cnt]['starttime'].'→'.$stk_end.')';
 					if( $event_pf[$pf_cnt]['sch_pnt'] == -1 )
 						$event_pf[$pf_cnt]['sch_pnt'] = $ev_cnt;
 					$pf_cnt++;
@@ -691,7 +702,7 @@ BORDER_CHK:;
 						goto NEXT_SUB;
 
 					while( $pf_cnt < $pf_lmt ){
-						$debug_msg .= ' (';
+						$debug_msg .= ' ';
 						if( $event_pf[$pf_cnt]['sch_pnt'] != -1 ){
 //							if( $event_pf[$pf_cnt-1]['sch_pnt']+1 != $ev_cnt )
 //								$next_start = $event_pf[$pf_cnt]['starttime'];
@@ -785,6 +796,7 @@ BORDER_CHK:;
 											$duration = toTimestamp( $event_sch[$ev_cnt+1]['starttime'] ) - toTimestamp( $next_start );		//不定
 										}else
 											$duration = EXTENDING_TIME;		//不定
+										$event_sch[$ev_cnt]['desc'] .= '(終了時刻不明)';
 									}
 									if( $duration < 60 )
 										$duration = EXTENDING_TIME;
@@ -813,7 +825,7 @@ BORDER_CHK:;
 						$event_sch[$ev_cnt]['starttime'] = $next_start;
 						$next_start                      = toDatetime( toTimestamp( $next_start ) + $duration );
 						$event_sch[$ev_cnt]['endtime']   = $next_start;
-						$debug_msg .= ' '.($pf_cnt+1).'['.$event_pf[$pf_cnt]['status'].':'.$event_pf[$pf_cnt]['eid'].']:'.$next_start.')';
+						$debug_msg .= '( '.$pf_cnt.'['.$event_pf[$pf_cnt]['status'].':'.$event_pf[$pf_cnt]['eid'].']:'.$event_sch[$ev_cnt]['starttime'].'→'.$next_start.')';
 						if( $event_pf[$pf_cnt]['sch_pnt'] == -1 )
 							$event_pf[$pf_cnt]['sch_pnt'] = $ev_cnt;
 						$pf_cnt++;
@@ -1026,6 +1038,16 @@ reclog( $event_sch[$sch_cnt]['starttime'].'　'.$event_sch[$sch_cnt]['endtime'] 
 					}
 					//録画中番組以外を登録
 					if( $eid != $rewrite_eid ){
+						// 番組延伸による過去分の重複削除
+						if( $eid != -1 ){
+							$options = 'WHERE channel_id = '.$channel_id.' AND eid = '.$eid;
+							$num = DBRecord::countRecords( PROGRAM_TBL, $options );
+							if( $num > 0 ){
+								$reco = DBRecord::createRecords( PROGRAM_TBL, $options );
+								$reco[0]->delete();
+							}
+						}
+
 						$rec = new DBRecord( PROGRAM_TBL );
 						$rec->channel_disc = $channel_disc;
 						$rec->channel_id   = $channel_id;

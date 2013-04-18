@@ -45,16 +45,31 @@ function sig_handler()
 	exit;
 }
 
-	// シグナルハンドラを設定
-	declare( ticks = 1 );
-	pcntl_signal( SIGTERM, "sig_handler" );
+	if( isset( $_GET['disc'] ) ){
+		$disc = $_GET['disc'];
+		$mode = $_GET['mode'];
+	}else
+	if( isset( $_POST['disc'] ) ){
+		$disc = $_POST['disc'];
+		$mode = $_POST['mode'];
+	}
 
-	if( $argc == 2 ){
+	if( !isset( $disc ) ){
+		// シグナルハンドラを設定
+		declare( ticks = 1 );
+		pcntl_signal( SIGTERM, "sig_handler" );
+	}
+
+	if( isset( $disc ) || $argc!=2 ){
+		if( !isset( $disc ) ){
+			$disc = $argv[1];
+			$mode = $argv[2];
+		}
+		$rev    = new DBRecord( CHANNEL_TBL, "channel_disc", $disc );
+		$lmt_tm = time() + ( $mode==1 ? FIRST_REC : SHORT_REC ) + $settings->rec_switch_time + $settings->former_time + 2;
+	}else{
 		$rev    = new DBRecord( RESERVE_TBL, "id", $argv[1] );
 		$lmt_tm = toTimestamp( $rev->starttime ) - $settings->rec_switch_time - $settings->former_time - 2;
-	}else{
-		$rev    = new DBRecord( CHANNEL_TBL, "id", $argv[1] );
-		$lmt_tm = time() + ( $argv[2]==1 ? FIRST_REC : SHORT_REC ) + $settings->rec_switch_time + $settings->former_time + 2;
 	}
 	$type     = $rev->type;		//GR/BS/CS
 	$value    = $rev->channel;
@@ -106,7 +121,7 @@ function sig_handler()
 		else
 			break;
 	}
-	if( $argc == 2 ){
+	if( !isset( $disc ) ){
 		// リアルタイム視聴チューナー事前開放
 		$slc_tuner = $rev->tuner;		// 録画に使用するチューナー
 		while(1){
