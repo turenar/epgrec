@@ -36,8 +36,8 @@ class DBRecord {
 		}
 		else {
 			$sqlstr = 'SELECT * FROM '.$this->__table.
-			            ' WHERE '.mysql_escape_string( $property ).
-			              " = '".mysql_escape_string( $value )."'";
+			            ' WHERE '.mysql_real_escape_string( $property, self::$__dbh ).
+			              " = '".mysql_real_escape_string( $value, self::$__dbh )."'";
 			
 			$res = $this->__query( $sqlstr );
 			$this->__record_data = mysql_fetch_array( $res , MYSQL_ASSOC );
@@ -70,8 +70,8 @@ class DBRecord {
 		$retval = array();
 		
 		$sqlstr = 'SELECT * FROM '.$this->__table.
-		            ' WHERE '.mysql_escape_string( $property ).
-		              " = '".mysql_escape_string( $value )."'";
+		            ' WHERE '.mysql_real_escape_string( $property, self::$__dbh ).
+		              " = '".mysql_real_escape_string( $value, self::$__dbh )."'";
 		
 		if( $options != null ) {
 			$sqlstr .= 'AND '.$options;
@@ -139,7 +139,7 @@ class DBRecord {
 					if( $property === 'id' ) continue;
 //					$sqlstr .= ' '.$property." = '".$value."',";
 //					$sqlstr .= ' '.$property." = '".mysql_escape_string(stripslashes($value))."',";		// ここだけ直す場合
-					$sqlstr .= ' '.$property." = '".mysql_escape_string($value)."',";
+					$sqlstr .= ' '.$property." = '".mysql_real_escape_string($value, self::$__dbh)."',";
 				}
 				$sqlstr = rtrim($sqlstr, ',' );
 				$sqlstr .= " WHERE id = '".$this->__id."'";

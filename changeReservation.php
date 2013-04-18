@@ -15,10 +15,8 @@ $dbh = false;
 if( $settings->mediatomb_update == 1 ) {
 	$dbh = @mysql_connect( $settings->db_host, $settings->db_user, $settings->db_pass );
 	if( $dbh !== false ) {
-		$sqlstr = "use ".$settings->db_name;
-		@mysql_query( $sqlstr );
-		$sqlstr = "set NAME utf8";
-		@mysql_query( $sqlstr );
+		mysql_select_db($settings->db_name);
+		mysql_set_charset('utf8');
 	}
 }
 

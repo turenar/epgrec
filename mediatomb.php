@@ -16,10 +16,8 @@ try {
 // DB接続
   $dbh = mysql_connect( $settings->db_host, $settings->db_user, $settings->db_pass );
   if( $dbh === false ) exit( "mysql connection fail" );
-  $sqlstr = "use ".$settings->db_name;
-  mysql_query( $sqlstr );
-  $sqlstr = "set NAME utf8";
-  mysql_query( $sqlstr );
+  mysql_select_db($settings->db_name);
+  mysql_set_charset('utf8');
 
   foreach( $recs as $rec ) {
 	  $title = mysql_real_escape_string($rec->title)."(".date("Y/m/d", toTimestamp($rec->starttime)).")";
