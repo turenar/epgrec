@@ -24,26 +24,35 @@ try{
 	$end_time = toTimestamp($rrec->endtime );
 	$duration = $end_time - $start_time;
 	
-	$size = 3 * 1024 * 1024 * $duration;	// 1秒あたり3MBと仮定
-
 	header('Content-type: video/mpeg');
 	header('Content-Disposition: inline; filename="'.$rrec->path.'"');
-	header('Content-Length: ' . $size );
+	// 動画のサイズを取得してLengthにしてないのはなぜ？
+	//$size = 3 * 1024 * 1024 * $duration;    // 1秒あたり3MBと仮定
+	//header('Content-Length: ' . $size );
+
+	// 間違ったContent-Lengthはコネクション切断がされなくなったり
+	// 途中で切られてしまうかもしれないからいっそのこと chunked 送信にしよう。
+	header('Transfer-Encoding: chunked');
 	
-	ob_clean();
 	flush();
 	
-	$fp = @fopen( '"'.INSTALL_PATH.$settings->spool."/".$rrec->path.'"', "r" );
+	$fp = @fopen( INSTALL_PATH.$settings->spool."/".$rrec->path, "r" );
 	if( $fp !== false ) {
 		do {
 			$start = microtime(true);
 			if( feof( $fp ) ) break;
-			echo fread( $fp, 6292 );
+			$buf = fread( $fp, 6292 );
+			// output chunk size
+			echo sprintf("%x\r\n", strlen($buf));
+			// output buffer
+			echo $buf . "\r\n";
 			@usleep( 2000 - (int)((microtime(true) - $start) * 1000 * 1000));
+			flush();
 		}
 		while( connection_aborted() == 0 );
 	}
 	fclose($fp);
+	echo "0\r\n\r\n";
 }
 catch(exception $e ) {
 	exit( $e->getMessage() );
