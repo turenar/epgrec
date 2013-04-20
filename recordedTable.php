@@ -82,7 +82,8 @@ try{
 		$arr['asf'] = ''.$settings->install_url.'/viewer.php?reserve_id='.$r->id;
 		$arr['title'] = htmlspecialchars($r->title,ENT_QUOTES);
 		$arr['description'] = htmlspecialchars($r->description,ENT_QUOTES);
-		$arr['thumb'] = "<img src=\"".$settings->install_url.$settings->thumbs.'/'.rawurlencode(array_pop(explode( '/', $r->path ))).".jpg\" />";
+		$__path = explode('/', $r->path); // Suppress strict warning: 'Only variables should be passed by reference'
+		$arr['thumb'] = "<img src=\"".$settings->install_url.$settings->thumbs.'/'.rawurlencode(array_pop($__path)).".jpg\" />";
 		$arr['cat'] = $cat->name_en;
 		$arr['mode'] = $RECORD_MODE[$r->mode]['name'];
 		$arr['keyword'] = putProgramHtml( $arr['title'], '*', 0, $r->category_id, 16 );
