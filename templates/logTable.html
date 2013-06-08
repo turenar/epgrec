@@ -8,13 +8,19 @@
 <meta http-equiv="Content-Style-Type" content="text/css">
 
 {literal}
+<script type="text/javascript">
+	function popJump(selOBJ)
+	{
+		n = selOBJ.selectedIndex;
+		location.href = selOBJ.options[n].value;
+	}
+</script>
 <style type="text/css">
 <!--
 body {padding:4px;margin:0;font-size:10pt;}
 a {text-decoration:none;}
 
 table#log_table {
-    width: 800px;
     border: 1px #BBB solid;
     border-collapse: collapse;
     border-spacing: 0;
@@ -33,7 +39,6 @@ table#log_table td {
     padding: 5px;
     border: 1px #BBB solid;
     border-width: 0 0 1px 1px;
-    text-align: center;
 }
 
 table#log_table td.errorlevel0 {background-color: #FFFFFF;}
@@ -50,7 +55,21 @@ table#log_table td.errorlevel2 {background-color: red;}
 
 <h2>{$sitetitle}</h2>
 
-<div><a href="index.php">番組表に戻る</a></div>
+<form>
+<select onChange="popJump(this)">
+<option value="#">メニュー
+<option value="index.php">地上デジタル番組表
+{if $link_add > 0}
+ <option value="index.php?type=BS">BSデジタル番組表
+ {if $link_add == 2}
+  <option value="index.php?type=CS">CSデジタル番組表
+ {/if}
+{/if}
+{foreach from=$menu_list item=record}
+<option value="{$record.url}">{$record.name}
+{/foreach}
+</select>
+</form>
 
 <table id="log_table">
  <tr>
@@ -61,14 +80,14 @@ table#log_table td.errorlevel2 {background-color: red;}
 
 {foreach from=$logs item=log}
  <tr>
-  <td class="errorlevel{$log->level}">
+  <td align="center" class="errorlevel{$log->level}">
     {if $log->level == 0}情報
     {elseif $log->level == 1}警告
     {elseif $log->level == 2}エラー
     {/if}
   </td>
-  <td>{$log->logtime}</td>
-  <td>{$log->message|escape}</td>
+  <td align="center">{$log->logtime}</td>
+  <td>{$log->message}</td>
  </tr>
 {/foreach}
 </body>

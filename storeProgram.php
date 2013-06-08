@@ -4,10 +4,30 @@
   chdir( $script_path );
   include_once( $script_path . '/config.php');
 
-  $type = $argv[1];	// BS CS1 CS2 GR
-  $file = $argv[2];	// TSファイル
-  $key  = "";
+  $type = $argv[1];	// BS CS GR
+  $file = $argv[2];	// XMLファイル
   
+  // SIGTERMシグナル
+  function handler( $signo = 0 ) {
+	global $file;
+	if( file_exists( $file ) ) {
+		@unlink( $file );
+	}
+	exit();
+  }
+  
+  // デーモン化
+  function daemon() {
+	if( pcntl_fork() != 0 )
+		exit();
+	posix_setsid();
+	if( pcntl_fork() != 0 )
+		exit;
+	pcntl_signal(SIGTERM, "handler");
+  }
+  
+  // デーモン化
+  daemon();
   // プライオリティ低に
   pcntl_setpriority(20);
   
@@ -16,49 +36,17 @@
   include_once( INSTALL_PATH . '/Keyword.class.php' );
   include_once( INSTALL_PATH . '/Settings.class.php' );
   include_once( INSTALL_PATH . '/storeProgram.inc.php' );
-  include_once( INSTALL_PATH . "/reclib.php" );
-  
   
   $settings = Settings::factory();
   
-  $xmlfile = "";
-  $cmdline = $settings->epgdump." ";
-  
-  if( $type === "GR" ) {
-	$key = $argv[3];	// key
-	$xmlfile = $settings->temp_xml.$key."";
-	$cmdline .= $key." ".$file." ".$xmlfile;
+  if( file_exists( $file ) ) {
+	$ch_id = storeProgram( $type, $file );
+	@unlink( $file );
+//  garbageClean();			//  不要プログラム削除
+	if( $ch_id != -1 ){
+		$shm_id = shm_attach( 2 );
+		doKeywordReservation( $type, $shm_id );	// キーワード予約
+		shm_detach( $shm_id );
+	}
   }
-  else if( $type === "CS1" ) {
-	$type = "CS";
-	$xmlfile = $settings->temp_xml."_cs1";
-	$cmdline .= "/CS ".$file." ".$xmlfile;
-  }
-  else if( $type === "CS2" ) {
-	$type = "CS";
-	$xmlfile = $settings->temp_xml."_cs2";
-	$cmdline .= "/CS ".$file." ".$xmlfile;
-  }
-  else if( $type === "BS" ) {
-	$xmlfile = $settings->temp_xml."_bs";
-	$cmdline .= "/BS ".$file." ".$xmlfile;
-  }
-  else exit();
-  
-  exec( $cmdline );
-  if( file_exists( $xmlfile ) ) {
-	storeProgram( $type, $xmlfile );
-	@unlink( $xmlfile );
-  }
-  else {
-	reclog( "storeProgram:: 正常な".$xmlfile."が作成されなかった模様(放送間帯でないなら問題ありません)", EPGREC_WARN );
-  }
-  
-  if( file_exists( $file ) ) @unlink( $file );
-
-  
-  /*
-  garbageClean();			//  不要プログラム削除
-  doKeywordReservation();	// キーワード予約
-  */
 ?>

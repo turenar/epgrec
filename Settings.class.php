@@ -1,5 +1,7 @@
 <?php
 include_once('config.php');
+include_once( INSTALL_PATH . "/DBRecord.class.php" );
+include_once( INSTALL_PATH . "/recLog.inc.php" );
 
 class Settings extends SimpleXMLElement {
 	
@@ -23,44 +25,6 @@ class Settings extends SimpleXMLElement {
 				$obj->cs_rec_flg = 0;
 				$obj->save();
 			}
-			
-			// 節電モード
-			if( $obj->exists("use_power_reduce") == 0 ) {
-				$obj->use_power_reduce = 0;
-				$obj->save();
-			}
-			
-			// getepg起動タイマー
-			if( $obj->exists("getepg_timer") == 0 ) {
-				$obj->getepg_timer = 4;
-				$obj->save();
-			}
-			
-			// 何分前にウェイクアップさせるか
-			if( $obj->exists("wakeup_before") == 0 ) {
-				$obj->wakeup_before = 10;
-				$obj->save();
-			}
-			
-			// Webサーバーのグループ名
-			if( $obj->exists("www_group") == 0 ) {
-				$obj->www_group = "www-data";
-				$obj->save();
-			}
-			
-			// Webサーバーのユーザー名
-			if( $obj->exists("www_user") == 0 ) {
-				$obj->www_user = "www-data";
-				$obj->save();
-			}
-			
-			// シャットダウンコマンド
-			if( $obj->exists("shutdown") == 0 ) {
-				$obj->shutdown = "sudo /sbin/shutdown";
-				$obj->save();
-			}
-			
-			
 			return $obj;
 		}
 		else {
@@ -87,20 +51,17 @@ class Settings extends SimpleXMLElement {
 			if(defined("CS_REC_FLG")) $xml->cs_rec_flg = CS_REC_FLG;
 			else $xml->cs_rec_flg = 0;
 			
-			if(defined("USE_KUROBON")) $xml->use_kurobon = USE_KUROBON ? 1 : 0;
-			else $xml->use_kurobon = 0;
-			
 			if(defined("FORMER_TIME")) $xml->former_time = FORMER_TIME;
-			else $xml->former_time = 20;
+			else $xml->former_time = 5;
 			
 			if(defined("EXTRA_TIME")) $xml->extra_time = EXTRA_TIME;
-			else $xml->extra_time = 0;
+			else $xml->extra_time = 3;
 			
 			if(defined("FORCE_CONT_REC")) $xml->force_cont_rec = FORCE_CONT_REC ? 1 : 0;
-			else $xml->force_cont_rec = 0;
+			else $xml->force_cont_rec = 1;
 			
 			if(defined("REC_SWITCH_TIME")) $xml->rec_switch_time = REC_SWITCH_TIME;
-			else $xml->rec_switch_time = 5;
+			else $xml->rec_switch_time = 10;
 			
 			if(defined("USE_THUMBS")) $xml->use_thumbs = USE_THUMBS ? 1 : 0;
 			else $xml->use_thumbs = 0;
@@ -163,25 +124,6 @@ class Settings extends SimpleXMLElement {
 			// CS録画
 			$xml->cs_rec_flg = 0;
 			
-			// 節電
-			$xml->use_power_reduce = 0;
-			
-			// getepg起動間隔（時間）
-			$xml->getepg_timer = 4;
-			
-			// ウェイクアップさせる時間
-			$xml->wakeup_before = 10;
-			
-			// wwwのグループ名
-			$xml->www_group = "www-data";
-			
-			// wwwのユーザー名
-			$xml->www_user = "www-data";
-			
-			// シャットダウンコマンド
-			$xml->shutdown = "sudo /sbin/shutdown";
-			
-			
 			$xml->save();
 			
 			return $xml;
@@ -195,6 +137,35 @@ class Settings extends SimpleXMLElement {
 	public function post() {
 		global $_POST;
 		
+		foreach( $_POST as $key => $value ){
+			if( $this->exists($key) ){
+				$trim_post = trim( $value );
+				if( stristr( $trim_post, 'wget ' )===FALSE && stristr( $trim_post, 'rm ' )===FALSE && stristr( $trim_post, 'sudo ' )===FALSE ){
+					if( $key === 'filename_format' ){
+						if( strpos( $trim_post, "\"" )===FALSE && strpos( $trim_post, "'" )===FALSE ){
+							continue;
+						}
+					}else{
+						$escp_post = escapeshellcmd( $trim_post );	// マルチバイト文字未対応
+						if( $trim_post === $escp_post ){
+							continue;
+						}
+					}
+				}
+				// 不法侵入による攻撃
+				$alert_msg = '不法侵入者による攻撃を受けました。['.$_SERVER['REMOTE_HOST'].'('.$_SERVER['REMOTE_ADDR'].')] '.$key.' => '.$trim_post;
+				reclog( $alert_msg, EPGREC_WARN );
+				file_put_contents( INSTALL_PATH.$this->spool.'/alert.log', date("Y-m-d H:i:s").' '.$alert_msg."\n", FILE_APPEND );
+				syslog( LOG_WARNING, $alert_msg );
+				return;
+			}
+		}
+		if( $_SERVER['REMOTE_ADDR'] !== '127.0.0.1' && strncmp( $_SERVER['REMOTE_ADDR'], '192.168.',  8 ) ){
+				$alert_msg = 'グローバルIPからの設定変更です。['.$_SERVER['REMOTE_HOST'].'('.$_SERVER['REMOTE_ADDR'].')] ';
+				reclog( $alert_msg, EPGREC_WARN );
+				file_put_contents( INSTALL_PATH.$this->spool.'/alert.log', date("Y-m-d H:i:s").' '.$alert_msg."\n", FILE_APPEND );
+				syslog( LOG_WARNING, $alert_msg );
+		}
 		foreach( $_POST as $key => $value ) {
 			
 			if( $this->exists($key) ) {

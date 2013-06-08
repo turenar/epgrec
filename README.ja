@@ -114,9 +114,6 @@ simpleReservation.php
 systemSetting.php
 　システム設定ページ
 
-upgrade_to_201002.php
-　2010年2月版へのアップデートスクリプト
-
 viewer.php
 　ASFヘッダを送るスクリプト
 

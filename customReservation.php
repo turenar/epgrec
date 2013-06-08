@@ -26,18 +26,20 @@ if(!(
    isset($_POST['title'])       &&
    isset($_POST['description']) &&
    isset($_POST['category_id']) &&
-   isset($_POST['record_mode']))
-) {
+   isset($_POST['record_mode']) &&
+   isset($_POST['discontinuity']) &&
+   isset($_POST['priority'])
+)) {
 	exit("Error:予約に必要な値がセットされていません");
 }
 
 
-$start_time = @mktime( $_POST['shour'], $_POST['smin'], 0, $_POST['smonth'], $_POST['sday'], $_POST['syear'] );
+$start_time = @mktime( $_POST['shour'], $_POST['smin'], $_POST['ssec'], $_POST['smonth'], $_POST['sday'], $_POST['syear'] );
 if( ($start_time < 0) || ($start_time === false) ) {
 	exit("Error:開始時間が不正です" );
 }
 
-$end_time = @mktime( $_POST['ehour'], $_POST['emin'], 0, $_POST['emonth'], $_POST['eday'], $_POST['eyear'] );
+$end_time = @mktime( $_POST['ehour'], $_POST['emin'], $_POST['esec'], $_POST['emonth'], $_POST['eday'], $_POST['eyear'] );
 if( ($end_time < 0) || ($end_time === false) ) {
 	exit("Error:終了時間が不正です" );
 }
@@ -47,6 +49,8 @@ $title = $_POST['title'];
 $description = $_POST['description'];
 $category_id = $_POST['category_id'];
 $mode = $_POST['record_mode'];
+$discontinuity = $_POST['discontinuity'];
+$priority = $_POST['priority'];
 
 
 $rval = 0;
@@ -61,11 +65,13 @@ try{
 		$program_id,
 		0,		// 自動録画
 		$mode,	// 録画モード
-		1		// ダーティフラグ
+		$discontinuity,
+		1,		// ダーティフラグ
+		$priority
 	);
 }
 catch( Exception $e ) {
 	exit( "Error:".$e->getMessage() );
 }
-exit( "".$program_id );
+exit( $rval );
 ?>

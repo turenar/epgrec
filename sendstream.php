@@ -33,7 +33,7 @@ try{
 	ob_clean();
 	flush();
 	
-	$fp = @fopen( INSTALL_PATH.$settings->spool."/".$rrec->path, "r" );
+	$fp = @fopen( '"'.INSTALL_PATH.$settings->spool."/".$rrec->path.'"', "r" );
 	if( $fp !== false ) {
 		do {
 			$start = microtime(true);

@@ -25,21 +25,19 @@
 		},
 		rec:function(id){
 			var df = 0;
+
 			if( $('#delete_file').attr('checked') ) {
 				df = 1;
 			}
 			$('#floatBox4Dialog').dialog('close');
-			$('#floatBox4Dialog').html('削除中.......');
-			$('#floatBox4Dialog').dialog('open', 'center');
+			
 			$.get(INISet.prgCancelURL, { reserve_id: id, delete_file: df } ,function(data){
+				
 				if(data.match(/^error/i)){
-					$('#floatBox4Dialog').dialog('close');
 					alert(data);
 				}
 				else {
-//					alert(data);
 					$('#resid_' + id ).hide();
-					$('#floatBox4Dialog').dialog('close');
 				}
 			});
 		},
@@ -81,12 +79,19 @@
 		DG.dialog({title:'変更',width:500});
 		DG.dialog('close');
 	});
+
+	function popJump(selOBJ)
+	{
+		n = selOBJ.selectedIndex;
+		location.href = selOBJ.options[n].value;
+	}
 -->
 </script>
 <style type="text/css">
 <!--
 body {padding:4px;margin:0;font-size:10pt;}
 a {text-decoration:none;}
+input.example1 { width: 75%; }
 
 .bold {font-weight:bold;}
 .small {font-size:75%;}
@@ -94,7 +99,6 @@ a {text-decoration:none;}
 a img {border:none; }
 
 table#reservation_table {
-    width: 960px;
     border: 1px #BBB solid;
     border-collapse: collapse;
     border-spacing: 0;
@@ -108,6 +112,7 @@ table#reservation_table th {
     font-weight: bold;
     line-height: 120%;
     text-align: center;
+    white-space: nowrap;
 }
 table#reservation_table td {
     padding: 5px;
@@ -125,6 +130,11 @@ table#reservation_table tr.ctg_music, #category_select a.ctg_music {background-c
 table#reservation_table tr.ctg_drama, #category_select a.ctg_drama {background-color: #D8FFD8;}
 table#reservation_table tr.ctg_anime, #category_select a.ctg_anime {background-color: #FFE4C8;}
 table#reservation_table tr.ctg_variety, #category_select a.ctg_variety {background-color: #FFD2EB;}
+table#reservation_table tr.ctg_documentary, #category_select a.ctg_documentary {background-color: #FFFFFF;}
+table#reservation_table tr.ctg_stage, #category_select a.ctg_stage {background-color: #FFFFFF;}
+table#reservation_table tr.ctg_hobby, #category_select a.ctg_hobby {background-color: #FFFFFF;}
+table#reservation_table tr.ctg_welfare, #category_select a.ctg_welfare {background-color: #FFFFFF;}
+table#reservation_table tr.ctg_expand, #category_select a.ctg_expand {background-color: #FFFFFF;}
 table#reservation_table tr.ctg_10, #category_select a.ctg_10 {background-color: #E4F4F4;}
 
 
@@ -144,23 +154,39 @@ table#reservation_table tr.ctg_10, #category_select a.ctg_10 {background-color: 
 
 <h2>{$sitetitle}</h2>
 
-<p><a href="index.php">番組表に戻る</a></p>
+
+<form>
+<select onChange="popJump(this)">
+<option value="#">メニュー
+<option value="index.php">地上デジタル番組表
+{if $link_add > 0}
+ <option value="index.php?type=BS">BSデジタル番組表
+ {if $link_add == 2}
+  <option value="index.php?type=CS">CSデジタル番組表
+ {/if}
+{/if}
+{foreach from=$menu_list item=record}
+<option value="{$record.url}">{$record.name}
+{/foreach}
+</select>
+</form>
+
 
 <div>
 絞り込み：
 <form method="post" action="recordedTable.php" >
 <input type="hidden" name="do_search" value="1" />
-検索語句<input type="text" size="20" name="search" value="{$search}" />
+検索語句<input type="text" name="search" value="{$search}" class="example1" /><br>
 局<select name="station">
   {foreach from=$stations item=st}
     <option value="{$st.id}" {$st.selected}>{$st.name}</option>
   {/foreach}
   </select>
-カテゴリ<select name="category_id">
+ジャンル<select name="category_id">
   {foreach from=$cats item=cat}
   <option value="{$cat.id}" {$cat.selected}>{$cat.name}</option>
   {/foreach}
-</select>
+  </select>
 <input type="submit" value="絞り込む" />
 </form>
 </div>
@@ -169,8 +195,10 @@ table#reservation_table tr.ctg_10, #category_select a.ctg_10 {background-color: 
 {if count($records)}
 <table id="reservation_table">
  <tr>
+  <th>№</th>
   <th>録画日時</th>
-  <th>ch</th>
+  <th>録画時間</th>
+  <th>局名</th>
   <th>モード</th>
   {if $use_thumbs == 1}<th>サムネール</th>{/if}
   <th>タイトル</th>
@@ -179,16 +207,18 @@ table#reservation_table tr.ctg_10, #category_select a.ctg_10 {background-color: 
   <th>削除</th>
  </tr>
 
-{foreach from=$records item=rec}
+{foreach from=$records name=loop item=rec }
  <tr id="resid_{$rec.id}" class="ctg_{$rec.cat}">
-  <td>{$rec.starttime}</td>
+  <td style="text-align: center;"><a {if $rec.keyword != ""}href="{$rec.keyword}"{/if}>{$smarty.foreach.loop.iteration}</a></td>
+  <td style="white-space: nowrap;">{$rec.starttime}</td>
+  <td style="white-space: nowrap;">{$rec.duration}</td>
   <td>{$rec.station_name}</td>
   <td>{$rec.mode}</td>
   {if $use_thumbs == 1}<td><a href="{$rec.asf}">{$rec.thumb}</a></td>{/if}
   <td><a href="{$rec.asf}" id="tid_{$rec.id}">{$rec.title}</a></td>
-  <td><a href="{$rec.asf}" id="did_{$rec.id}">{$rec.description}</a></td>
+  <td><a id="did_{$rec.id}">{$rec.description}</a></td>
   <td><input type="button" value="変更" onClick="javascript:PRG.editdialog('{$rec.id}')" /></td>
-  <td><input type="button" value="削除" onClick="javascript:PRG.dialog('{$rec.id}','{$rec.title|escape}')" /></td>
+  <td><input type="button" value="削除" onClick="javascript:PRG.dialog('{$rec.id}','{$rec.title}')" /></td>
  </tr>
 {/foreach}
 </table>

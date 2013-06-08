@@ -38,7 +38,11 @@ try{
 	echo "<PARAM NAME = \"Encoding\" VALUE = \"UTF-8\" />";
 	echo "<ENTRY>";
 	if( ! $rrec->complete ) echo "<REF HREF=\"".$settings->install_url."/sendstream.php?reserve_id=".$rrec->id ."\" />";
-	echo "<REF HREF=\"".$settings->install_url.$settings->spool."/".$rrec->path ."\" />";
+	$paths = explode( '/', $rrec->path );
+	$path = "";
+	foreach( $paths as $part )
+		$path .= '/'.rawurlencode( $part );
+	echo "<REF HREF=\"".$settings->install_url.$settings->spool.$path."\" />";
 	echo "<TITLE>".$title."</TITLE>";
 	echo "<ABSTRACT>".$abstract."</ABSTRACT>";
 	echo "<DURATION VALUE=";

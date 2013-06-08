@@ -1,32 +1,19 @@
 <?php
 
-define( "EPGREC_INFO" , 0 );
-define( "EPGREC_WARN" , 1 );
-define( "EPGREC_ERROR", 2 );
-
-class RecException extends Exception {
-	
-	private $level = EPGREC_INFO;
-	
-	public function __construct( $mesg, $l = EPGREC_INFO ) {
-		parent::__construct( $mesg );
-		$this->level = $l;
-	}
-	
-	public function getLevel() {
-		return $this->level;
-	}
-}
+define( 'E_INFO' , 0 );
+define( 'EPGREC_WARN', 1 );
+define( 'EPGREC_ERROR', 2 );
 
 
-function reclog( $message , $level = EPGREC_INFO ) {
+function reclog( $message , $level = E_INFO ) {
 	
 	try {
 		$log = new DBRecord( LOG_TBL );
 		
-		$log->logtime = date("Y-m-d H:i:s");
+		$log->logtime = date('Y-m-d H:i:s');
 		$log->level = $level;
-		$log->message = $message;
+		$log->message = strpos( $message, '<br>' )===FALSE && strpos( $message, '</a>' )===FALSE ? htmlspecialchars($message) : $message;
+		$log->update();
 	}
 	catch( Exception $e ) {
 		// 

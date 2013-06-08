@@ -21,11 +21,11 @@ class DBRecord {
 		if( self::$__dbh === false ) {
 			self::$__settings = Settings::factory();
 			self::$__dbh = @mysql_connect( self::$__settings->db_host , self::$__settings->db_user, self::$__settings->db_pass );
-			if( self::$__dbh === false ) throw new exception( "construct:データベースに接続できない" );
-			$sqlstr = "use ".self::$__settings->db_name;
+			if( self::$__dbh === false ) throw new exception( 'construct:データベースに接続できない' );
+			$sqlstr = 'use '.self::$__settings->db_name;
 			$res = $this->__query($sqlstr);
-			if( $res === false ) throw new exception("construct: " . $sqlstr );
-			$sqlstr = "set NAMES utf8";
+			if( $res === false ) throw new exception('construct: ' . $sqlstr );
+			$sqlstr = 'set NAMES utf8';
 			$res = $this->__query($sqlstr);
 		}
 		$this->__table = self::$__settings->tbl_prefix.$table;
@@ -35,13 +35,13 @@ class DBRecord {
 			$this->__id = 0;
 		}
 		else {
-			$sqlstr = "SELECT * FROM ".$this->__table.
-			            " WHERE ".mysql_real_escape_string( $property ).
-			              "='".mysql_real_escape_string( $value )."'";
+			$sqlstr = 'SELECT * FROM '.$this->__table.
+			            ' WHERE '.mysql_escape_string( $property ).
+			              " = '".mysql_escape_string( $value )."'";
 			
 			$res = $this->__query( $sqlstr );
 			$this->__record_data = mysql_fetch_array( $res , MYSQL_ASSOC );
-			if( $this->__record_data === false ) throw new exception( "construct:".$this->__table."に".$property."=".$value."はありません" );
+			if( $this->__record_data === false ) throw new exception( 'construct:'.$this->__table.'に'.$property.'='.$value.'はありません' );
 			// 最初にヒットした行のidを使用する
 			$this->__id = $this->__record_data['id'];
 		}
@@ -50,31 +50,31 @@ class DBRecord {
 	}
 	
 	function createTable( $tblstring ) {
-		$sqlstr = "use ".self::$__settings->db_name;
+		$sqlstr = 'use '.self::$__settings->db_name;
 		$res = $this->__query($sqlstr);
-		if( $res === false ) throw new exception("createTable: " . $sqlstr );
-		$sqlstr = "CREATE TABLE IF NOT EXISTS ".$this->__table." (" .$tblstring.") DEFAULT CHARACTER SET 'utf8'";
+		if( $res === false ) throw new exception('createTable: ' . $sqlstr );
+		$sqlstr = 'CREATE TABLE IF NOT EXISTS '.$this->__table.' (' .$tblstring.") DEFAULT CHARACTER SET 'utf8'";
 		$result = $this->__query( $sqlstr );
-		if( $result === false ) throw new exception( "createTable:テーブル作成失敗" );
+		if( $result === false ) throw new exception( 'createTable:テーブル作成失敗' );
 	}
 	
 	protected function __query( $sqlstr ) {
-		if( self::$__dbh === false ) throw new exception( "__query:DBに接続されていない" );
+		if( self::$__dbh === false ) throw new exception( '__query:DBに接続されていない' );
 		
 		$res = @mysql_query( $sqlstr, self::$__dbh );
-		if( $res === false ) throw new exception( "__query:DBクエリ失敗:".$sqlstr );
+		if( $res === false ) throw new exception( '__query:DBクエリ失敗:'.$sqlstr );
 		return $res;
 	}
 	
 	function fetch_array( $property , $value, $options = null ) {
 		$retval = array();
 		
-		$sqlstr = "SELECT * FROM ".$this->__table.
-		            " WHERE ".mysql_real_escape_string( $property ).
-		              "='".mysql_real_escape_string( $value )."'";
+		$sqlstr = 'SELECT * FROM '.$this->__table.
+		            ' WHERE '.mysql_escape_string( $property ).
+		              " = '".mysql_escape_string( $value )."'";
 		
 		if( $options != null ) {
-			$sqlstr .= "AND ".$options;
+			$sqlstr .= 'AND '.$options;
 		}
 		$res = $this->__query( $sqlstr );
 		while ($row = mysql_fetch_array($res, MYSQL_ASSOC)) {
@@ -85,95 +85,102 @@ class DBRecord {
 	}
 	
 	function __set( $property, $value ) {
-		if( $property === "id" ) throw new exception( "set:idの変更は不可" );
+		if( $property === 'id' ) throw new exception( 'set:idの変更は不可' );
 		// id = 0なら空の新規レコード作成
 		if( $this->__id == 0 ) {
-			$sqlstr = "INSERT INTO ".$this->__table." VALUES ( )";
+			$sqlstr = 'INSERT INTO '.$this->__table.' VALUES ( )';
 			$res = $this->__query( $sqlstr );
 			$this->__id = mysql_insert_id();
 			
 			// $this->__record_data読み出し 
-			$sqlstr = "SELECT * FROM ".$this->__table.
+			$sqlstr = 'SELECT * FROM '.$this->__table.
 			            " WHERE id = '".$this->__id."'";
 			
 			$res = $this->__query( $sqlstr );
 			$this->__record_data = mysql_fetch_array( $res , MYSQL_ASSOC );
 		}
-		if( $this->__record_data === false ) throw new exception("set: DBの異常？" );
+		if( $this->__record_data === false ) throw new exception('set: DBの異常？' );
 		
 		if( array_key_exists( $property, $this->__record_data ) ) {
-			$this->__record_data[$property] = mysql_real_escape_string($value);
+//			$this->__record_data[$property] = mysql_escape_string($value);
+			$this->__record_data[$property] = $value;
 			$this->__f_dirty = true;
 		}
 		else {
-			throw new exception("set:$property はありません" );
+			throw new exception('set:$property はありません' );
 		}
 	}
 	
 	function __get( $property ) {
-		if( $this->__id == 0 ) throw new exception( "get:無効なid" );
-		if( $property === "id" ) return $this->__id;
-		if( $this->__record_data === false ) throw new exception( "get: 無効なレコード" );
-		if( ! array_key_exists( $property, $this->__record_data ) ) throw new exception( "get: $propertyは存在しません" );
+		if( $this->__id == 0 ) throw new exception( 'get:無効なid' );
+		if( $property === 'id' ) return $this->__id;
+		if( $this->__record_data === false ) throw new exception( 'get: 無効なレコード' );
+		if( ! array_key_exists( $property, $this->__record_data ) ) throw new exception( 'get: $propertyは存在しません' );
 		
-		return stripslashes($this->__record_data[$property]);
+//		return stripslashes($this->__record_data[$property]);
+		return $this->__record_data[$property];
 	}
 	
 	function delete() {
-		if( $this->__id == 0 ) throw new exception( "delete:無効なid" );
+		if( $this->__id == 0 ) throw new exception( 'delete:無効なid' );
 		
-		$sqlstr = "DELETE FROM ".$this->__table." WHERE id='".$this->__id."'";
+		$sqlstr = 'DELETE FROM '.$this->__table." WHERE id = '".$this->__id."'";
 		$this->__query( $sqlstr );
 		$this->__id = 0;
 		$this->__record_data = false;
 		$this->__f_dirty = false;
 	}
 	
-	function update() {
+	function update( $dest_flag = FALSE ) {
 		if( $this->__id != 0 ) { 
 			if( $this->__f_dirty ) {
-				$sqlstr = "UPDATE ".$this->__table." SET";
+				$sqlstr = 'UPDATE '.$this->__table.' SET';
 				foreach( $this->__record_data as $property => $value ) {
-					if( $property === "id" ) continue;
-					$sqlstr .= " ".$property." = '".$value."',";
+					if( $property === 'id' ) continue;
+//					$sqlstr .= ' '.$property." = '".$value."',";
+//					$sqlstr .= ' '.$property." = '".mysql_escape_string(stripslashes($value))."',";		// ここだけ直す場合
+					$sqlstr .= ' '.$property." = '".mysql_escape_string($value)."',";
 				}
-				$sqlstr = rtrim($sqlstr, "," );
+				$sqlstr = rtrim($sqlstr, ',' );
 				$sqlstr .= " WHERE id = '".$this->__id."'";
 				$res = $this->__query($sqlstr);
-				if( $res === false ) throw new exception( "close: アップデート失敗" );
+				if( $res === false ){
+					if( !$dest_flag )		// 'デストラクタの中から (スクリプトの終了処理時に) 例外をスローしようとすると、致命的なエラーを引き起こします。'らしい
+						throw new exception( 'close: アップデート失敗' );
+				}
+				$this->__f_dirty = false;
 			}
-			$this->__f_dirty = false;
 		}
 	}
 	
 	// countを実行する
-	static function countRecords( $table, $options = "" ) {
+	static function countRecords( $table, $options = '' ) {
 		try{
 			$tbl = new self( $table );
-			$sqlstr = "SELECT COUNT(*) FROM " . $tbl->__table ." " . $options;
+			$sqlstr = 'SELECT COUNT(*) FROM ' . $tbl->__table .' ' . $options;
 			$result = $tbl->__query( $sqlstr );
 		}
 		catch( Exception $e ) {
 			throw $e;
 		}
-		if( $result === false ) throw new exception("COUNT失敗");
+		if( $result === false ) throw new exception('COUNT失敗');
 		$retval = mysql_fetch_row( $result );
-		return $retval[0];
+		return (int)$retval[0];
 	}
 	
 	// DBRecordオブジェクトを返すstaticなメソッド
-	static function createRecords( $table, $options = "" ) {
+	static function createRecords( $table, $options = '' ) {
 		$retval = array();
 		$arr = array();
 		try{
 			$tbl = new self( $table );
-			$sqlstr = "SELECT * FROM ".$tbl->__table." " .$options;
+			$sqlstr = 'SELECT * FROM '.$tbl->__table.' ' .$options;
 			$result = $tbl->__query( $sqlstr );
 		}
 		catch( Exception $e ) {
 			throw $e;
 		}
-		if( $result === false ) throw new exception("レコードが存在しません");
+		if( $result === false ) throw new exception('レコードが存在しません');
 		while ($row = mysql_fetch_array($result, MYSQL_ASSOC)) {
 			array_push( $retval, new self( $table,  'id', $row['id'] ) );
 		}
@@ -184,7 +191,7 @@ class DBRecord {
 	function __destruct() {
 		// 呼び忘れに対応
 		if( $this->__id != 0 ) {
-			$this->update();
+			$this->update(TRUE);
 		}
 		$this->__id = 0;
 		$this->__record_data = false;

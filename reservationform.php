@@ -31,11 +31,13 @@ try {
   $smarty->assign( "sday", $sday );
   $smarty->assign( "shour", $shour );
   $smarty->assign( "smin" ,$smin );
+  $smarty->assign( "ssec" ,$ssec );
   $smarty->assign( "eyear", $eyear );
   $smarty->assign( "emonth", $emonth );
   $smarty->assign( "eday", $eday );
   $smarty->assign( "ehour", $ehour );
   $smarty->assign( "emin" ,$emin );
+  $smarty->assign( "esec" ,$esec );
   
   $smarty->assign( "type", $prec->type );
   $smarty->assign( "channel", $prec->channel );

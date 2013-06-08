@@ -3,8 +3,12 @@ include_once('config.php');
 include_once( INSTALL_PATH . '/DBRecord.class.php' );
 include_once( INSTALL_PATH . '/Smarty/Smarty.class.php' );
 include_once( INSTALL_PATH . '/Settings.class.php' );
+include_once( INSTALL_PATH . '/reclib.php' );
+include_once( INSTALL_PATH . '/settings/menu_list.php' );
 
 $settings = Settings::factory();
+
+$week_tb = array( '日', '月', '火', '水', '木', '金', '土' );
 
 
 $order = "";
@@ -16,7 +20,7 @@ $station = 0;
 $dbh = @mysql_connect( $settings->db_host, $settings->db_user, $settings->db_pass );
 
 // $options = "WHERE complete='1'";
-$options = "WHERE starttime < '". date("Y-m-d H:i:s")."'";	// ながら再生は無理っぽい？
+$options = "WHERE starttime < '". date('Y-m-d H:i:s')."'";	// ながら再生は無理っぽい？
 
 if(isset( $_GET['key']) ) {
 	$options .= " AND autorec ='".mysql_real_escape_string(trim($_GET['key']))."'";
@@ -26,7 +30,14 @@ if(isset( $_POST['do_search'] )) {
 	if( isset($_POST['search'])){
 		if( $_POST['search'] != "" ) {
 			$search = $_POST['search'];
-			 $options .= " AND CONCAT(title,description) like '%".mysql_real_escape_string($_POST['search'])."%'";
+//			$options .= " AND CONCAT(title,description) like '%".mysql_real_escape_string($_POST['search'])."%'";
+			foreach( explode( " ", mysql_real_escape_string( $search ) ) as $key )
+				if( substr( $key, 0, 1 ) == '-' ){
+					$key = substr( $key, 1 );
+					$options .= " AND CONCAT(title,' ', description) not like '%$key%'";
+				}else{
+					$options .= " AND CONCAT(title,' ', description) like '%$key%'";
+				}
 		}
 	}
 	if( isset($_POST['category_id'])) {
@@ -44,65 +55,99 @@ if(isset( $_POST['do_search'] )) {
 }
 
 
-$options .= " ORDER BY starttime DESC";
+$options .= ' ORDER BY starttime DESC';
 
 try{
 	$rvs = DBRecord::createRecords(RESERVE_TBL, $options );
 	$records = array();
 	foreach( $rvs as $r ) {
-		$cat = new DBRecord(CATEGORY_TBL, "id", $r->category_id );
-		$ch  = new DBRecord(CHANNEL_TBL,  "id", $r->channel_id );
+		$cat = new DBRecord(CATEGORY_TBL, 'id', $r->category_id );
 		$arr = array();
 		$arr['id'] = $r->id;
-		$arr['station_name'] = $ch->name;
-		$arr['starttime'] = $r->starttime;
-		$arr['endtime'] = $r->endtime;
-		$arr['asf'] = "".$settings->install_url."/viewer.php?reserve_id=".$r->id;
+		if( $r->channel_id ){
+			try{
+				$ch  = new DBRecord(CHANNEL_TBL,  'id', $r->channel_id );
+				$arr['station_name'] = $ch->name;
+			}catch( exception $e ){
+				$r->channel_id = 0;
+				$r->update();
+				$arr['station_name'] = 'lost';
+			}
+		}else
+			$arr['station_name'] = 'lost';
+		$start_time = toTimestamp($r->starttime);
+		$end_time   = toTimestamp($r->endtime);
+		$arr['starttime'] = date( 'Y/m/d(', $start_time ).$week_tb[date( 'w', $start_time )].')<br>'.date( 'H:i:s', $start_time );
+		$arr['duration']  = date( 'H:i:s', $end_time-$start_time-9*60*60 );
+		$arr['asf'] = ''.$settings->install_url.'/viewer.php?reserve_id='.$r->id;
 		$arr['title'] = htmlspecialchars($r->title,ENT_QUOTES);
 		$arr['description'] = htmlspecialchars($r->description,ENT_QUOTES);
-		$arr['thumb'] = "<img src=\"".$settings->install_url.$settings->thumbs."/".htmlentities($r->path, ENT_QUOTES,"UTF-8").".jpg\" />";
+		$arr['thumb'] = "<img src=\"".$settings->install_url.$settings->thumbs.'/'.rawurlencode(array_pop(explode( '/', $r->path ))).".jpg\" />";
 		$arr['cat'] = $cat->name_en;
 		$arr['mode'] = $RECORD_MODE[$r->mode]['name'];
-		
+		$arr['keyword'] = putProgramHtml( $arr['title'], '*', 0, $r->category_id, 16 );
 		array_push( $records, $arr );
 	}
 	
 	$crecs = DBRecord::createRecords(CATEGORY_TBL );
 	$cats = array();
 	$cats[0]['id'] = 0;
-	$cats[0]['name'] = "すべて";
-	$cats[0]['selected'] = $category_id == 0 ? "selected" : "";
+	$cats[0]['name'] = 'すべて';
+	$cats[0]['selected'] = $category_id == 0 ? 'selected' : "";
 	foreach( $crecs as $c ) {
 		$arr = array();
 		$arr['id'] = $c->id;
 		$arr['name'] = $c->name_jp;
-		$arr['selected'] = $c->id == $category_id ? "selected" : "";
+		$arr['selected'] = $c->id == $category_id ? 'selected' : "";
 		array_push( $cats, $arr );
 	}
 	
-	$crecs = DBRecord::createRecords(CHANNEL_TBL );
 	$stations = array();
 	$stations[0]['id'] = 0;
-	$stations[0]['name'] = "すべて";
-	$stations[0]['selected'] = (! $station) ? "selected" : "";
+	$stations[0]['name'] = 'すべて';
+	$stations[0]['selected'] = (! $station) ? 'selected' : "";
+	$crecs = DBRecord::createRecords( CHANNEL_TBL, "WHERE type = 'GR' AND skip = '0' ORDER BY id" );
 	foreach( $crecs as $c ) {
 		$arr = array();
 		$arr['id'] = $c->id;
 		$arr['name'] = $c->name;
-		$arr['selected'] = $station == $c->id ? "selected" : "";
+		$arr['selected'] = $station == $c->id ? 'selected' : "";
+		array_push( $stations, $arr );
+	}
+	$crecs = DBRecord::createRecords( CHANNEL_TBL, "WHERE type = 'BS' AND skip = '0' ORDER BY sid" );
+	foreach( $crecs as $c ) {
+		$arr = array();
+		$arr['id'] = $c->id;
+		$arr['name'] = $c->name;
+		$arr['selected'] = $station == $c->id ? 'selected' : "";
+		array_push( $stations, $arr );
+	}
+	$crecs = DBRecord::createRecords( CHANNEL_TBL, "WHERE type = 'CS' AND skip = '0' ORDER BY sid" );
+	foreach( $crecs as $c ) {
+		$arr = array();
+		$arr['id'] = $c->id;
+		$arr['name'] = $c->name;
+		$arr['selected'] = $station == $c->id ? 'selected' : "";
 		array_push( $stations, $arr );
 	}
 	
 	
+	if( (int)$settings->bs_tuners > 0 )
+		$link_add = $settings->cs_rec_flg==0 ? 1 : 2;
+	else
+		$link_add = 0;
+
+
 	$smarty = new Smarty();
-	$smarty->assign("sitetitle","録画済一覧");
-	$smarty->assign( "records", $records );
-	$smarty->assign( "search", $search );
-	$smarty->assign( "stations", $stations );
-	$smarty->assign( "cats", $cats );
-	$smarty->assign( "use_thumbs", $settings->use_thumbs );
-	
-	$smarty->display("recordedTable.html");
+	$smarty->assign('sitetitle','録画済一覧');
+	$smarty->assign( 'records', $records );
+	$smarty->assign( 'search', $search );
+	$smarty->assign( 'stations', $stations );
+	$smarty->assign( 'cats', $cats );
+	$smarty->assign( 'use_thumbs', $settings->use_thumbs );
+	$smarty->assign( 'link_add', $link_add );
+	$smarty->assign( 'menu_list', $MENU_LIST );
+	$smarty->display('recordedTable.html');
 	
 	
 }

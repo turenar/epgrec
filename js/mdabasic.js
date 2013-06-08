@@ -13,7 +13,7 @@ MDA.Days = {
 			'(<span class="bold">' + this.dayStr[T.getDay()] + '</span>) ' + this.time4DispH(T);
 	},
 	time4DispH:function(T){
-		return '<span class="bold">' + this.num2str(T.getHours(),2) + ':' + this.num2str(T.getMinutes(),2) + '</span>'
+		return '<span class="bold">' + this.num2str(T.getHours(),2) + ':' + this.num2str(T.getMinutes(),2) + ':' + this.num2str(T.getSeconds(),2) + '</span>'
 	}
 }
 

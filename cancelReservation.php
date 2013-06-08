@@ -8,57 +8,55 @@ include_once( INSTALL_PATH . '/Settings.class.php' );
 $program_id = 0;
 $reserve_id = 0;
 $settings = Settings::factory();
-$rec = null;
-$path = "";
 
-if( isset($_GET['program_id'])) {
-	$program_id = $_GET['program_id'];
-}
-else if(isset($_GET['reserve_id'])) {
+if(isset($_GET['reserve_id'])) {
 	$reserve_id = $_GET['reserve_id'];
 	try {
-		$rec = new DBRecord( RESERVE_TBL, "id" , $reserve_id );
+		$rec = new DBRecord( RESERVE_TBL, 'id' , $reserve_id );
 		$program_id = $rec->program_id;
 		
 		if( isset( $_GET['delete_file'] ) ) {
 			if( $_GET['delete_file'] == 1 ) {
-				$path = INSTALL_PATH."/".$settings->spool."/".$rec->path;
+				// ファイルを削除
+				if( file_exists( INSTALL_PATH.'/'.$settings->spool.'/'.$rec->path ) ) {
+					@unlink(INSTALL_PATH.'/'.$settings->spool.'/'.$rec->path);
+					@unlink(INSTALL_PATH.'/'.$settings->thumbs.'/'.array_pop(explode( '/', $rec->path )).'.jpg');
+				}
 			}
 		}
 	}
 	catch( Exception $e ) {
 		// 無視
 	}
+}else if( isset($_GET['program_id'])) {
+	$program_id = $_GET['program_id'];
 }
+else
+	exit( 'error:no id' );
 
-// 手動取り消しのときには、その番組を自動録画対象から外す
-if( $program_id ) {
-	try {
-		$rec = new DBRecord(PROGRAM_TBL, "id", $program_id );
-		$rec->autorec = 0;
-	}
-	catch( Exception $e ) {
-		// 無視
+
+
+// 自動録画対象フラグ変更
+if( isset($_GET['autorec'])) {
+	$autorec = $_GET['autorec'];
+	if( $program_id ) {
+		try {
+			$rec = new DBRecord(PROGRAM_TBL, 'id', $program_id );
+			$rec->autorec = $autorec ? 0 : 1;
+			$rec->update();
+		}
+		catch( Exception $e ) {
+			// 無視
+		}
 	}
 }
-
-
 
 // 予約取り消し実行
 try {
-	Reservation::cancel( $reserve_id, $program_id );
-	if( isset( $_GET['delete_file'] ) ) {
-		if( $_GET['delete_file'] == 1 ) {
-			// ファイルを削除
-			if( file_exists( $path) ) {
-				@unlink($path);
-				@unlink($path.".jpg");
-			}
-		}
-	}
+	$ret_code = Reservation::cancel( $reserve_id, $program_id );
 }
 catch( Exception $e ) {
-	exit( "Error" . $e->getMessage() );
+	exit( 'Error' . $e->getMessage() );
 }
-exit();
+exit($ret_code);
 ?>
