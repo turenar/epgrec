@@ -31,17 +31,17 @@ function sig_handler()
 
 	// シャットダウンの処理
 	if( isset( $shm_name ) ){
-		//共有メモリー変数初期化
-		$shm_id = shm_attach( 2 );
-		if( shm_get_var( $shm_id, $shm_name ) ){
-			shm_put_var_surely( $shm_id, $shm_name, 0 );
-		}
-		shm_detach( $shm_id );
 		//テンポラリーファイル削除
 		if( isset( $temp_ts ) && file_exists( $temp_ts ) )
 			@unlink( $temp_ts );
 		if( isset( $temp_xml ) && file_exists( $temp_xml ) )
 			@unlink( $temp_xml );
+		//共有メモリー変数初期化
+		$shm_id = shmop_open_surely();
+		if( shmop_read_surely( $shm_id, $shm_name ) ){
+			shmop_write_surely( $shm_id, $shm_name, 0 );
+		}
+		shmop_close( $shm_id );
 	}
 	exit;
 }
@@ -68,12 +68,12 @@ if( search_getepg() === FALSE ){
 	if( $type === 'GR' ){
 		$smf_type = 'GR';
 		$sql_type = "type = 'GR'";
-		$smf_key  = 1;
+		$smf_key  = SEM_GR_START;
 		$tuners   = $settings->gr_tuners;
 	}else{
 		$smf_type = 'BS';
 		$sql_type = "(type = 'BS' OR type = 'CS')";
-		$smf_key  = 21;
+		$smf_key  = SEM_ST_START;
 		$tuners   = $settings->bs_tuners;
 	}
 	$epg_tm  = $rec_tm + $settings->rec_switch_time + $settings->former_time + 2;
@@ -82,35 +82,18 @@ if( search_getepg() === FALSE ){
 	if( DBRecord::countRecords( RESERVE_TBL, $sql_cmd." AND starttime > now() AND starttime <= '".toDatetime( $ed_tm )."' AND complete = '0'" ) )
 		exit();
 	$sql_cmd .= ' AND starttime > now() AND starttime <= addtime( now(), sec_to_time('.( $epg_tm + PADDING_TIME ).') )';
-	for( $sem_cnt=0; $sem_cnt<$tuners; $sem_cnt++ )
-		while(1){
-			$sem_id[$sem_cnt] = sem_get( $sem_cnt+$smf_key );
-			if( $sem_id[$sem_cnt] === FALSE )
-				usleep( 100 );
-			else
-				break;
-		}
-	while(1){
-		$shm_id = shm_attach( 2 );
-		if( $shm_id === FALSE )
-			usleep( 100 );
-		else
-			break;
+	for( $sem_cnt=0; $sem_cnt<$tuners; $sem_cnt++ ){
+		$sem_id[$sem_cnt] = sem_get_surely( $sem_cnt+$smf_key );
+		if( $sem_id[$sem_cnt] === FALSE )
+			exit;
 	}
-	while(1){
-		$sem_dump = sem_get( 40, 1, 0666 );
-		if( $sem_dump === FALSE )
-			usleep( 100 );
-		else
-			break;
-	}
-	while(1){
-		$sem_store = sem_get( 41, 1, 0666 );
-		if( $sem_store === FALSE )
-			usleep( 100 );
-		else
-			break;
-	}
+	$shm_id = shmop_open_surely();
+	$sem_dump = sem_get_surely( SEM_EPGDUMP );
+	if( $sem_dump === FALSE )
+		exit;
+	$sem_store = sem_get_surely( SEM_EPGSTORE );
+	if( $sem_store === FALSE )
+		exit;
 	// 何時のタイミングから始めるかは要調節
 	$stat = 0;
 	$start_tm = $now_tm = time();
@@ -149,19 +132,16 @@ if( search_getepg() === FALSE ){
 				}
 				if( sem_acquire( $sem_id[$slc_tuner] ) === TRUE ){
 					$shm_name = $smf_key + $slc_tuner;
-					if( shm_has_var( $shm_id, $shm_name ) === TRUE ){
-						$smph = shm_get_var( $shm_id, $shm_name );
-						if( $smph==2 && $tuners-$off_tuners==1 ){
-							// リアルタイム視聴停止
-							$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
-							posix_kill( $real_view, 9 );		// 録画コマンド停止
-							$smph = 0;
-							shm_put_var_surely( $shm_id, 42, 0 );		// リアルタイム視聴tunerNo clear
-						}
-					}else
+					$smph     = shmop_read_surely( $shm_id, $shm_name );
+					if( $smph==2 && $tuners-$off_tuners==1 ){
+						// リアルタイム視聴停止
+						$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
+						posix_kill( $real_view, 9 );		// 録画コマンド停止
 						$smph = 0;
+						shmop_write_surely( $shm_id, SEM_REALVIEW, 0 );		// リアルタイム視聴tunerNo clear
+					}
 					if( $smph == 0 ){
-						shm_put_var_surely( $shm_id, $shm_name, 1 );
+						shmop_write_surely( $shm_id, $shm_name, 1 );
 						while( sem_release( $sem_id[$slc_tuner] ) === FALSE )
 							usleep( 100 );
 						sleep( (int)$settings->rec_switch_time );
@@ -175,7 +155,7 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 						//チューナー占有解除
 						while( sem_acquire( $sem_id[$slc_tuner] ) === FALSE )
 							usleep( 100 );
-						shm_put_var_surely( $shm_id, $shm_name, 0 );
+						shmop_write_surely( $shm_id, $shm_name, 0 );
 						while( sem_release( $sem_id[$slc_tuner] ) === FALSE )
 							usleep( 100 );
 						//
@@ -239,7 +219,7 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 		}
 		$now_tm = time();
 	}
-	shm_detach( $shm_id );
+	shmop_close( $shm_id );
 }
 	exit();
 ?>

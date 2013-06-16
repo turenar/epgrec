@@ -62,7 +62,10 @@
 			var id_reserve_id = $('#id_reserve_id').val();
 			var tmp_disc = $('#id_autorec').attr('checked');
 			var id_autorec = tmp_disc ? 1 : 0;
+			var str = "<div>予約キャンセル中</div>";
 
+			$('#floatBox4Dialog').html(str);
+//			$('#floatBox4Dialog').dialog('open', 'center');
 			$.get('cancelReservation.php', { reserve_id: id_reserve_id,
 							autorec: id_autorec }, function(data) {
 				if(data.match(/^error/i)){
@@ -345,6 +348,8 @@ table#reservation_table td.rev_id, table#reservation_table td.autorec {display: 
 <input type="hidden" name="sft_end" value="{$sft_end}" />
 <input type="hidden" name="discontinuity" value="{$discontinuity}" />
 <input type="hidden" name="priority" value="{$priority}" />
+<input type="hidden" name="directory" value="{$directory}" />
+<input type="hidden" name="filename" value="{$filename}" />
 検索語句(<input type="checkbox" name="use_regexp" value="1" {if $use_regexp}checked{/if} />正規表現 <input type="checkbox" name="ena_title" value="1" {if $ena_title}checked{/if} />タイトル <input type="checkbox" name="ena_desc" value="1" {if $ena_desc}checked{/if} />概要)<input type="text" name="search" value="{$search}" class="example1" /><br />
 種別(
   {foreach from=$types item=type}

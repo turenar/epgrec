@@ -43,17 +43,17 @@ function sig_handler()
 
 	// シャットダウンの処理
 	if( isset( $shm_name ) ){
-		//共有メモリー変数初期化
-		$shm_id = shm_attach( 2 );
-		if( shm_get_var( $shm_id, $shm_name ) ){
-			shm_put_var_surely( $shm_id, $shm_name, 0 );
-		}
-		shm_detach( $shm_id );
 		//テンポラリーファイル削除
 		if( isset( $temp_ts ) && file_exists( $temp_ts ) )
 			@unlink( $temp_ts );
 		if( isset( $temp_xml ) && file_exists( $temp_xml ) )
 			@unlink( $temp_xml );
+		//共有メモリー変数初期化
+		$shm_id = shmop_open_surely();
+		if( shmop_read_surely( $shm_id, $shm_name ) ){
+			shmop_write_surely( $shm_id, $shm_name, 0 );
+		}
+		shmop_close( $shm_id );
 	}
 	exit;
 }
@@ -71,7 +71,7 @@ function sig_handler()
 	$slp_time = isset( $argv[6] ) ? (int)$argv[6] : 0;
 	$cut_sids = isset( $argv[7] ) ? $argv[7] : "";
 
-	$shm_nm   = array( 'GR' => 1, 'BS' => 21 );
+	$shm_nm   = array( 'GR' => SEM_GR_START, 'BS' => SEM_ST_START );
 	$smf_type = $type=='GR' ? 'GR' : 'BS';
 	$dmp_type = $type=='GR' ? $ch_disk : '/'.$type;
 	$temp_xml = $settings->temp_xml.'_'.$type.$value;
@@ -131,31 +131,19 @@ function sig_handler()
 		reclog( 'EPG受信失敗:録画コマンドに異常がある可能性があります', EPGREC_WARN );
 
 	//チューナー占有解除
-	while(1){
-		$shm_id = shm_attach( 2 );
-		if( $shm_id === FALSE )
-			usleep( 100 );
-		else
-			break;
-	}
+	$shm_id   = shmop_open_surely();
 	$shm_name = $shm_nm[$smf_type] + $tuner;
-	while(1){
-		$sem_id = sem_get( $shm_name );
-		if( $sem_id === FALSE )
-			usleep( 100 );
-		else
-			break;
-	}
+	$sem_id   = sem_get_surely( $shm_name );
 	while( sem_acquire( $sem_id ) === FALSE )
 		sleep( 1 );
-	shm_put_var_surely( $shm_id, $shm_name, 0 );
+	shmop_write_surely( $shm_id, $shm_name, 0 );
 	while( sem_release( $sem_id ) === FALSE )
 		usleep( 100 );
 
 	if( file_exists( $temp_ts ) && filesize( $temp_ts ) ){
 		scout_wait();
 		while(1){
-			$sem_id = sem_get( 40, 1, 0666 );
+			$sem_id = sem_get_surely( SEM_EPGDUMP );
 			if( $sem_id !== FALSE ){
 				while(1){
 					if( sem_acquire( $sem_id ) === TRUE ){
@@ -179,7 +167,7 @@ function sig_handler()
 				sleep( $slp_time );
 			scout_wait();
 			while(1){
-				$sem_id = sem_get( 41, 1, 0666 );
+				$sem_id = sem_get_surely( SEM_EPGSTORE );
 				if( $sem_id !== FALSE ){
 					while(1){
 						if( sem_acquire( $sem_id ) === TRUE ){
@@ -203,8 +191,8 @@ function sig_handler()
 		reclog( 'EPG受信失敗:TSファイル"'.$temp_ts.'"がありません(放送間帯でないなら問題ありません)', EPGREC_WARN );
 		reclog( $cmd_ts, EPGREC_WARN );
 		if( $tuner < TUNER_UNIT1 )
-			shm_put_var_surely( $shm_id, 40, 1 );
+			shmop_write_surely( $shm_id, SEM_REBOOT, 1 );
 	}
-	shm_detach( $shm_id );
+	shmop_close( $shm_id );
 	exit();
 ?>

@@ -60,22 +60,10 @@ if( isset($_POST['add_keyword']) ) {
 				$rec->rev_delete();
 			if( $rec->type !== '-' ){
 				// 録画予約実行
-				while(1){
-					$sem_key = sem_get( SEM_KEY, 1, 0666 );
-					if( $sem_key === FALSE )
-						usleep( 100 );
-					else
-						break;
-				}
-				while(1){
-					$shm_id = shm_attach( 2 );
-					if( $shm_id === FALSE )
-						usleep( 100 );
-					else
-						break;
-				}
+				$sem_key = sem_get_surely( SEM_KW_START );
+				$shm_id  = shmop_open_surely();
 				$rec->reservation( $rec->type, $shm_id, $sem_key );
-				shm_detach( $shm_id );
+				shmop_close( $shm_id );
 			}
 		}
 		catch( Exception $e ) {

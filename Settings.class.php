@@ -140,13 +140,16 @@ class Settings extends SimpleXMLElement {
 		foreach( $_POST as $key => $value ){
 			if( $this->exists($key) ){
 				$trim_post = trim( $value );
-				if( stristr( $trim_post, 'wget ' )===FALSE && stristr( $trim_post, 'rm ' )===FALSE && stristr( $trim_post, 'sudo ' )===FALSE ){
-					if( $key === 'filename_format' ){
+				if( $key === 'filename_format' ){
+					if( stristr( $trim_post, 'wget ' )===FALSE && stristr( $trim_post, 'rm ' )===FALSE && stristr( $trim_post, 'sudo ' )===FALSE
+					&& stristr( $trim_post, 'cp ' )===FALSE && stristr( $trim_post, 'mv ' )===FALSE && stristr( $trim_post, 'dd ' )===FALSE ){	// 念のため
 						if( strpos( $trim_post, "\"" )===FALSE && strpos( $trim_post, "'" )===FALSE ){
 							continue;
 						}
-					}else{
-						$escp_post = escapeshellcmd( $trim_post );	// マルチバイト文字未対応
+					}
+				}else{
+					if( strpos( $trim_post, ' ' ) === FALSE ){		// 引数の設定を検知
+						$escp_post = escapeshellcmd( $trim_post );	// escapeshellcmd()はマルチバイト文字未対応
 						if( $trim_post === $escp_post ){
 							continue;
 						}
@@ -161,10 +164,12 @@ class Settings extends SimpleXMLElement {
 			}
 		}
 		if( $_SERVER['REMOTE_ADDR'] !== '127.0.0.1' && strncmp( $_SERVER['REMOTE_ADDR'], '192.168.',  8 ) ){
-				$alert_msg = 'グローバルIPからの設定変更です。['.$_SERVER['REMOTE_HOST'].'('.$_SERVER['REMOTE_ADDR'].')] ';
-				reclog( $alert_msg, EPGREC_WARN );
-				file_put_contents( INSTALL_PATH.$this->spool.'/alert.log', date("Y-m-d H:i:s").' '.$alert_msg."\n", FILE_APPEND );
-				syslog( LOG_WARNING, $alert_msg );
+			$alert_msg = 'グローバルIPからの設定変更です。['.$_SERVER['REMOTE_HOST'].'('.$_SERVER['REMOTE_ADDR'].')] ';
+			reclog( $alert_msg, EPGREC_WARN );
+			file_put_contents( INSTALL_PATH.$this->spool.'/alert.log', date("Y-m-d H:i:s").' '.$alert_msg."\n", FILE_APPEND );
+			syslog( LOG_WARNING, $alert_msg );
+			if( SETTING_CHANGE_GIP === FALSE )
+				return;
 		}
 		foreach( $_POST as $key => $value ) {
 			
