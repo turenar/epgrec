@@ -66,9 +66,10 @@ foreach( $channel_map as $channel_disc => $channel ) {
 			foreach( $chd as $crec ){
 				$num_all_ch++;
 				$prev_end = $top_time;
+				$programs[$st]["id"]   = $ch_id = $crec->id;
 				$programs[$st]["skip"] = $crec->skip;
 				$programs[$st]["channel_disc"] = $crec->channel_disc;
-				$programs[$st]["station_name"]  = $crec->name;
+				$programs[$st]["station_name"] = $crec->name;
 				$programs[$st]["sid"] = $crec->sid;
 				$programs[$st]["ch_hash"] = md5($crec->channel_disc);
 				$programs[$st]["channel"] = $crec->channel;
@@ -82,7 +83,6 @@ foreach( $channel_map as $channel_disc => $channel ) {
 				$num = 0;
 				if( count( $reca ) > 1 || !( count( $reca )==1 && (string)$reca[0]['title']==="放送休止" ) ){
 					$ch_num = $wave_type.$crec->channel.'ch';
-					$ch_id  = $crec->id;
 					foreach( $reca as $prg ) {
 						// 前プログラムとの空きを調べる
 						$program_id = $prg['id'];

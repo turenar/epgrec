@@ -100,14 +100,8 @@ function cleanup( $rarr, $cmd ){
 	}
 
 	// PT2 fault flag clear
-	while(1){
-		$shm_id = shm_attach( 2 );
-		if( $shm_id === FALSE )
-			usleep( 100 );
-		else
-			break;
-	}
-	shm_put_var_surely( $shm_id, 40, 0 );
+	$shm_id = shmop_open_surely();
+	shmop_write_surely( $shm_id, SEM_REBOOT, 0 );
 
 	// EPG受信本数制御
 	// 面倒なので手抜き テンポラリ容量は十分確保しましょう(^_^)
@@ -389,7 +383,7 @@ ST_ESP:
 				while( $st['running'] );
 				proc_close( $proGR );
 			}
-			shm_put_var_surely( $shm_id, 40, 1 );
+			shmop_write_surely( $shm_id, SEM_REBOOT, 1 );
 			break;
 		}
 	}
@@ -398,30 +392,32 @@ ST_ESP:
 	doKeywordReservation( '*', $shm_id );
 
 	// PT2が不安定な場合、リブートする
-	$smph = shm_get_var( $shm_id, 40 );
-	if( PT1_REBOOT && $smph==1 ){
-		$search_core = time();
-		while(1){
-			// 5分以内に予約がなければリブート(変更する場合は3分より大きくすること)
-			$sql_cmd = "WHERE complete = '0' AND endtime > '".toDatetime($search_core)."' AND starttime < '".toDatetime($search_core+5*60)."'";
-			$num = DBRecord::countRecords( RESERVE_TBL, $sql_cmd );
-			if( $num == 0 ){
-				$sleep_tm     = $search_core - time();
-				if( $sleep_tm < 0 )
-					$sleep_tm = 0;
-				reclog( 'PT2 fault: SYSTEM REBOOT '.toDatetime($search_core+$settings->extra_time+10), EPGREC_WARN );
-				// 10は、録画完了後のDB書き込み待ち
-				sleep( $sleep_tm+$settings->extra_time+10 );		//使用中でない事が確認できる方法がないかな･･･
-				system( REBOOT_CMD );
-				break;
-			}else{
-				$revs = DBRecord::createRecords( RESERVE_TBL, $sql_cmd.' ORDER BY endtime DESC' );
-				$search_core = toTimestamp( $revs[0]->endtime );
-				if( $search_core-$shepherd_st >= (2*60-5)*60 )
+	if( PT1_REBOOT ){
+		$smph = shmop_read_surely( $shm_id, SEM_REBOOT );
+		if( $smph == 1 ){
+			$search_core = time();
+			while(1){
+				// 5分以内に予約がなければリブート(変更する場合は3分より大きくすること)
+				$sql_cmd = "WHERE complete = '0' AND endtime > '".toDatetime($search_core)."' AND starttime < '".toDatetime($search_core+5*60)."'";
+				$num = DBRecord::countRecords( RESERVE_TBL, $sql_cmd );
+				if( $num == 0 ){
+					$sleep_tm     = $search_core - time();
+					if( $sleep_tm < 0 )
+						$sleep_tm = 0;
+					reclog( 'PT2 fault: SYSTEM REBOOT '.toDatetime($search_core+$settings->extra_time+10), EPGREC_WARN );
+					// 10は、録画完了後のDB書き込み待ち
+					sleep( $sleep_tm+$settings->extra_time+10 );		//使用中でない事が確認できる方法がないかな･･･
+					system( REBOOT_CMD );
 					break;
+				}else{
+					$revs = DBRecord::createRecords( RESERVE_TBL, $sql_cmd.' ORDER BY endtime DESC' );
+					$search_core = toTimestamp( $revs[0]->endtime );
+					if( $search_core-$shepherd_st >= (2*60-5)*60 )
+						break;
+				}
 			}
 		}
 	}
-	shm_detach( $shm_id );
+	shmop_close( $shm_id );
 	exit();
 ?>

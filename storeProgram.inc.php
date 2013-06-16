@@ -31,13 +31,7 @@ function doKeywordReservation( $wave_type = '*', $shm_id ) {
  	$arr = array();
 	$arr = Keyword::createKeywords( 'ORDER BY priority DESC, id ASC' );
 	//キーワードを優先度で降順ソート
-	while(1){
-		$sem_key = sem_get( SEM_KEY, 1, 0666 );
-		if( $sem_key === FALSE )
-			usleep( 100 );
-		else
-			break;
-	}
+	$sem_key = sem_get_surely( SEM_KW_START );
 	if( count( $arr ) ){
 		//キーワード予約
 		foreach( $arr as $val ) {
@@ -1020,18 +1014,18 @@ NEXT_SUB:;
 						unset( $rec );
 						// 
 						if( ( $sch_sync['pre_check']===TRUE || $sch_sync['cnt']==-1 ) && strcmp( $starttime, $epg_time )<0 ){
-reclog( $channel_disc.'::'.$sch_sync['cnt'].' sch_key::'.$sch_key.'　'.$starttime.'　'.$epg_time );
+//reclog( $channel_disc.'::'.$sch_sync['cnt'].' sch_key::'.$sch_key.'　'.$starttime.'　'.$epg_time );
 							$sch_cnt = $sch_key;
 							do{
 								if( strcmp( $event_sch[$sch_cnt]['endtime'], $now_time ) >= 0 ){
 									if( strcmp( $event_sch[$sch_cnt]['starttime'], $now_time ) <= 0 ){
-reclog( $event_sch[$sch_cnt]['starttime'].'　'.$event_sch[$sch_cnt]['endtime'] );
+//reclog( $event_sch[$sch_cnt]['starttime'].'　'.$event_sch[$sch_cnt]['endtime'] );
 										$sch_sync['cnt']       = $sch_cnt;
 										$sch_sync['pre_check'] = FALSE;
 										break;
 									}else
 									if( $sch_cnt == 0 ){
-reclog( $event_sch[$sch_cnt]['starttime'].'　'.$event_sch[$sch_cnt]['endtime'] );
+//reclog( $event_sch[$sch_cnt]['starttime'].'　'.$event_sch[$sch_cnt]['endtime'] );
 										$sch_sync['cnt']       = 0;
 										$sch_sync['pre_check'] = FALSE;
 										break;
@@ -1236,14 +1230,8 @@ reclog( $event_sch[$sch_cnt]['starttime'].'　'.$event_sch[$sch_cnt]['endtime'] 
 	// 残りのEPG処理に時間がかかる場合に直近番組が始まってしまい再予約に失敗する対策
 //	doKeywordReservation( $type, $shm_id );
 	if( $key_cnt ){
-		while(1){
-			$sem_key = sem_get( SEM_KEY, 1, 0666 );
-			if( $sem_key === FALSE )
-				usleep( 100 );
-			else
-				break;
-		}
-		$result = array_unique( $key_stk, SORT_NUMERIC );		// keyword IDの重複解消
+		$sem_key = sem_get_surely( SEM_KW_START );
+		$result  = array_unique( $key_stk, SORT_NUMERIC );		// keyword IDの重複解消
 		foreach( $result as $keyword_id ){
 			$rec = new Keyword( 'id', $keyword_id );
 			$rec->reservation( $type, $shm_id, $sem_key );

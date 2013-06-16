@@ -3,8 +3,29 @@
 
 // ライブラリ
 
-  if( ! defined( 'EPERM' )  ) define( 'EPERM',  '1'  );
-  if( ! defined( 'ESRCH' )  ) define( 'ESRCH',  '3'  );
+define( 'FTOK_KEY', '/tmp/epgrec_ftok' );
+
+// 最大値
+define( 'MAX_TUNERS',    20 );					// 論理チューナー数
+define( 'SEM_KW_MAX',    10 );					// キーワード予約排他処理用
+define( 'SHM_SCAL_WIDE',  8 );					// 変数の桁数+1
+
+// ftok()のID・セマフォ・共有メモリーのキー (双方で共用)
+define( 'SEM_GR_START',  1 );							//  1-20:地デジ (0:未使用or録画中 1:EPG受信 2:リアルタイム視聴)
+define( 'SEM_ST_START', (SEM_GR_START+MAX_TUNERS) );	// 21-40:衛星 (0:未使用or録画中 1:EPG受信 2:リアルタイム視聴)
+define( 'SEM_REALVIEW', (SEM_ST_START+MAX_TUNERS) );	// 41:   リアルタイム視聴(チューナー番号)
+define( 'SEM_EPGDUMP',  (SEM_REALVIEW+1) );				// 42:   epgdump
+define( 'SEM_EPGSTORE', (SEM_REALVIEW+2) );				// 43:   EPGのDB展開
+define( 'SEM_REBOOT',   (SEM_REALVIEW+3) );				// 44:   リブート・フラグ
+define( 'SEM_KW_START', (SEM_REALVIEW+9) );				// 50-59:キーワード予約排他処理用(キーワードID)
+define( 'SHM_ID',      255 );							// 共用メモリー
+
+if( ! defined( 'EPERM'  ) ) define( 'EPERM',  1 );
+if( ! defined( 'ENOENT' ) ) define( 'ENOENT', 2 );
+if( ! defined( 'ESRCH'  ) ) define( 'ESRCH',  3 );
+if( ! defined( 'EEXIST' ) ) define( 'EEXIST', 17 );
+if( ! defined( 'EINVAL' ) ) define( 'EINVAL', 22 );
+if( ! defined( 'ENOSPC' ) ) define( 'ENOSPC', 28 );
 
 function toTimestamp( $string ) {
 	sscanf( $string, '%4d-%2d-%2d %2d:%2d:%2d', $y, $mon, $day, $h, $min, $s );
@@ -47,6 +68,7 @@ function mb_str_replace($search, $replace, $target, $encoding = "UTF-8" ) {
 
 // psのレコードからトークン切り出し
 function ps_tok( $src ){
+	$ps_tk = new stdClass;
 	$ps_tk->uid   = strtok( $src, " \t" );
 	$ps_tk->pid   = strtok( " \t" );
 	$ps_tk->ppid  = strtok( " \t" );
@@ -76,14 +98,236 @@ function search_reccmd( $rec_id ){
 	return FALSE;
 }
 
-function shm_put_var_surely( $shm_id, $shm_name, $sorce ){
+function get_ipckey( $id ){
+/*
+	if( !file_exists( FTOK_KEY ) ){
+		$handle = fopen( FTOK_KEY, 'w' );
+		fwrite( $handle, 'a' );
+		fclose( $handle );
+//		exec( 'sync' );
+	}
+	return ftok( FTOK_KEY, $id );	// ftok()は、仕様上で唯一性を担保できないバグあり
+*/
+	return $id;
+}
+
+function sem_log( $fnc_name, $errno, $php_err ){
+	$message = $errno!=0 ? 'posix error['.$errno.']::'.posix_strerror( $errno )."\n" : '';
+	if( !empty( $php_err ) )
+		$message .= 'type['.$php_err['type'].']::'.$php_err['message'].'('.$php_err['file'].':L'.$php_err['line'].")\n";
+	if( $message !== '' )
+		reclog( $fnc_name.'() fault　'.$message, EPGREC_WARN );
+}
+
+function sem_get_surely( $id, $max_acquire=1 ){
+	$key       = get_ipckey( $id );
+	$cnt       = 0;
+	$pre_err   = array();
+	$pre_errno = 0;
 	while(1){
-		while( shm_put_var( $shm_id, $shm_name, $sorce ) === FALSE )
-			usleep( 100 );
-		if( shm_get_var( $shm_id, $shm_name ) !== $sorce )
-			usleep( 100 );
-		else
-			break;
+		$sem_id = sem_get( $key, $max_acquire, 0644 );
+		if( $sem_id !== FALSE )
+			return $sem_id;
+		else{
+			$php_err = error_get_last();
+			$errno   = posix_get_last_error();
+			if( ++$cnt < 1000 ){
+				if( ( $errno && $errno!=$pre_errno ) || ( !empty( $php_err ) && $php_err!==$pre_err ) ){
+					if( $pre_errno || !empty( $pre_err ) )
+						sem_log( 'sem_get_surely', $pre_errno, $pre_err );
+					$pre_errno = $errno;
+					$pre_err   = $php_err;
+				}
+				usleep( 1000 );
+			}else{
+				sem_log( 'sem_get_surely', $errno, $php_err );
+				return FALSE;
+			}
+		}
+	}
+}
+
+function shmop_open_surely( $ret_mode=FALSE ){
+	$key       = get_ipckey( SHM_ID );
+	$cnt       = 0;
+	$pre_err   = array();
+	$pre_errno = 0;
+	while(1){
+		$shm_id = @shmop_open( $key, 'w', 0, 0 );
+		if( $shm_id !== FALSE )
+			return $shm_id;
+		else{
+			$shm_id = shmop_open( $key, 'n', 0644, 1000 );
+			if( $shm_id !== FALSE ){
+				// 初期化
+				for( $cnt=1; $cnt<=MAX_TUNERS*2+20; $cnt++ ){
+					if( !shmop_write_surely( $shm_id, $cnt, 0 ) ){
+						reclog( '共有メモリの初期化に失敗しました。', EPGREC_WARN );
+						shmop_delete( $shm_id );
+						shmop_close( $shm_id );
+						if( $ret_mode )
+							return FALSE;
+						else
+							exit;
+					}
+				}
+				return $shm_id;
+			}else{
+				$php_err = error_get_last();
+				$errno   = posix_get_last_error();
+				if( ++$cnt < 1000 ){
+					if( ( $errno && $errno!=$pre_errno ) || ( !empty( $php_err ) && $php_err!==$pre_err ) ){
+						if( $pre_errno || !empty( $pre_err ) )
+							sem_log( '共有メモリセグメントの取得に失敗しました。shmop_open', $pre_errno, $pre_err );
+						$pre_errno = $errno;
+						$pre_err   = $php_err;
+					}
+					switch( $errno ){
+						case EINVAL:	// 指定したサイズが、既存セグメントのサイズより大きいです。指定したサイズが、システムの最低値より小さいか、最大値より大きいです。
+						case ENOENT:	// key と一致する共有メモリセグメントがなく、IPC_CREAT が指定されていません。
+						case ENOSPC:	// 要求を満たす十分なメモリを、カーネルが割り当てられません。 
+//						case EEXIST:	// IPC_CREAT と IPC_EXCL が指定され、 key に対応する共有メモリセグメントがすでに存在します。
+							sem_log( '共有メモリセグメントの取得に失敗しました。shmop_open', $errno, $php_err );
+							if( $ret_mode )
+								return FALSE;
+							else
+								exit;
+							break;
+					}
+					usleep( 1000 );
+				}else{
+					sem_log( '共有メモリセグメントの取得に失敗しました。shmop_open', $errno, $php_err );
+					if( $ret_mode )
+						return FALSE;
+					else
+						exit;
+				}
+			}
+		}
+	}
+}
+
+// test code
+// 共有メモリセグメントを再取得 (注:共有変数が化けている可能性あり)
+function shm_restore( &$shm_id ){
+	$restore_box = array();
+	for( $cnt=0; $cnt<MAX_TUNERS*2+20; $cnt++ ){
+		$read_tmp = shmop_read( $shm_id, $cnt*SHM_SCAL_WIDE, SHM_SCAL_WIDE );
+		if( $read_tmp !== FALSE ){
+			array_push( $restore_box, $read_tmp );
+		}else{
+			reclog( '共有メモリの読込みに失敗しました。', EPGREC_WARN );
+			while( !shmop_delete( $shm_id ) )	// クローズ時に削除
+				usleep( 1000 );
+			return FALSE;
+		}
+	}
+	// ここまでくるなら正常だが･･･
+	while( !shmop_delete( $shm_id ) )
+		usleep( 1000 );
+	shmop_close( $shm_id );
+	$shm_id = shmop_open_surely( TRUE );
+	if( $shm_id !== FALSE ){
+		foreach( $restore_box as $cnt => $piece )
+			$sorce   = trim( $piece );
+			$src_str = ctype_digit( $sorce ) ? sprintf( '%-'.(SHM_SCAL_WIDE-1).'d', (int)$sorce ) : $piece;
+			if( !shmop_write_surely( $shm_id, $cnt+1, $src_str ) ){
+				reclog( '共有メモリのリストアに失敗しました。', EPGREC_WARN );
+				return FALSE;
+			}
+		return TRUE;
+	}else
+		return FALSE;
+}
+
+function shmop_read_surely( &$shm_id, $shm_name ){
+	$put_cnt   = 0;
+	$offset    = ( $shm_name - 1 ) * SHM_SCAL_WIDE;
+	$pre_err   = array();
+	$pre_errno = 0;
+	while(1){
+		$read_tmp = shmop_read( $shm_id, $offset, SHM_SCAL_WIDE );
+		if( $read_tmp !== FALSE ){
+			$sorce = trim( $read_tmp );
+			if( ctype_digit( $sorce ) )
+				return (int)$sorce;
+			else
+				return $sorce;
+		}else{
+			$php_err = error_get_last();
+			$errno   = posix_get_last_error();
+			if( ( $errno && $errno!=$pre_errno ) || ( !empty( $php_err ) && $php_err!==$pre_err ) ){
+				if( $pre_errno || !empty( $pre_err ) )
+					sem_log( 'shmop_read', $pre_errno, $pre_err );
+				$pre_errno = $errno;
+				$pre_err   = $php_err;
+			}
+			if( ++$put_cnt < 1000 ){
+				usleep( 1000 );
+			}else{
+				if( shm_restore( $shm_id ) ){
+					$put_cnt = 0;
+					continue;
+				}else
+					return FALSE;
+			}
+		}
+	}
+}
+
+function shmop_write_surely( &$shm_id, $shm_name, $sorce ){
+	$put_cnt   = 0;
+	$src_str   = sprintf( '%-'.(SHM_SCAL_WIDE-1).'d', $sorce );
+	$offset    = ( $shm_name - 1 ) * SHM_SCAL_WIDE;
+	$pre_err   = array();
+	$pre_errno = 0;
+	while(1){
+		if( shmop_write( $shm_id, $src_str, $offset ) === FALSE ){
+			$php_err = error_get_last();
+			$errno   = posix_get_last_error();
+			if( ( $errno && $errno!=$pre_errno ) || ( !empty( $php_err ) && $php_err!==$pre_err ) ){
+				if( $pre_errno || !empty( $pre_err ) )
+					sem_log( 'shmop_write', $pre_errno, $pre_err );
+				$pre_errno = $errno;
+				$pre_err   = $php_err;
+			}
+			if( ++$put_cnt < 1000 ){
+				usleep( 1000 );
+			}else{
+				if( shm_restore( $shm_id ) ){
+					$put_cnt = 0;
+					continue;
+				}else
+					return FALSE;
+			}
+		}else{
+			$get_cnt   = 0;
+			$pre_err   = array();
+			$pre_errno = 0;
+			while(1){
+				usleep( 1000 );
+				$read_tmp = shmop_read( $shm_id, $offset, SHM_SCAL_WIDE );
+				if( $read_tmp!==FALSE && (int)$read_tmp==$sorce )
+					return TRUE;
+				else{
+					$php_err = error_get_last();
+					$errno   = posix_get_last_error();
+					if( ( $errno && $errno!=$pre_errno ) || ( !empty( $php_err ) && $php_err!==$pre_err ) ){
+						if( $pre_errno || !empty( $pre_err ) )
+							sem_log( 'comp loop('.$get_cnt.'):'.$shm_name.'['.$src_str.'='.$read_tmp.'('.strlen($read_tmp).')] shmop_write', $pre_errno, $pre_err );
+						$pre_errno = $errno;
+						$pre_err   = $php_err;
+					}
+					if( ++$get_cnt >= 1000 ){
+						if( shm_restore( $shm_id ) ){
+							$put_cnt = 0;
+							continue 2;
+						}else
+							return FALSE;
+					}
+				}
+			}
+		}
 	}
 }
 

@@ -77,26 +77,12 @@ $RECORD_MODE = array(
 );
 
 
-/* 廃止
-// BSチューナーとして黒Friioを用いているのなら下のfalseをtrueに変えてください。
-
-define( "USE_KUROBON", false );
-*/
-
 define( "TUNER_UNIT1", 0 );							// 第一チューナーの各放送波の論理チューナ数(地上波･衛星波で共用 ex.PT1が1枚なら2)
 define( "TUNER_UNIT2", 0 );							// 上記以外の論理チューナ数(未使用)
 
 // PT1キャラデバ版ドライバー使用時に変更すること
 define( "USE_RECPT1", FALSE );						// recpt1使用時はTRUEにすること
 define( "RECPT1_EPG_PATCH", FALSE );				// recpt1 EPG単独出力パッチ使用時はTRUE
-
-/* 以下の2設定は、廃止
-// PT1以外のチューナーでEPG単独出力パッチ使用時はTRUE
-define( "OTHER_EPG_PATCH", FALSE );
-
-// PT1以外のチューナーでrecpt1ctl対応パッチ使用時はTRUE
-define( "OTHER_CTL_PATCH", FALSE );
-*/
 
 // PTシリーズ以外のチューナーの個別設定(チューナー数に応じて増やすこと)
 $OTHER_TUNERS_CHARA = array(
@@ -137,6 +123,7 @@ define( "REALVIEW_PID", "/tmp/realview" );			// リアルタイム視聴チュ�
 define( "HIDE_CH_EPG_GET", FALSE );					// 非表示チャンネルのEPGを取得するならTRUE
 define( "EXTINCT_CH_AUTO_DELETE", FALSE );			// 廃止チャンネルを自動削除するならTRUE(HIDE_CH_EPG_GET=TRUE時のみに有効・メンテナンス画面あり)
 
+define( "SETTING_CHANGE_GIP", FALSE );				// グローバルIPからの設定変更を許可する場合はTRUE
 //////////////////////////////////////////////////////////////////////////////
 // 以降の変数・定数はほとんどの場合、変更する必要はありません
 

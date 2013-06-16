@@ -15,7 +15,7 @@
   if( file_exists( $settings->temp_data ) ) @unlink( $settings->temp_data );
   if( file_exists( $settings->temp_xml ) ) @unlink( $settings->temp_xml );
 
-  $shm_id = shm_attach( 2 );
+	$shm_id = shmop_open_surely();
   // BSを処理する
   if( $settings->bs_tuners != 0 ) {
 	// 録画重複チェック
@@ -74,6 +74,6 @@
   
   garbageClean();			//  不要プログラム削除
   doKeywordReservation( '*', $shm_id );	// キーワード予約
-  shm_detach( $shm_id );
+  shmop_close( $shm_id );
   exit();
 ?>

@@ -10,14 +10,8 @@
   include_once( INSTALL_PATH . '/storeProgram.inc.php' );
   include_once( INSTALL_PATH . '/recLog.inc.php' );
 
-	while(1){
-		$shm_id = shm_attach( 2 );
-		if( $shm_id === FALSE )
-			usleep( 100 );
-		else
-			break;
-	}
+	$shm_id = shmop_open_surely();
   doKeywordReservation( '*', $shm_id );	// キーワード予約
-  shm_detach( $shm_id );
+  shmop_close( $shm_id );
   exit();
 ?>

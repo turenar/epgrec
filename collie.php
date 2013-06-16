@@ -44,21 +44,12 @@ if( $usable_tuners != 0 ){
 				);
 	$sheep_lmt = $settings->cs_rec_flg==0 ? 1 : 3;
 	$add_time  = $settings->rec_switch_time + 2;
-	for( $sem_cnt=0; $sem_cnt<$tuners; $sem_cnt++ )
-		while(1){
-			$sem_id[$sem_cnt] = sem_get( $sem_cnt+21 );
-			if( $sem_id[$sem_cnt] === FALSE )
-				usleep( 100 );
-			else
-				break;
-		}
-	while(1){
-		$shm_id = shm_attach( 2 );
-		if( $shm_id === FALSE )
-			usleep( 100 );
-		else
-			break;
+	for( $sem_cnt=0; $sem_cnt<$tuners; $sem_cnt++ ){
+		$sem_id[$sem_cnt] = sem_get_surely( $sem_cnt+SEM_ST_START );
+		if( $sem_id[$sem_cnt] === FALSE )
+			exit;
 	}
+	$shm_id   = shmop_open_surely();
 	$sql_base = "WHERE complete = '0' AND (type = 'BS' OR type = 'CS')";
 	$loop_tim = 10;
 	$key      = 0;
@@ -84,20 +75,17 @@ if( $usable_tuners != 0 ){
 								continue 2;
 						}
 						if( sem_acquire( $sem_id[$slc_tuner] ) === TRUE ){
-							$shm_name = $slc_tuner + 21;
-							if( shm_has_var( $shm_id, $shm_name ) === TRUE ){
-								$smph = shm_get_var( $shm_id, $shm_name );
-								if( $smph==2 && $tuners-$off_tuners==1 ){
-									// リアルタイム視聴停止
-									$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
-									posix_kill( $real_view, 9 );		// 録画コマンド停止
-									$smph = 0;
-									shm_put_var_surely( $shm_id, 42, 0 );		// リアルタイム視聴tunerNo clear
-								}
-							}else
+							$shm_name = $slc_tuner + SEM_ST_START;
+							$smph     = shmop_read_surely( $shm_id, $shm_name );
+							if( $smph==2 && $tuners-$off_tuners==1 ){
+								// リアルタイム視聴停止
+								$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
+								posix_kill( $real_view, 9 );		// 録画コマンド停止
 								$smph = 0;
+								shmop_write_surely( $shm_id, SEM_REALVIEW, 0 );		// リアルタイム視聴tunerNo clear
+							}
 							if( $smph == 0 ){
-								shm_put_var_surely( $shm_id, $shm_name, 1 );
+								shmop_write_surely( $shm_id, $shm_name, 1 );
 								while( sem_release( $sem_id[$slc_tuner] ) === FALSE )
 									usleep( 100 );
 
@@ -138,11 +126,11 @@ if( $usable_tuners != 0 ){
 												if( $rec_time[$key-1] > $rec_time[$key] )
 													continue;
 												else{
-													shm_put_var_surely( $shm_id, $shm_name, 0 );
+													shmop_write_surely( $shm_id, $shm_name, 0 );
 													continue 4;
 												}
 											}else{
-												shm_put_var_surely( $shm_id, $shm_name, 0 );
+												shmop_write_surely( $shm_id, $shm_name, 0 );
 												break 4;		// 終了
 											}
 									}
@@ -195,7 +183,7 @@ if( $usable_tuners != 0 ){
 									else
 										break 3;
 								}else
-									shm_put_var_surely( $shm_id, $shm_name, 0 );
+									shmop_write_surely( $shm_id, $shm_name, 0 );
 							}else
 								//占有失敗
 								while( sem_release( $sem_id[$slc_tuner] ) === FALSE )
@@ -215,14 +203,14 @@ if( $usable_tuners != 0 ){
 		//チューナー空き確認
 		$use = 0;
 		for( $tune_cnt=0; $tune_cnt<$tuners; $tune_cnt++ )
-			if( shm_get_var( $shm_id, $tune_cnt+21 ) )
+			if( shmop_read_surely( $shm_id, $tune_cnt+SEM_ST_START ) )
 				$use++;
 		if( $use_cnt > $use )
 			$use_cnt = $use;
 		else
 			sleep(1);
 	}
-	shm_detach( $shm_id );
+	shmop_close( $shm_id );
 GATHER_SHEEPS:
 	//全子プロセス(EPG受信・更新)終了待ち
 	while( count($pro) ){

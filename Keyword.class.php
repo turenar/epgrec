@@ -6,8 +6,6 @@ include_once( INSTALL_PATH . '/Reservation.class.php' );
 include_once( INSTALL_PATH . '/Settings.class.php' );
 include_once( INSTALL_PATH . '/recLog.inc.php' );
 
-define( 'SEM_KEY', 43 );
-
 
 class Keyword extends DBRecord {
 	
@@ -148,30 +146,26 @@ class Keyword extends DBRecord {
 		while(1){
 			if( sem_acquire( $sem_key ) === TRUE ){
 				// keyword_id占有チェック
-				$shm_cnt = 50;
+				$shm_cnt = SEM_KW_START;
 				do{
-					if( shm_has_var( $shm_id, $shm_cnt ) === TRUE ){
-						if( shm_get_var( $shm_id, $shm_cnt ) == $this->__id ){
-							while( sem_release( $sem_key ) === FALSE )
-								usleep( 100 );
-							usleep( 1000 );
-							continue 2;
-						}
+					if( shmop_read_surely( $shm_id, $shm_cnt ) == $this->__id ){
+						while( sem_release( $sem_key ) === FALSE )
+							usleep( 100 );
+						usleep( 1000 );
+						continue 2;
 					}
-				}while( ++$shm_cnt < 50+10 );
+				}while( ++$shm_cnt < SEM_KW_START+SEM_KW_MAX );
 
 				// keyword_id占有
-				$shm_cnt = 50;
+				$shm_cnt = SEM_KW_START;
 				do{
-					if( shm_has_var( $shm_id, $shm_cnt ) === TRUE ){
-						if( shm_get_var( $shm_id, $shm_cnt ) != 0 )
-							continue;
-					}
-					shm_put_var_surely( $shm_id, $shm_cnt, $this->__id );
+					if( shmop_read_surely( $shm_id, $shm_cnt ) != 0 )
+						continue;
+					shmop_write_surely( $shm_id, $shm_cnt, $this->__id );
 					while( sem_release( $sem_key ) === FALSE )
 						usleep( 100 );
 					break 2;
-				}while( ++$shm_cnt < 50+10 );
+				}while( ++$shm_cnt < SEM_KW_START+SEM_KW_MAX );
 				while( sem_release( $sem_key ) === FALSE )
 					usleep( 100 );
 				usleep( 2000 );
@@ -185,7 +179,7 @@ class Keyword extends DBRecord {
 			// keyword_id開放
 			while( sem_acquire( $sem_key ) === FALSE )
 				usleep( 100 );
-			shm_put_var_surely( $shm_id, $shm_cnt, 0 );
+			shmop_write_surely( $shm_id, $shm_cnt, 0 );
 			while( sem_release( $sem_key ) === FALSE )
 				usleep( 100 );
 			throw $e;
@@ -206,7 +200,7 @@ class Keyword extends DBRecord {
 		// keyword_id開放
 		while( sem_acquire( $sem_key ) === FALSE )
 			usleep( 100 );
-		shm_put_var_surely( $shm_id, $shm_cnt, 0 );
+		shmop_write_surely( $shm_id, $shm_cnt, 0 );
 		while( sem_release( $sem_key ) === FALSE )
 			usleep( 100 );
 	}

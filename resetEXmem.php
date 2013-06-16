@@ -8,27 +8,21 @@
 
 	$settings = Settings::factory();
 
-	while(1){
-		$shm_id = shm_attach( 2 );
-		if( $shm_id === FALSE )
-			usleep( 100 );
-		else
-			break;
-	}
+	$shm_id = shmop_open_surely();
 	if( isset( $argv[1] ) ){
-		$val = isset( $argv[2] ) ? (int)$argv[2] : 0;
-		shm_put_var_surely( $shm_id, $argv[1], $val );
+		$val = isset( $argv[2] ) ? (int)$argv[2] : (int)0;
+		shmop_write_surely( $shm_id, (int)$argv[1], $val );
 	}else{
 		for( $tuner=0; $tuner<$settings->gr_tuners;$tuner++ ){
-			shm_put_var_surely( $shm_id, 1+$tuner, 0 );
+			shmop_write_surely( $shm_id, SEM_GR_START+$tuner, 0 );
 		}
 		for( $tuner=0; $tuner<$settings->bs_tuners;$tuner++ ){
-			shm_put_var_surely( $shm_id, 21+$tuner, 0 );
+			shmop_write_surely( $shm_id, SEM_ST_START+$tuner, 0 );
 		}
-		for( $tuner=0; $tuner<10;$tuner++ ){
-			shm_put_var_surely( $shm_id, 40+$tuner, 0 );
+		for( $tuner=0; $tuner<20;$tuner++ ){
+			shmop_write_surely( $shm_id, SEM_REALVIEW+$tuner, 0 );
 		}
 	}
-	shm_detach( $shm_id );
+	shmop_close( $shm_id );
 	exit();
 ?>

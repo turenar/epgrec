@@ -203,7 +203,7 @@ RETRY:;
 					$n_1 = 0;
 					if( isset( $t_tree[$t_cnt] ) )
 					while( $n_0 < count($t_tree[$t_cnt]) ){
-//echo "[".count($t_tree[$t_cnt])."-".$n_0."]\n";
+//file_put_contents( '/tmp/debug.txt', "[".count($t_tree[$t_cnt])."-".$n_0."]".$t_ovlp[$t_cnt][$n_0]."\n", FILE_APPEND );
 						$bf_org_ed = $trecs[$t_tree[$t_cnt][$b_rev]]['end_time'];
 						$bf_ed     = ( ($bf_org_ed-$trecs[$t_tree[$t_cnt][$b_rev]]['start_time'])%60 != 0 ) ? $bf_org_ed+$ed_tm_sft : $bf_org_ed;
 						$af_st     = $trecs[$t_tree[$t_cnt][$n_0]]['start_time'];
@@ -214,9 +214,9 @@ RETRY:;
 							$n_1++;
 							if( $af_ed >= $bf_ed )
 								$t_ovlp[$t_cnt][$n_0]++;
-//echo count($t_tree[$t_cnt]).">";
+//file_put_contents( '/tmp/debug.txt', count($t_tree[$t_cnt]).">", FILE_APPEND );
 							array_splice( $t_tree[$t_cnt], $n_0, 1 );
-//echo count($t_tree[$t_cnt])."\n";
+//file_put_contents( '/tmp/debug.txt', count($t_tree[$t_cnt])."\n", FILE_APPEND );
 						}else
 						if( $bf_ed == $af_st ){
 							//隣接重複
@@ -231,15 +231,16 @@ RETRY:;
 								}else
 									break;
 							}
-							if( $t_ovlp[$t_cnt][$n_0] <= $tuners-$t_cnt ){
-//echo count($t_tree[$t_cnt]).">>\n";
+//file_put_contents( '/tmp/debug.txt', $t_ovlp[$t_cnt][$n_0]."::\n", FILE_APPEND );
+							if( $t_ovlp[$t_cnt][$n_0]<=$tuners-$t_cnt || ( $settings->force_cont_rec==1 && $trecs[$t_tree[$t_cnt][$b_rev]]['discontinuity']!=1 ) ){
+//file_put_contents( '/tmp/debug.txt', count($t_tree[$t_cnt]).">>\n", FILE_APPEND );
 								if( $t_ovlp[$t_cnt][$n_0]<=TUNER_UNIT1-1-$t_cnt && $t_ovlp[$t_cnt][$n_0] <= $tuners-1-$t_cnt ){
 									//(使い勝手の良い)チューナに余裕あり
 									for( $cc=$n_0; $cc<$br_lmt; $cc++ ){
 										$t_tree[$t_cnt+1][$n_1] = $t_tree[$t_cnt][$cc];
 										$n_1++;
 									}
-//echo "array1-(".($br_lmt-$n_0).")\n";
+//file_put_contents( '/tmp/debug.txt', "array1-(".($br_lmt-$n_0).")\n", FILE_APPEND );
 									array_splice( $t_tree[$t_cnt], $n_0, $br_lmt-$n_0 );
 									$t_ovlp[$t_cnt][$n_0] = 0;		//一応クリア
 								}else{
@@ -254,11 +255,11 @@ RETRY:;
 											$t_tree[$t_cnt+1][$n_1] = $t_tree[$t_cnt][$cc];
 											$n_1++;
 										}
-//echo "array2-1-(".$t_ovlp[$t_cnt][$n_0]." ".$br_lmt." ".$s_ch." ".$n_0.")\n";
-//echo "array2-2-(".($br_lmt-($s_ch+1)).")\n";
+//file_put_contents( '/tmp/debug.txt', "array2-1-(".$t_ovlp[$t_cnt][$n_0]." ".$br_lmt." ".$s_ch." ".$n_0.")\n", FILE_APPEND );
+//file_put_contents( '/tmp/debug.txt', "array2-2-(".($br_lmt-($s_ch+1)).")\n", FILE_APPEND );
 										if( $br_lmt-($s_ch+1) > 0 )
 											array_splice( $t_tree[$t_cnt], $s_ch+1, $br_lmt-($s_ch+1) );
-//echo "array2-3-(".($s_ch-$n_0).")\n";
+//file_put_contents( '/tmp/debug.txt', "array2-3-(".($s_ch-$n_0).")\n", FILE_APPEND );
 										if( $s_ch-$n_0 > 0 )
 											array_splice( $t_tree[$t_cnt], $n_0, $s_ch-$n_0 );
 										$b_rev++;
@@ -271,24 +272,24 @@ RETRY:;
 											$t_tree[$t_cnt+1][$n_1] = $t_tree[$t_cnt][$cc];
 											$n_1++;
 										}
-//echo "array3-(".($br_lmt-$n_0).")\n";
+//file_put_contents( '/tmp/debug.txt', "array3A-(".($br_lmt-$n_0).")\n", FILE_APPEND );
 										if( $br_lmt-$n_0 > 0 )
 											array_splice( $t_tree[$t_cnt], $n_0, $br_lmt-$n_0 );
 									}
 								}
-//echo ">>".count($t_tree[$t_cnt])."\n";
 							}else
 								goto PRIORITY_CHECK;
+//file_put_contents( '/tmp/debug.txt', ">>".count($t_tree[$t_cnt])."\n", FILE_APPEND );
 						}else{
 							//隣接なし
 							$b_rev++;
 							$n_0++;
-//echo "<<<".count($t_tree[$t_cnt]).">>>\n";
+//file_put_contents( '/tmp/debug.txt', "<<<".count($t_tree[$t_cnt]).">>>\n", FILE_APPEND );
 						}
-//echo "[".count($t_tree[$t_cnt])."-".$n_0."]\n";
+//file_put_contents( '/tmp/debug.txt', "[[".count($t_tree[$t_cnt])."-".$n_0."]]\n", FILE_APPEND );
 					}
 				}
-//echo "分配完了\n";
+//file_put_contents( '/tmp/debug.txt', "分配完了\n", FILE_APPEND );
 //var_dump($t_tree);
 				//重複解消不可処理
 				if( count($t_tree) > $tuners ){
@@ -320,7 +321,7 @@ PRIORITY_CHECK:
 					}
 					throw new Exception( '重複により予約できません' );
 				}
-//echo "重複解消\n";
+// file_put_contents( '/tmp/debug.txt', "重複解消\n", FILE_APPEND );
 				//チューナ番号の解決
 				$t_blnk        = array_fill( 0, $tuners, 0 );
 				$t_num         = array_fill( 0, $tuners, -1 );
@@ -406,7 +407,7 @@ PRIORITY_CHECK:
 				$tuner_chg = 0;
 				//新規予約・隣接解消再予約等 隣接禁止については分配時に解決済
 				for( $t_cnt=0; $t_cnt<$tuners ; $t_cnt++ ){
-//echo ($t_cnt+1)."(".count($t_tree[$t_cnt]).")\n";
+// file_put_contents( '/tmp/debug.txt', ($t_cnt+1)."(".count($t_tree[$t_cnt]).")\n", FILE_APPEND );
 //var_dump($t_tree[$t_cnt]);
 					if( isset( $t_tree[$t_cnt] ) )
 					for( $n_0=0,$n_lmt=count($t_tree[$t_cnt]); $n_0<$n_lmt ; $n_0++ ){
@@ -637,66 +638,53 @@ PRIORITY_CHECK:
 		//即時録画の指定チューナー確保
 		$epg_time = array( 'GR' => FIRST_REC, 'BS' => 180, 'CS' => 120 );
 		if( $start_time-$settings->former_time-$epg_time[$crec_->type] <= time() ){
-			$shm_nm   = array( 1, 21 );
+			$shm_nm   = array( SEM_GR_START, SEM_ST_START );
 			$sem_type = $crec_->type=='GR' ? 0 : 1;
 			$shm_name = $shm_nm[$sem_type] + $tuner;
-			while(1){
-				$sem_id = sem_get( $shm_name );
-				if( $sem_id === FALSE )
-					usleep( 100 );
-				else
-					break;
-			}
+			$sem_id   = sem_get_surely( $shm_name );
+			if( $sem_id === FALSE )
+				throw new Exception( 'セマフォ・キー確保に失敗' );
 			$cc=0;
 			while(1){
 				if( sem_acquire( $sem_id ) === TRUE ){
-					while(1){
-						$shm_id = shm_attach( 2 );
-						if( $shm_id === FALSE )
-							usleep( 100 );
-						else
-							break;
-					}
-					if( shm_has_var( $shm_id, $shm_name ) === TRUE ){
-						$smph = shm_get_var( $shm_id, $shm_name );
-						if( $smph == 2 ){
-							// リアルタイム視聴停止
-							$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
-							posix_kill( $real_view, 9 );		// 録画コマンド停止
-							shm_put_var_surely( $shm_id, $shm_name, 0 );
-							shm_put_var_surely( $shm_id, 42, 0 );		// リアルタイム視聴tunerNo clear
-							shm_detach( $shm_id );
-							$sleep_time = $settings->rec_switch_time;
-							break;
-						}else
-							if( $smph == 1 ){
-								// EPG受信停止
-								$rec_trace = 'TUNER='.$tuner.' MODE=0 OUTPUT='.$settings->temp_data.'_'.$crec_->type;
-								$ps_output = shell_exec( PS_CMD );
-								$rarr      = explode( "\n", $ps_output );
-								for( $cc=0; $cc<count($rarr); $cc++ ){
-									if( strpos( $rarr[$cc], $rec_trace ) !== FALSE ){
-										$ps = ps_tok( $rarr[$cc] );
-										while( ++$cc < count($rarr) ){
-											$c_ps = ps_tok( $rarr[$cc] );
-											if( $ps->pid == $c_ps->ppid ){
-												$ps = $c_ps;
-												while( ++$cc < count($rarr) ){
-													$c_ps = ps_tok( $rarr[$cc] );
-													if( $ps->pid == $c_ps->ppid ){
-														posix_kill( $c_ps->pid, 15 );		//EPG受信停止
-														$sleep_time = $settings->rec_switch_time;
-														break 4;
-													}
+					$shm_id = shmop_open_surely();
+					$smph   = shmop_read_surely( $shm_id, $shm_name );
+					if( $smph == 2 ){
+						// リアルタイム視聴停止
+						$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
+						posix_kill( $real_view, 9 );		// 録画コマンド停止
+						shmop_write_surely( $shm_id, $shm_name, 0 );
+						shmop_write_surely( $shm_id, SEM_REALVIEW, 0 );		// リアルタイム視聴tunerNo clear
+						shmop_close( $shm_id );
+						$sleep_time = $settings->rec_switch_time;
+					}else
+						if( $smph == 1 ){
+							// EPG受信停止
+							$rec_trace = 'TUNER='.$tuner.' MODE=0 OUTPUT='.$settings->temp_data.'_'.$crec_->type;
+							$ps_output = shell_exec( PS_CMD );
+							$rarr      = explode( "\n", $ps_output );
+							for( $cc=0; $cc<count($rarr); $cc++ ){
+								if( strpos( $rarr[$cc], $rec_trace ) !== FALSE ){
+									$ps = ps_tok( $rarr[$cc] );
+									while( ++$cc < count($rarr) ){
+										$c_ps = ps_tok( $rarr[$cc] );
+										if( $ps->pid == $c_ps->ppid ){
+											$ps = $c_ps;
+											while( ++$cc < count($rarr) ){
+												$c_ps = ps_tok( $rarr[$cc] );
+												if( $ps->pid == $c_ps->ppid ){
+													posix_kill( $c_ps->pid, 15 );		//EPG受信停止
+													$sleep_time = $settings->rec_switch_time;
+													break 4;
 												}
 											}
 										}
-										$sleep_time = $settings->rec_switch_time;
-										break 2;
 									}
+									$sleep_time = $settings->rec_switch_time;
+									break 2;
 								}
 							}
-					}
+						}
 					break;
 				}else
 					if( ++$cc < 5 )
@@ -759,6 +747,7 @@ PRIORITY_CHECK:
 			// ここからファイル名生成
 /*
 			%TITLE%	番組タイトル
+			// %TITLEn%	番組タイトル(n=1-9 1枠の複数タイトルから選別変換 '/'でセパレートされているものとする)
 			%ST%	開始日時（ex.200907201830)
 			%ET%	終了日時
 			%TYPE%	GR/BS/CS
@@ -785,6 +774,16 @@ PRIORITY_CHECK:
 			}else
 				$out_title = $temp;
 			$filename = mb_str_replace('%TITLE%', $out_title, $filename);
+			// %TITLEn%	番組タイトル(n=1-9 1枠の複数タイトルから選別変換 '/'でセパレートされているものとする)
+			$magic_c = strpos( $filename, '%TITLE' );
+			if( $magic_c !== FALSE ){
+				$tl_num = $filename[$magic_c+6];
+				if( ctype_digit( $tl_num ) && strpos( $out_title, '/' )!==FALSE ){
+					$split_tls = explode( '/', $out_title );
+					$filename  = mb_str_replace( '%TITLE'.$tl_num.'%', $split_tls[(int)$tl_num-1], $filename );
+				}else
+					$filename = mb_str_replace( '%TITLE'.$tl_num.'%', $out_title.$tl_num, $filename );
+			}
 			// %ST%	開始日時
 			$filename = mb_str_replace('%ST%',date('YmdHis', $start_time), $filename );
 			// %ET%	終了日時
@@ -817,7 +816,12 @@ PRIORITY_CHECK:
 			$filename = mb_str_replace('%DURATION%',$duration, $filename );
 			// %DURATIONHMS%	録画時間（hh:mm:ss）
 			$filename = mb_str_replace('%DURATIONHMS%',transTime($duration,TRUE), $filename );
-			
+			// %[YmdHisD]*%	開始日時(date()に書式をそのまま渡す 非変換部に'%'を使う場合は誤変換に注意・対策はしない)
+			if( substr_count( $filename, '%' ) >= 2 ){
+				$split_tls = explode( '%', $filename );
+				$iti       = $filename[0]=='%' ? 0 : 1;
+				$filename  = mb_str_replace('%'.$split_tls[$iti].'%',date( $split_tls[$iti], $start_time ), $filename );
+			}
 			// あると面倒くさそうな文字を全部_に
 //			$filename = preg_replace("/[ \.\/\*:<>\?\\|()\'\"&]/u","_", trim($filename) );
 			

@@ -49,7 +49,7 @@
 
   garbageClean();			//  不要プログラム削除
 
-  $shm_id = shm_attach( 2 );
+	$shm_id = shmop_open_surely();
   // BSを処理する
   if( $settings->bs_tuners != 0 ) {
 	// 録画重複チェック
@@ -166,6 +166,6 @@
   if( $use_para ) exit();
 
   doKeywordReservation( '*', $shm_id );	// キーワード予約
-  shm_detach( $shm_id );
+  shmop_close( $shm_id );
   exit();
 ?>
