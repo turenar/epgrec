@@ -194,8 +194,6 @@ RETRY:;
 					if( $row['status'] )
 						$t_tree[0][$r_cnt++] = $key;
 				}
-				for( $t_cnt=0; $t_cnt<$tuners ; $t_cnt++ )
-					$t_ovlp[$t_cnt] = array_fill( 0, $r_cnt, 0 );
 				// 重複予約をチューナー毎に分配
 				for( $t_cnt=0; $t_cnt<$tuners ; $t_cnt++ ){
 					$b_rev = 0;
@@ -203,7 +201,7 @@ RETRY:;
 					$n_1 = 0;
 					if( isset( $t_tree[$t_cnt] ) )
 					while( $n_0 < count($t_tree[$t_cnt]) ){
-//file_put_contents( '/tmp/debug.txt', "[".count($t_tree[$t_cnt])."-".$n_0."]".$t_ovlp[$t_cnt][$n_0]."\n", FILE_APPEND );
+//file_put_contents( '/tmp/debug.txt', "[".count($t_tree[$t_cnt])."-".$n_0."]\n", FILE_APPEND );
 						$bf_org_ed = $trecs[$t_tree[$t_cnt][$b_rev]]['end_time'];
 						$bf_ed     = ( ($bf_org_ed-$trecs[$t_tree[$t_cnt][$b_rev]]['start_time'])%60 != 0 ) ? $bf_org_ed+$ed_tm_sft : $bf_org_ed;
 						$af_st     = $trecs[$t_tree[$t_cnt][$n_0]]['start_time'];
@@ -212,37 +210,43 @@ RETRY:;
 							//完全重複 隣接禁止時もここ
 							$t_tree[$t_cnt+1][$n_1] = $t_tree[$t_cnt][$n_0];
 							$n_1++;
-							if( $af_ed >= $bf_ed )
-								$t_ovlp[$t_cnt][$n_0]++;
-//file_put_contents( '/tmp/debug.txt', count($t_tree[$t_cnt]).">", FILE_APPEND );
+//file_put_contents( '/tmp/debug.txt', ' '.count($t_tree[$t_cnt]).">", FILE_APPEND );
 							array_splice( $t_tree[$t_cnt], $n_0, 1 );
 //file_put_contents( '/tmp/debug.txt', count($t_tree[$t_cnt])."\n", FILE_APPEND );
 						}else
 						if( $bf_ed == $af_st ){
 							//隣接重複
+							// 重複数算出
+							$t_ovlp = 0;
+							if( isset( $t_tree[$t_cnt+1] ) )
+								foreach( $t_tree[$t_cnt+1] as $trunk ){
+									if( $trecs[$trunk]['start_time']<=$bf_ed && $trecs[$trunk]['end_time']>=$bf_ed )
+										$t_ovlp++;
+								}
+//file_put_contents( '/tmp/debug.txt', ' $t_ovlp '.$t_ovlp." -> ", FILE_APPEND );
 							$s_ch = -1;
 							for( $br_lmt=$n_0; $br_lmt<count($t_tree[$t_cnt]); $br_lmt++ ){
 								//同じ開始時間の物をカウント
 								if( $bf_ed == $trecs[$t_tree[$t_cnt][$br_lmt]]['start_time'] ){
-									$t_ovlp[$t_cnt][$n_0]++;
+									$t_ovlp++;
 									//同じCh
 									if( $trecs[$t_tree[$t_cnt][$b_rev]]['channel_id'] == $trecs[$t_tree[$t_cnt][$br_lmt]]['channel_id'] )
 										$s_ch = $br_lmt;
 								}else
 									break;
 							}
-//file_put_contents( '/tmp/debug.txt', $t_ovlp[$t_cnt][$n_0]."::\n", FILE_APPEND );
-							if( $t_ovlp[$t_cnt][$n_0]<=$tuners-$t_cnt || ( $settings->force_cont_rec==1 && $trecs[$t_tree[$t_cnt][$b_rev]]['discontinuity']!=1 ) ){
-//file_put_contents( '/tmp/debug.txt', count($t_tree[$t_cnt]).">>\n", FILE_APPEND );
-								if( $t_ovlp[$t_cnt][$n_0]<=TUNER_UNIT1-1-$t_cnt && $t_ovlp[$t_cnt][$n_0] <= $tuners-1-$t_cnt ){
+//file_put_contents( '/tmp/debug.txt', $t_ovlp."\n", FILE_APPEND );
+
+							if( $t_ovlp<=$tuners-$t_cnt || ( $settings->force_cont_rec==1 && $trecs[$t_tree[$t_cnt][$b_rev]]['discontinuity']!=1 ) ){
+//file_put_contents( '/tmp/debug.txt', ' '.count($t_tree[$t_cnt]).">>\n", FILE_APPEND );
+								if( $t_ovlp<=TUNER_UNIT1-1-$t_cnt && $t_ovlp <= $tuners-1-$t_cnt ){
 									//(使い勝手の良い)チューナに余裕あり
 									for( $cc=$n_0; $cc<$br_lmt; $cc++ ){
 										$t_tree[$t_cnt+1][$n_1] = $t_tree[$t_cnt][$cc];
 										$n_1++;
 									}
-//file_put_contents( '/tmp/debug.txt', "array1-(".($br_lmt-$n_0).")\n", FILE_APPEND );
+//file_put_contents( '/tmp/debug.txt', " array1-(".($br_lmt-$n_0).")\n", FILE_APPEND );
 									array_splice( $t_tree[$t_cnt], $n_0, $br_lmt-$n_0 );
-									$t_ovlp[$t_cnt][$n_0] = 0;		//一応クリア
 								}else{
 									//チューナに余裕なし
 									if( $s_ch != -1 ){
@@ -255,11 +259,11 @@ RETRY:;
 											$t_tree[$t_cnt+1][$n_1] = $t_tree[$t_cnt][$cc];
 											$n_1++;
 										}
-//file_put_contents( '/tmp/debug.txt', "array2-1-(".$t_ovlp[$t_cnt][$n_0]." ".$br_lmt." ".$s_ch." ".$n_0.")\n", FILE_APPEND );
-//file_put_contents( '/tmp/debug.txt', "array2-2-(".($br_lmt-($s_ch+1)).")\n", FILE_APPEND );
+//file_put_contents( '/tmp/debug.txt', " array2-1-(".$t_ovlp." ".$br_lmt." ".$s_ch." ".$n_0.")\n", FILE_APPEND );
+//file_put_contents( '/tmp/debug.txt', " array2-2-(".($br_lmt-($s_ch+1)).")\n", FILE_APPEND );
 										if( $br_lmt-($s_ch+1) > 0 )
 											array_splice( $t_tree[$t_cnt], $s_ch+1, $br_lmt-($s_ch+1) );
-//file_put_contents( '/tmp/debug.txt', "array2-3-(".($s_ch-$n_0).")\n", FILE_APPEND );
+//file_put_contents( '/tmp/debug.txt', " array2-3-(".($s_ch-$n_0).")\n", FILE_APPEND );
 										if( $s_ch-$n_0 > 0 )
 											array_splice( $t_tree[$t_cnt], $n_0, $s_ch-$n_0 );
 										$b_rev++;
@@ -272,24 +276,24 @@ RETRY:;
 											$t_tree[$t_cnt+1][$n_1] = $t_tree[$t_cnt][$cc];
 											$n_1++;
 										}
-//file_put_contents( '/tmp/debug.txt', "array3A-(".($br_lmt-$n_0).")\n", FILE_APPEND );
+//file_put_contents( '/tmp/debug.txt', " array3A-(".($br_lmt-$n_0).")\n", FILE_APPEND );
 										if( $br_lmt-$n_0 > 0 )
 											array_splice( $t_tree[$t_cnt], $n_0, $br_lmt-$n_0 );
 									}
 								}
 							}else
 								goto PRIORITY_CHECK;
-//file_put_contents( '/tmp/debug.txt', ">>".count($t_tree[$t_cnt])."\n", FILE_APPEND );
+//file_put_contents( '/tmp/debug.txt', "  >>".count($t_tree[$t_cnt])."\n", FILE_APPEND );
 						}else{
 							//隣接なし
 							$b_rev++;
 							$n_0++;
-//file_put_contents( '/tmp/debug.txt', "<<<".count($t_tree[$t_cnt]).">>>\n", FILE_APPEND );
+//file_put_contents( '/tmp/debug.txt', "  <<<".count($t_tree[$t_cnt]).">>>\n", FILE_APPEND );
 						}
-//file_put_contents( '/tmp/debug.txt', "[[".count($t_tree[$t_cnt])."-".$n_0."]]\n", FILE_APPEND );
+//file_put_contents( '/tmp/debug.txt', " [[".count($t_tree[$t_cnt])."-".$n_0."]]\n", FILE_APPEND );
 					}
 				}
-//file_put_contents( '/tmp/debug.txt', "分配完了\n", FILE_APPEND );
+//file_put_contents( '/tmp/debug.txt', "分配完了\n\n", FILE_APPEND );
 //var_dump($t_tree);
 				//重複解消不可処理
 				if( count($t_tree) > $tuners ){
@@ -822,6 +826,7 @@ PRIORITY_CHECK:
 				$iti       = $filename[0]=='%' ? 0 : 1;
 				$filename  = mb_str_replace('%'.$split_tls[$iti].'%',date( $split_tls[$iti], $start_time ), $filename );
 			}
+
 			// あると面倒くさそうな文字を全部_に
 //			$filename = preg_replace("/[ \.\/\*:<>\?\\|()\'\"&]/u","_", trim($filename) );
 			
