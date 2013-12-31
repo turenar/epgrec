@@ -36,8 +36,8 @@ class DBRecord {
 		}
 		else {
 			$sqlstr = 'SELECT * FROM '.$this->__table.
-			            ' WHERE '.mysql_escape_string( $property ).
-			              " = '".mysql_escape_string( $value )."'";
+			            ' WHERE '.mysql_real_escape_string( $property ).
+			              " = '".mysql_real_escape_string( $value )."'";
 			
 			$res = $this->__query( $sqlstr );
 			$this->__record_data = mysql_fetch_array( $res , MYSQL_ASSOC );
@@ -53,7 +53,7 @@ class DBRecord {
 		$sqlstr = 'use '.self::$__settings->db_name;
 		$res = $this->__query($sqlstr);
 		if( $res === false ) throw new exception('createTable: ' . $sqlstr );
-		$sqlstr = 'CREATE TABLE IF NOT EXISTS '.$this->__table.' (' .$tblstring.") DEFAULT CHARACTER SET 'utf8'";
+		$sqlstr = 'CREATE TABLE IF NOT EXISTS '.$this->__table.' (' .$tblstring.") ENGINE=MyISAM DEFAULT CHARACTER SET 'utf8'";
 		$result = $this->__query( $sqlstr );
 		if( $result === false ) throw new exception( 'createTable:テーブル作成失敗' );
 	}
@@ -70,8 +70,8 @@ class DBRecord {
 		$retval = array();
 		
 		$sqlstr = 'SELECT * FROM '.$this->__table.
-		            ' WHERE '.mysql_escape_string( $property ).
-		              " = '".mysql_escape_string( $value )."'";
+		            ' WHERE '.mysql_real_escape_string( $property ).
+		              " = '".mysql_real_escape_string( $value )."'";
 		
 		if( $options != null ) {
 			$sqlstr .= 'AND '.$options;
@@ -102,7 +102,7 @@ class DBRecord {
 		if( $this->__record_data === false ) throw new exception('set: DBの異常？' );
 		
 		if( array_key_exists( $property, $this->__record_data ) ) {
-//			$this->__record_data[$property] = mysql_escape_string($value);
+//			$this->__record_data[$property] = mysql_real_escape_string($value);
 			$this->__record_data[$property] = $value;
 			$this->__f_dirty = true;
 		}
@@ -138,8 +138,8 @@ class DBRecord {
 				foreach( $this->__record_data as $property => $value ) {
 					if( $property === 'id' ) continue;
 //					$sqlstr .= ' '.$property." = '".$value."',";
-//					$sqlstr .= ' '.$property." = '".mysql_escape_string(stripslashes($value))."',";		// ここだけ直す場合
-					$sqlstr .= ' '.$property." = '".mysql_escape_string($value)."',";
+//					$sqlstr .= ' '.$property." = '".mysql_real_escape_string(stripslashes($value))."',";		// ここだけ直す場合
+					$sqlstr .= ' '.$property." = '".mysql_real_escape_string($value)."',";
 				}
 				$sqlstr = rtrim($sqlstr, ',' );
 				$sqlstr .= " WHERE id = '".$this->__id."'";
