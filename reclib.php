@@ -66,6 +66,25 @@ function mb_str_replace($search, $replace, $target, $encoding = "UTF-8" ) {
 }
 
 
+// 対象文字列の指定バイト位置がマルチバイト文字(UTF-8)か否か判定しマルチバイト文字なら文字先頭への退避数を返す
+function check_char_type( $src, $point ){
+	$ret = 0;
+	if( ord($src[$point]) & 0x80 ){
+		while( ( ord($src[$point]) & 0xF0) < 0xE0 ){
+			$point--;
+			$ret++;
+		}
+	}
+	return $ret;
+}
+
+
+// UTF-8対応strncpy
+function mb_strncpy( $src, $len ){
+	return substr( $src, 0, $len-check_char_type( $src, $len ) );		// mb_strcut() -> substr()
+}
+
+
 // psのレコードからトークン切り出し
 function ps_tok( $src ){
 	$ps_tk = new stdClass;

@@ -49,13 +49,18 @@ class Keyword extends DBRecord {
 				$options .= $search_sorce." REGEXP '".mysql_real_escape_string($keyword)."'";
 			}
 			else {
-				foreach( explode( " ", mysql_real_escape_string( trim($keyword) ) ) as $key )
-					if( substr( $key, 0, 1 ) == '-' ){
+				foreach( explode( ' ', trim($keyword) ) as $key ){
+					$k_len = strlen( $key );
+					if( $k_len>1 && $key[0]==='-' ){
+						$k_len--;
 						$key = substr( $key, 1 );
-						$options .= $search_sorce." not like '%".$key."%'";
-					}else{
-						$options .= $search_sorce." like '%".$key."%'";
-					}
+						$options .= $search_sorce.' not like ';
+					}else
+						$options .= $search_sorce.' like ';
+					if( $key[0]==='"' && $k_len>2 && $key[$k_len-1]==='"' )
+						$key = substr( $key, 1, $k_len-2 );
+					$options .= "'%".mysql_real_escape_string( $key )."%'";
+				}
 			}
 		}
 		

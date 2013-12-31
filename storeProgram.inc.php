@@ -179,7 +179,15 @@ function storeProgram( $type, $xmlfile ) {
 					continue;
 				}
 				if( strcmp( $rec->name, $ch['display-name'] ) ){
-					$num = DBRecord::countRecords( CHANNEL_TBL , "WHERE channel_disc NOT LIKE '".$mono_disc."_%' AND name = '".$ch['display-name']."'" );
+					switch( $type ){
+						case 'GR':
+							$mono_disc .= '_%';
+							break;
+						case 'BS':
+							$mono_disc[5] = '%';
+							break;
+					}
+					$num = DBRecord::countRecords( CHANNEL_TBL , "WHERE channel_disc NOT LIKE '".$mono_disc."' AND type = '".$type."' AND name = '".$ch['display-name']."'" );
 					if( $num == 0 ){
 						reclog( 'EPG更新::チャンネル名が更新されました。('.$disc.' '.$rec->name.' -> '.$ch['display-name'].' '.$xmlfile.')', EPGREC_WARN );
 						$rec->name = $ch['display-name'];
@@ -550,6 +558,56 @@ function storeProgram( $type, $xmlfile ) {
 			}
 		}
 
+		// pf・sch非同期時 番組中止(スキップor差し替え)対策
+		$pf_fwd  = -1;
+		$sch_fwd = 0;
+		$sch_dec = 0;
+		$ev_inst = FALSE;
+		for( $pf_cnt=0; $pf_cnt<$pf_lmt; $pf_cnt++ ){
+			if( $event_pf[$pf_cnt]['sch_pnt'] !== -1 ){
+				$event_pf[$pf_cnt]['sch_pnt'] -= $sch_dec;
+				if( $pf_fwd === -1 ){
+					if( $pf_cnt > 0 ){
+						$pf_aft = $event_pf[$pf_cnt]['sch_pnt'];
+						if( $pf_aft !== -1 ){
+							if( $pf_aft > 0 ){
+								$sa       = $event_pf[$pf_cnt]['status']!==START_TIME_UNCERTAINTY ?
+											toTimestamp( $event_sch[$pf_aft]['starttime'] ) - toTimestamp( $event_pf[$pf_cnt]['starttime'] ) : 0;
+								$cut_time = toDatetime( toTimestamp( $event_pf[0]['starttime'] ) + $sa );
+								$pf_bfr   = $pf_aft;
+								while( --$pf_bfr >= 0 ){
+									if( strcmp( $event_sch[$pf_bfr]['endtime'], $cut_time ) <= 0 )
+										break;
+								}
+								$dl = $pf_aft - $pf_bfr - 1;
+								if( $dl > 0 ){
+									array_splice( $event_sch, $pf_bfr+1, $dl );
+									$event_pf[$pf_cnt]['sch_pnt'] -= $dl;
+									$ev_lmt  -= $dl;
+									$sch_dec += $dl;
+									$ev_inst  = TRUE;
+								}
+							}
+						}
+					}
+				}else{
+					if( $sch_fwd+1 < $event_pf[$pf_cnt]['sch_pnt'] ){
+						// 番組中止(スキップor差し替え)
+						$dl = $event_pf[$pf_cnt]['sch_pnt'] - $sch_fwd - 1;
+						if( $dl > 0 ){
+							array_splice( $event_sch, $sch_fwd+1, $dl );
+							$event_pf[$pf_cnt]['sch_pnt'] -= $dl;
+							$ev_lmt  -= $dl;
+							$sch_dec += $dl;
+							$ev_inst  = TRUE;
+						}
+					}
+				}
+				$pf_fwd  = $pf_cnt;
+				$sch_fwd = $event_pf[$pf_cnt]['sch_pnt'];
+			}
+		}
+
 		$sch_sync['cnt']       = -1;
 		$sch_sync['pre_check'] = FALSE;
 		$debug_msg             = '';
@@ -637,28 +695,40 @@ function storeProgram( $type, $xmlfile ) {
 								$end_time = toTimestamp( $event_pf[$pf_cnt]['starttime'] ) + $duration;
 							}else{
 								//終了時刻不明 たぶん臨時放送
-								if( $now_time%60 )
+								if( $now_time % 60 )
 									$now_time = $now_time + 60 - $now_time%60;
 								if( $ev_cnt+1 < $ev_lmt ){
-									$next_start = $event_sch[$ev_cnt+1]['starttime'];
-									$duration   = toTimestamp( $next_start ) - toTimestamp( $event_pf[$pf_cnt]['starttime'] );
-									if( $duration > 2*60*60 )		// 2hは定期EPG更新周期より
-										$duration = 2*60*60;
-									$stk_end = toDatetime( $now_time + $duration );
-								}else
-									$stk_end  = $next_start = toDatetime( $now_time + EXTENDING_TIME );
+									$duration = toTimestamp( $event_sch[$ev_cnt+1]['starttime'] ) - toTimestamp( $event_pf[$pf_cnt]['starttime'] );
+									if( $duration > 0 ){
+										if( $duration > 2*60*60 )		// 2hは定期EPG更新周期より
+											$duration = 2*60*60;
+									}else
+										$duration = EXTENDING_TIME;
+									$stk_end = $next_start = toDatetime( $now_time + $duration );
+								}else{
+									$stk_end = $next_start = toDatetime( $now_time + EXTENDING_TIME );
+									$del_tm  = EXTENDING_TIME;
+								}
 								$event_sch[$ev_cnt]['desc'] .= '(終了時刻不明)';
 								goto BORDER_CHK_THR;
 							}
 						}else
-							if( $ev_cnt+1==$ev_lmt || ( $pf_cnt+1<$pf_lmt && strcmp( $event_pf[$pf_cnt+1]['starttime'], $event_sch[$ev_cnt+1]['starttime'] )>=0 ) )
-								$end_time = toTimestamp( $event_pf[$pf_cnt+1]['starttime'] );
-							else{
-								$stk_end = $next_start = $event_pf[$pf_cnt+1]['starttime'];
+							if( $pf_cnt+1 < $pf_lmt ){
+								if( $ev_cnt+1==$ev_lmt || strcmp( $event_pf[$pf_cnt+1]['starttime'], $event_sch[$ev_cnt+1]['starttime'] )>=0 )
+									$end_time = toTimestamp( $event_pf[$pf_cnt+1]['starttime'] );
+								else{
+									$stk_end = $next_start = $event_pf[$pf_cnt+1]['starttime'];
+									goto BORDER_CHK_THR;
+								}
+							}else{
+								if( $now_time % 60 )
+									$now_time = $now_time + 60 - $now_time%60;
+								$stk_end = $next_start = toDatetime( $now_time + EXTENDING_TIME );
+								$del_tm  = EXTENDING_TIME;
 								goto BORDER_CHK_THR;
 							}
 						if( $end_time < $now_time ){
-							if( $now_time%60 )
+							if( $now_time % 60 )
 								$now_time = $now_time + 60 - $now_time%60;
 							$now_time += EXTENDING_TIME;
 							$del_tm    = $now_time - $end_time;
@@ -678,7 +748,7 @@ BORDER_CHK_THR:;
 					//EPG更新判定
 					if( $event_pf[$pf_cnt]['sch_pnt'] == -1 ){
 						$sch_sync['cnt'] = $ev_cnt;
-						if( $sch_obtain == TRUE ){
+						if( $sch_obtain===TRUE && $ev_inst===FALSE ){
 							$sch_sync['pre_check'] = TRUE;		// 初回EPG取得の可能性
 						}
 					}else
@@ -792,6 +862,11 @@ BORDER_CHK_THR:;
 									}else{
 										if( $ev_cnt+1 < $ev_lmt ){
 											$duration = toTimestamp( $event_sch[$ev_cnt+1]['starttime'] ) - toTimestamp( $next_start );		//不定
+											if( $duration > 0 ){
+												if( $duration > 2*60*60 )		// 2hは定期EPG更新周期より
+													$duration = 2*60*60;
+											}else
+												$duration = EXTENDING_TIME;
 										}else
 											$duration = EXTENDING_TIME;		//不定
 										$event_sch[$ev_cnt]['desc'] .= '(終了時刻不明)';
@@ -812,7 +887,7 @@ BORDER_CHK_THR:;
 						if( $sch_sync['cnt'] == -1 ){
 							if( $event_pf[$pf_cnt]['sch_pnt'] == -1 ){
 								$sch_sync['cnt'] = $ev_cnt;
-								if( $sch_obtain == TRUE ){
+								if( $sch_obtain===TRUE && $ev_inst===FALSE ){
 									$sch_sync['pre_check'] = TRUE;		// 初回EPG取得の可能性
 								}
 							}else

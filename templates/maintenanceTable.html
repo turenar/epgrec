@@ -118,24 +118,34 @@ table#extinct_ch_table td.rec_id {display: none;}
 </form>
 
 <br>
-<div>録画ストレージ一覧</div>
+<div style="font-weight: bold;">録画ストレージ一覧</div>
+<div>背景色が赤のストレージは、書き込みが出来ない可能性が高いです。</div>
 <table id="storage_table">
  <tr>
   <th>DEVICE名</th>
   <th>PATH</th>
+  <th>所有者</th>
+  <th>グループ</th>
+  <th>パーミッション</th>
   <th>残容量</th>
   <th>残時間({$ts_rate}MB/min)</th>
  </tr>
  <tr>
   <td>全録画ストレージ</td>
   <td>{$spool_disks[0].path}</td>
+  <td>---</td>
+  <td>---</td>
+  <td>---</td>
   <td>{$free_size}GB</td>
   <td>{$free_time}</td>
  </tr>
 {foreach from=$spool_disks item=disk}
- <tr id="stid_{$disk.dev}">
+ <tr id="stid_{$disk.dev}" {if $disk.wrtbl=='0'}style="background-color: red"{/if}>
   <td>{$disk.dname}</td>
   <td>{$disk.path}</td>
+  <td>{$disk.owner}</td>
+  <td>{$disk.grupe}</td>
+  <td>{$disk.perm}</td>
   <td>{$disk.size}GB</td>
   <td>{$disk.time}</td>
  </tr>
@@ -144,7 +154,8 @@ table#extinct_ch_table td.rec_id {display: none;}
 <br>
 
 {if count($ext_chs)}
- <div>廃止チャンネル候補一覧（削除についてはリスクを承知の上でお願いします。）</div>
+ <div style="font-weight: bold;">廃止チャンネル候補一覧 </div>
+ <div>削除についてはリスクを承知の上でお願いします。</div>
  <div>背景がグレーになっているCHは、非表示に設定されたCHの可能性が高いです。</div>
  <table id="extinct_ch_table">
   <tr>

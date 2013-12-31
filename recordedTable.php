@@ -31,13 +31,18 @@ if(isset( $_POST['do_search'] )) {
 		if( $_POST['search'] != "" ) {
 			$search = $_POST['search'];
 //			$options .= " AND CONCAT(title,description) like '%".mysql_real_escape_string($_POST['search'])."%'";
-			foreach( explode( " ", mysql_real_escape_string( $search ) ) as $key )
-				if( substr( $key, 0, 1 ) == '-' ){
+			foreach( explode( ' ', trim($search) ) as $key ){
+				$k_len = strlen( $key );
+				if( $k_len>1 && $key[0]==='-' ){
+					$k_len--;
 					$key = substr( $key, 1 );
-					$options .= " AND CONCAT(title,' ', description) not like '%$key%'";
-				}else{
-					$options .= " AND CONCAT(title,' ', description) like '%$key%'";
-				}
+					$options .= " AND CONCAT(title,' ', description) not like ";
+				}else
+					$options .= " AND CONCAT(title,' ', description) like ";
+				if( $key[0]==='"' && $k_len>2 && $key[$k_len-1]==='"' )
+					$key = substr( $key, 1, $k_len-2 );
+				$options .= "'%".mysql_real_escape_string( $key )."%'";
+			}
 		}
 	}
 	if( isset($_POST['category_id'])) {

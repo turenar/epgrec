@@ -350,7 +350,7 @@ table#reservation_table td.rev_id, table#reservation_table td.autorec {display: 
 <input type="hidden" name="priority" value="{$priority}" />
 <input type="hidden" name="directory" value="{$directory}" />
 <input type="hidden" name="filename" value="{$filename}" />
-検索語句(<input type="checkbox" name="use_regexp" value="1" {if $use_regexp}checked{/if} />正規表現 <input type="checkbox" name="ena_title" value="1" {if $ena_title}checked{/if} />タイトル <input type="checkbox" name="ena_desc" value="1" {if $ena_desc}checked{/if} />概要)<input type="text" name="search" value="{$search}" class="example1" /><br />
+検索語句(<input type="checkbox" name="use_regexp" value="1" {if $use_regexp}checked{/if} />正規表現 <input type="checkbox" name="ena_title" value="1" {if $ena_title}checked{/if} />タイトル <input type="checkbox" name="ena_desc" value="1" {if $ena_desc}checked{/if} />概要)<input type="text" name="search" value="{$search|escape}" class="example1" /><br />
 種別(
   {foreach from=$types item=type}
     <input type="checkbox" name="type{$type.value}" value="1" {$type.checked}/>{$type.name} 

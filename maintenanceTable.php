@@ -80,6 +80,13 @@ function rate_time( $minute )
 	$arr['dev']   = $dvnum;
 	$arr['dname'] = get_device_name( $dvnum );
 	$arr['path']  = $settings->spool;
+	$usr_stat = posix_getpwuid( $stat['uid']);
+	$own_chk  = $stat['uid']===posix_getuid() || $usr_stat['name']==='root';
+	$arr['owner'] = $own_chk ? $usr_stat['name'] : '****';
+	$grp_stat = posix_getgrgid( $stat['gid']);
+	$arr['grupe'] = $own_chk ? $grp_stat['name'] : '****';
+	$arr['perm']  = sprintf("0%o", $stat['mode'] );
+	$arr['wrtbl'] = ( $stat['uid']===posix_getuid() && ($stat['mode']&0300)===0300 ) || ( posix_getgid()===$stat['gid'] && ($stat['mode']&0030)===0030 ) || ($stat['mode']&0003)===0003 ? '1' :'0';
 //	$arr['link']  = 'spool root';
 	$arr['size']  = number_format( $root_mega/1024, 1 );
 	$arr['time']  = rate_time( $root_mega );
@@ -101,6 +108,13 @@ function rate_time( $minute )
 					$arr['dev']   = $dvnum;
 					$arr['dname'] = get_device_name( $dvnum );
 					$arr['path']  = $settings->spool.'/'.$entry;
+					$usr_stat = posix_getpwuid( $stat['uid']);
+					$own_chk  = $stat['uid']===posix_getuid() || $usr_stat['name']==='root';
+					$arr['owner'] = $own_chk ? $usr_stat['name'] : '****';
+					$grp_stat = posix_getgrgid( $stat['gid']);
+					$arr['grupe'] = $own_chk ? $grp_stat['name'] : '****';
+					$arr['perm']  = sprintf("0%o", $stat['mode'] );
+					$arr['wrtbl'] = ( $stat['uid']===posix_getuid() && ($stat['mode']&0300)===0300 ) || ( posix_getgid()===$stat['gid'] && ($stat['mode']&0030)===0030 ) || ($stat['mode']&0003)===0003 ? '1' :'0';
 	//				$arr['link']  = readlink( $entry_path );
 					$arr['size']  = number_format( $entry_mega/1024, 1 );
 					$arr['time']  = rate_time( $entry_mega );

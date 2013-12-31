@@ -321,6 +321,8 @@ PRIORITY_CHECK:
 						//自動予約禁止
 //						$event = new DBRecord(PROGRAM_TBL, "id", $program_id );
 //						$event->autorec = 0;
+//						$event->key_id  = $autorec;
+//						$event->update();
 						reclog( $crec->channel_disc.'-Ch'.$crec->channel.' <a href="index.php?type='.$crec->type.'&length='.$settings->program_length.'&time='.date( 'YmdH', toTimestamp( $starttime ) ).'">'.$starttime.'</a>『'.htmlspecialchars($title).'』は重複により予約できません', EPGREC_WARN );
 					}
 					throw new Exception( '重複により予約できません' );
@@ -859,11 +861,16 @@ PRIORITY_CHECK:
 			// サムネール
 			if( (boolean)$settings->use_thumbs ){
 				$gen_thumbnail = defined( 'GEN_THUMBNAIL' ) ? GEN_THUMBNAIL : INSTALL_PATH.'/gen-thumbnail.sh';
-				$fl_len_lmt   -= 4;
+				$fl_len_lmt   -= 4;		// '.jpg'
 			}
 			if( $fl_len > $fl_len_lmt ){
-				$filename = mb_strcut( $filename, 0, $fl_len_lmt );
-				$fl_len   = strlen( $filename );
+				$longname = $filename;
+				$filename = mb_strncpy( $filename, $fl_len_lmt );
+				if( preg_match( '/^(.*)\040(\#\d+)(「.*」)/', $longname, $matches ) )
+					file_put_contents( $spool_path.'/'.$add_dir.$matches[1].' '.$matches[2].'.txt', $matches[2].$matches[3]."\n", FILE_APPEND );
+				else
+					file_put_contents( $spool_path.'/longname.txt', $filename.' -> '.$longname."\n", FILE_APPEND );
+				$fl_len = strlen( $filename );
 			}
 			$files = scandir( $spool_path.'/'.$add_dir );
 			if( $files !== FALSE )
@@ -877,7 +884,7 @@ PRIORITY_CHECK:
 				$file_cnt++;
 				$len_dec = strlen( (string)$file_cnt );
 				if( $fl_len > $fl_len_lmt-$len_dec ){
-					$filename = mb_strcut( $filename, 0, $fl_len_lmt-$len_dec );
+					$filename = mb_strncpy( $filename, $fl_len_lmt-$len_dec );
 					$fl_len   = strlen( $filename );
 				}
 				$tmp_name = $filename.$file_cnt;

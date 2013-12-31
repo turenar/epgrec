@@ -176,7 +176,7 @@ table#reservation_table tr.ctg_10, #category_select a.ctg_10 {background-color: 
 絞り込み：
 <form method="post" action="recordedTable.php" >
 <input type="hidden" name="do_search" value="1" />
-検索語句<input type="text" name="search" value="{$search}" class="example1" /><br>
+検索語句<input type="text" name="search" value="{$search|escape}" class="example1" /><br>
 局<select name="station">
   {foreach from=$stations item=st}
     <option value="{$st.id}" {$st.selected}>{$st.name}</option>
@@ -215,8 +215,8 @@ table#reservation_table tr.ctg_10, #category_select a.ctg_10 {background-color: 
   <td>{$rec.station_name}</td>
   <td>{$rec.mode}</td>
   {if $use_thumbs == 1}<td><a href="{$rec.asf}">{$rec.thumb}</a></td>{/if}
-  <td><a href="{$rec.asf}" id="tid_{$rec.id}">{$rec.title}</a></td>
-  <td><a id="did_{$rec.id}">{$rec.description}</a></td>
+  <td style="text-align: left;"><a href="{$rec.asf}" id="tid_{$rec.id}">{$rec.title}</a></td>
+  <td style="text-align: left;"><a id="did_{$rec.id}">{$rec.description}</a></td>
   <td><input type="button" value="変更" onClick="javascript:PRG.editdialog('{$rec.id}')" /></td>
   <td><input type="button" value="削除" onClick="javascript:PRG.dialog('{$rec.id}','{$rec.title}')" /></td>
  </tr>
