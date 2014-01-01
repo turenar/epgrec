@@ -10,6 +10,7 @@
   include_once( INSTALL_PATH . '/storeProgram.inc.php' );
   include_once( INSTALL_PATH . '/recLog.inc.php' );
 
+	run_user_regulate();
 	$shm_id = shmop_open_surely();
   doKeywordReservation( '*', $shm_id );	// キーワード予約
   shmop_close( $shm_id );

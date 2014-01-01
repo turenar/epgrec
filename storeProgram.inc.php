@@ -35,15 +35,19 @@ function doKeywordReservation( $wave_type = '*', $shm_id ) {
 	if( count( $arr ) ){
 		//キーワード予約
 		foreach( $arr as $val ) {
-			if( $val->type !== '-' ){
+			if( (boolean)$val->kw_enable ){
 				switch( $wave_type ){
 					case 'GR':
-						if( !$val->typeGR )
+						if( !(boolean)$val->typeGR )
 							continue;
 						break;
 					case 'BS':
 					case 'CS':
-						if( !$val->typeBS && !$val->typeCS )
+						if( !(boolean)$val->typeBS && !(boolean)$val->typeCS )
+							continue;
+						break;
+					case 'EX':
+						if( !(boolean)$val->typeEX )
 							continue;
 						break;
 //					case '*':
@@ -61,10 +65,11 @@ function doKeywordReservation( $wave_type = '*', $shm_id ) {
 }
 
 function storeProgram( $type, $xmlfile ) {
-	global $BS_CHANNEL_MAP, $GR_CHANNEL_MAP, $CS_CHANNEL_MAP;
+	global $BS_CHANNEL_MAP, $GR_CHANNEL_MAP, $CS_CHANNEL_MAP, $EX_CHANNEL_MAP;
 	global $settings;
 	global $shm_id;
 
+	$ed_tm_sft = (int)$settings->former_time + (int)$settings->rec_switch_time;
 	$key_stk = array();
 	$key_cnt = 0;
 	// チャンネルマップファイルの準備
@@ -72,6 +77,7 @@ function storeProgram( $type, $xmlfile ) {
 	if( $type == 'BS' ) $map = $BS_CHANNEL_MAP;
 	else if( $type == 'GR') $map = $GR_CHANNEL_MAP;
 	else if( $type == 'CS') $map = $CS_CHANNEL_MAP;
+	else if( $type == 'EX') $map = $EX_CHANNEL_MAP;
 	
 	// serialize file read
 	$params = file( $xmlfile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES );
@@ -91,7 +97,7 @@ function storeProgram( $type, $xmlfile ) {
 	}
 	$map_chg = FALSE;
 	if( $type !== 'GR' ){
-		$f_nm  = INSTALL_PATH.'/settings/'.($type==='BS' ? 'bs_channel.php':'cs_channel.php');
+		$f_nm  = INSTALL_PATH.'/settings/'.strtolower($type).'_channel.php';
 		$st_ch = file( $f_nm, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES );
 	}
 	foreach( $chs_para as $ch ){
@@ -106,11 +112,10 @@ function storeProgram( $type, $xmlfile ) {
 		$mono_disc = $type==='GR' ? strtok( $disc, '_' ) : $disc;
 		if( !array_key_exists( "$mono_disc", $map ) ){		// GRは、ここで排除
 			// BS/CS新規チャンネル・ファイル自動登録 論理チャンネル(sid)変更も含む
-			if( $type === 'BS' ){
+			if( $type === 'BS' )
 				$map["$disc"] = $BS_CHANNEL_MAP["$disc"] = 'BS'.$ch['node'].'_'.$ch['slot'];	// 'BS' + node + slot
-			}else{
-				$map["$disc"] = $CS_CHANNEL_MAP["$disc"] = 'CS'.$ch['node'];
-			}
+			else
+				$map["$disc"] = $CS_CHANNEL_MAP["$disc"] = $type.$ch['node'];
 			$wt_str[0] = "\t\"".$disc."\" =>\t\"".$map["$disc"]."\",\t// ".$map["$disc"]."\t".$ch['sv'].",\t// ".$ch['display-name'];
 
 			$wt_str[2] = array_pop( $st_ch );
@@ -140,7 +145,7 @@ function storeProgram( $type, $xmlfile ) {
 					if( $type === 'GR' ){
 						$rec->channel = $map["$mono_disc"];
 					}else{
-						$tmp_ch = $type==='BS'? 'BS'.$ch['node'].'_'.$ch['slot'] : 'CS'.$ch['node'];
+						$tmp_ch = $type==='BS'? 'BS'.$ch['node'].'_'.$ch['slot'] : $type.$ch['node'];
 						if( strcmp( $map["$disc"], $tmp_ch ) ){
 							reclog( 'EPG更新::'.$mono_disc.'('.$ch['display-name'].')の物理チャンネル番号が更新されました。('.$map["$mono_disc"].' -> '.$tmp_ch.' '.$xmlfile.')', EPGREC_WARN );
 							$key_point         = array_search( $disc, array_keys( $map ) ) + 3;
@@ -200,7 +205,7 @@ function storeProgram( $type, $xmlfile ) {
 				}
 				// BS/CSのチャンネル番号変更
 				if( $type !== 'GR' ){
-					$tmp_ch = $type==='BS'? 'BS'.$ch['node'].'_'.$ch['slot'] : 'CS'.$ch['node'];
+					$tmp_ch = $type==='BS'? 'BS'.$ch['node'].'_'.$ch['slot'] : $type.$ch['node'];
 
 					if( strcmp( $rec->channel, $tmp_ch ) ){
 						reclog( 'EPG更新::'.$disc.'('.$ch['display-name'].')の物理チャンネル番号が更新されました。('.$rec->channel.' -> '.$tmp_ch.' '.$xmlfile.')', EPGREC_WARN );
@@ -223,7 +228,7 @@ function storeProgram( $type, $xmlfile ) {
 									}else{
 										// 手動予約
 										$st_tm  = $rev->starttime;
-										$ed_tm  = $rev->endtime;
+										$ed_tm  = !$rev->shortened ? $rev->endtime : toDatetime( toTimestamp( $rev->endtime )+$ed_tm_sft );
 										$ch_id  = (int)$rev->channel_id;
 										$title  = $rev->title;
 										$desc   = $rev->description;
@@ -259,8 +264,7 @@ function storeProgram( $type, $xmlfile ) {
 	// channel 終了
 
 	$single_ch =  strncmp( $xmlfile, $settings->temp_xml.'_', strlen( $settings->temp_xml )+1 ) ? TRUE : FALSE;
-	$ed_tm_sft = (int)$settings->former_time + (int)$settings->rec_switch_time;
-	$smf_type  = $type==='GR' ? 'GR' : 'BS';
+	$smf_type  = $type==='CS' ? 'BS' : $type;
 	$first_epg = TRUE;
 	while( count($params) ){
 		// 取得
@@ -361,9 +365,9 @@ function storeProgram( $type, $xmlfile ) {
 									$event_sch[$ev_lmt]['sub_genre']    = (int)$records[$cnt-1]->sub_genre;
 									$event_sch[$ev_lmt]['sub_genre2']   = (int)$records[$cnt-1]->sub_genre2;
 									$event_sch[$ev_lmt]['sub_genre3']   = (int)$records[$cnt-1]->sub_genre3;
-									$event_sch[$ev_lmt]['video_type']   = $records[$cnt-1]->video_type;
-									$event_sch[$ev_lmt]['audio_type']   = $records[$cnt-1]->audio_type;
-									$event_sch[$ev_lmt]['multi_type']   = $records[$cnt-1]->multi_type;
+									$event_sch[$ev_lmt]['video_type']   = (int)$records[$cnt-1]->video_type;
+									$event_sch[$ev_lmt]['audio_type']   = (int)$records[$cnt-1]->audio_type;
+									$event_sch[$ev_lmt]['multi_type']   = (int)$records[$cnt-1]->multi_type;
 									$ev_lmt++;
 								}
 							}
@@ -380,9 +384,9 @@ function storeProgram( $type, $xmlfile ) {
 							$event_sch[$ev_lmt]['sub_genre']    = (int)$records[$cnt]->sub_genre;
 							$event_sch[$ev_lmt]['sub_genre2']   = (int)$records[$cnt]->sub_genre2;
 							$event_sch[$ev_lmt]['sub_genre3']   = (int)$records[$cnt]->sub_genre3;
-							$event_sch[$ev_lmt]['video_type']   = $records[$cnt]->video_type;
-							$event_sch[$ev_lmt]['audio_type']   = $records[$cnt]->audio_type;
-							$event_sch[$ev_lmt]['multi_type']   = $records[$cnt]->multi_type;
+							$event_sch[$ev_lmt]['video_type']   = (int)$records[$cnt]->video_type;
+							$event_sch[$ev_lmt]['audio_type']   = (int)$records[$cnt]->audio_type;
+							$event_sch[$ev_lmt]['multi_type']   = (int)$records[$cnt]->multi_type;
 							$ev_lmt++;
 							break;
 					}
@@ -456,9 +460,9 @@ function storeProgram( $type, $xmlfile ) {
 									$event_add[$ev_cnt]['sub_genre']    = (int)$sch_in[0]->sub_genre;
 									$event_add[$ev_cnt]['sub_genre2']   = (int)$sch_in[0]->sub_genre2;
 									$event_add[$ev_cnt]['sub_genre3']   = (int)$sch_in[0]->sub_genre3;
-									$event_add[$ev_cnt]['video_type']   = $sch_in[0]->video_type;
-									$event_add[$ev_cnt]['audio_type']   = $sch_in[0]->audio_type;
-									$event_add[$ev_cnt]['multi_type']   = $sch_in[0]->multi_type;
+									$event_add[$ev_cnt]['video_type']   = (int)$sch_in[0]->video_type;
+									$event_add[$ev_cnt]['audio_type']   = (int)$sch_in[0]->audio_type;
+									$event_add[$ev_cnt]['multi_type']   = (int)$sch_in[0]->multi_type;
 									$ev_cnt++;
 									$sch_add++;
 								}
@@ -476,9 +480,9 @@ function storeProgram( $type, $xmlfile ) {
 							$event_add[$ev_cnt]['sub_genre']    = (int)$sch[0]->sub_genre;
 							$event_add[$ev_cnt]['sub_genre2']   = (int)$sch[0]->sub_genre2;
 							$event_add[$ev_cnt]['sub_genre3']   = (int)$sch[0]->sub_genre3;
-							$event_add[$ev_cnt]['video_type']   = $sch[0]->video_type;
-							$event_add[$ev_cnt]['audio_type']   = $sch[0]->audio_type;
-							$event_add[$ev_cnt]['multi_type']   = $sch[0]->multi_type;
+							$event_add[$ev_cnt]['video_type']   = (int)$sch[0]->video_type;
+							$event_add[$ev_cnt]['audio_type']   = (int)$sch[0]->audio_type;
+							$event_add[$ev_cnt]['multi_type']   = (int)$sch[0]->multi_type;
 							$event_pf[$pf_cnt]['sch_pnt'] = $ev_cnt;
 							$ev_cnt++;
 							$sch_add++;
@@ -504,9 +508,9 @@ function storeProgram( $type, $xmlfile ) {
 									$event_add[$ev_cnt]['sub_genre']    = (int)$sch_in[0]->sub_genre;
 									$event_add[$ev_cnt]['sub_genre2']   = (int)$sch_in[0]->sub_genre2;
 									$event_add[$ev_cnt]['sub_genre3']   = (int)$sch_in[0]->sub_genre3;
-									$event_add[$ev_cnt]['video_type']   = $sch_in[0]->video_type;
-									$event_add[$ev_cnt]['audio_type']   = $sch_in[0]->audio_type;
-									$event_add[$ev_cnt]['multi_type']   = $sch_in[0]->multi_type;
+									$event_add[$ev_cnt]['video_type']   = (int)$sch_in[0]->video_type;
+									$event_add[$ev_cnt]['audio_type']   = (int)$sch_in[0]->audio_type;
+									$event_add[$ev_cnt]['multi_type']   = (int)$sch_in[0]->multi_type;
 									$ev_cnt++;
 									$sch_add++;
 								}
@@ -537,9 +541,9 @@ function storeProgram( $type, $xmlfile ) {
 									$event_add[$ev_cnt]['sub_genre']    = (int)$sch[0]->sub_genre;
 									$event_add[$ev_cnt]['sub_genre2']   = (int)$sch[0]->sub_genre2;
 									$event_add[$ev_cnt]['sub_genre3']   = (int)$sch[0]->sub_genre3;
-									$event_add[$ev_cnt]['video_type']   = $sch[0]->video_type;
-									$event_add[$ev_cnt]['audio_type']   = $sch[0]->audio_type;
-									$event_add[$ev_cnt]['multi_type']   = $sch[0]->multi_type;
+									$event_add[$ev_cnt]['video_type']   = (int)$sch[0]->video_type;
+									$event_add[$ev_cnt]['audio_type']   = (int)$sch[0]->audio_type;
+									$event_add[$ev_cnt]['multi_type']   = (int)$sch[0]->multi_type;
 									$ev_cnt++;
 									$sch_add++;
 								}	// else DBにない場合(特に初回起動)にrepairEPG.phpを動かさないようにする
@@ -763,7 +767,7 @@ BORDER_CHK_THR:;
 					if( $event_pf[$pf_cnt]['sch_pnt'] == -1 )
 						$event_pf[$pf_cnt]['sch_pnt'] = $ev_cnt;
 					$pf_cnt++;
-					//reclog( '$ev_cnt < $ev_lmt('.$ev_cnt.'::'.$ev_lmt.')'.$debug_buf );
+					//reclog( '$ev_cnt < $ev_lmt('.$ev_cnt.'::'.$ev_lmt.')'.$debug_buf, EPGREC_DEBUG );
 					if( $ev_cnt+1 < $ev_lmt )
 						$ev_cnt++;
 					else
@@ -946,14 +950,14 @@ BORDER_CHK_THR:;
 									}
 								}
 							}
-							//reclog( 'debug: '.$pf_cnt.':'.$next_start );
+							//reclog( 'debug: '.$pf_cnt.':'.$next_start, EPGREC_DEBUG );
 						}
 					}
-					//reclog( 'e'.$pf_cnt.' ev_cnt::'.$ev_cnt );
+					//reclog( 'e'.$pf_cnt.' ev_cnt::'.$ev_cnt, EPGREC_DEBUG );
 					$ev_cnt = $ev_lmt;		// マージが終了したのでループを抜けるおまじない
 NEXT_SUB:;
 					if( $single_ch )
-						reclog( '単局EPG更新::'.$debug_msg );
+						reclog( '単局EPG更新::'.$debug_msg, EPGREC_DEBUG );
 				}
 				if( $pf_cnt >= $pf_lmt )
 					break;
@@ -961,7 +965,8 @@ NEXT_SUB:;
 		}
 
 		// programme 取得
-		$stk_rev = array();
+		$stk_rev    = array();
+		$stk_auto   = array();
 		$ev_cnt     = 0;
 		$channel_id = (int)$channel_rec->id;
 		$channel_ch = $channel_rec->channel;
@@ -1011,9 +1016,9 @@ NEXT_SUB:;
 									$rev_ed    = $reserve->endtime;
 									$rec_end   = toTimestamp( $rev_ed );
 									$prev_tuner = $reserve->tuner;
-									$rev_ds    = '予約ID:'.$reserve->id.' '.$reserve->channel_disc.':T'.$prev_tuner.'-Ch'.$reserve->channel.' '.$rev_st.'『'.$reserve->title.'』';
+									$rev_ds    = '予約ID:'.$reserve->id.' '.$channel_disc.':T'.$prev_tuner.'-Ch'.$reserve->channel.' '.$rev_st.'『'.$reserve->title.'』';
 									if( time() >= $rec_start - $settings->former_time ) {
-										if( $rewrite_eid!=$eid && (int)($rec->eid)==$eid ){
+										if( $rewrite_eid!==$eid && (int)($rec->eid)===$eid ){
 											//録画中番組の予約DB更新
 											$rec->starttime    = $starttime;
 											$rec->endtime      = $endtime;
@@ -1022,15 +1027,18 @@ NEXT_SUB:;
 											$rewrite_eid       = $eid;
 										}
 										//録画延伸指示(チューナ依存 recpt1ctl対応が必要)
-										if( time()<$rec_end && ( ( USE_RECPT1 && $prev_tuner<TUNER_UNIT1 )
-												|| ( $prev_tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$prev_tuner-TUNER_UNIT1]['cntrl'] ) ) ){
+										if( time()<$rec_end && (
+										( $type!=='EX' && 
+										( ( USE_RECPT1 && $prev_tuner<TUNER_UNIT1 ) || ( $prev_tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$prev_tuner-TUNER_UNIT1]['cntrl'] ) ) )
+										|| ( $type==='EX' && $EX_TUNERS_CHARA[$prev_tuner]['cntrl'] )
+										) ){
 											$add_time = toTimestamp($endtime) - $prg_ed;
 											$new_end  = toDatetime( $rec_end + $add_time );
 											if( $add_time > 0 ){
 												// 重複判定 延伸分で重複が増える場合は面倒なので(行程そのものを変更になる)延伸をしない
-												$type_str = $type==='GR' ? "type = 'GR'" : "(type = 'BS' OR type = 'CS')";
+												$type_str = ( $type==='BS' || $type==='CS') ? "(type = 'BS' OR type = 'CS')" : "type = '".$type."'";
 												$sql_cmd  = "WHERE complete = '0' AND ".$type_str." AND tuner = '".$prev_tuner.
-																		"' AND channel_id != '".$reserve->channel_id."' AND endtime >= '".$rev_ed;
+																		"' AND channel_id != '".$channel_id."' AND endtime >= '".$rev_ed;
 												$now_bat  = DBRecord::countRecords( RESERVE_TBL, $sql_cmd."' AND starttime <= '".$new_end."'" );		//重複数取得
 												if( $now_bat != 0 ){
 													// ギリギリまで延伸
@@ -1051,14 +1059,14 @@ NEXT_SUB:;
 											// すでに開始されている録画は無視する
 											reclog( $rev_ds.'は録画開始後に時間変更が発生した可能性がある', EPGREC_WARN );
 									}else{
-										if( (int)($reserve->autorec) == 0 ){
+										if( (int)($reserve->autorec) === 0 ){
 											// 手動予約の退避
 											$arr = array();
 											$arr['eid']    = (int)$rec->eid;
 											$arr['old_st'] = $prg_st;
 											$arr['st_tm']  = $rec_start;
-											$arr['ed_tm']  = $rec_end;
-											$arr['ch_id']  = (int)$reserve->channel_id;
+											$arr['ed_tm']  = !$reserve->shortened ? $rec_end : $rec_end+$ed_tm_sft;
+											$arr['ch_id']  = $channel_id;
 											$arr['title']  = $reserve->title;
 											$arr['desc']   = $reserve->description;
 											$arr['cat_id'] = (int)$reserve->category_id;
@@ -1081,26 +1089,31 @@ NEXT_SUB:;
 							}
 							if( (int)($rec->eid) != $rewrite_eid ){
 								// 番組削除
-								if( !$skip_ch )		// 非表示CHはログを出さない
-									reclog( 'EPG更新::時間重複した番組ID'.$rec->id.': '.$rec->channel_disc.'::'.$rec->eid.' '.date("Y-m-d H:i-",$prg_st).date("H:i",$prg_ed).'『'.$rec->title.'』を削除' );
+								if( !$skip_ch ){
+									// 非表示CHはログを出さない
+									reclog( 'EPG更新::時間重複した番組ID'.$rec->id.': '.$channel_disc.'::'.$rec->eid.' '.date("Y-m-d H:i-",$prg_st).date("H:i",$prg_ed).'『'.$rec->title.'』を削除', EPGREC_DEBUG );
+									// 自動予約禁止フラグの保存
+									if( !(boolean)$rec->autorec )
+										$stk_auto[] = (int)$rec->eid;
+								}
 								$rec->delete();
 							}
 						}
 						unset( $rec );
 						// 
 						if( ( $sch_sync['pre_check']===TRUE || $sch_sync['cnt']==-1 ) && strcmp( $starttime, $epg_time )<0 ){
-//reclog( $channel_disc.'::'.$sch_sync['cnt'].' sch_key::'.$sch_key.'　'.$starttime.'　'.$epg_time );
+reclog( $channel_disc.'::'.$sch_sync['cnt'].' sch_key::'.$sch_key.'　'.$starttime.'　'.$epg_time, EPGREC_DEBUG );
 							$sch_cnt = $sch_key;
 							do{
 								if( strcmp( $event_sch[$sch_cnt]['endtime'], $now_time ) >= 0 ){
 									if( strcmp( $event_sch[$sch_cnt]['starttime'], $now_time ) <= 0 ){
-//reclog( $event_sch[$sch_cnt]['starttime'].'　'.$event_sch[$sch_cnt]['endtime'] );
+reclog( $event_sch[$sch_cnt]['starttime'].'　'.$event_sch[$sch_cnt]['endtime'], EPGREC_DEBUG );
 										$sch_sync['cnt']       = $sch_cnt;
 										$sch_sync['pre_check'] = FALSE;
 										break;
 									}else
 									if( $sch_cnt == 0 ){
-//reclog( $event_sch[$sch_cnt]['starttime'].'　'.$event_sch[$sch_cnt]['endtime'] );
+reclog( $event_sch[$sch_cnt]['starttime'].'　'.$event_sch[$sch_cnt]['endtime'], EPGREC_DEBUG );
 										$sch_sync['cnt']       = 0;
 										$sch_sync['pre_check'] = FALSE;
 										break;
@@ -1110,18 +1123,53 @@ NEXT_SUB:;
 							}while( $sch_cnt-- > 0 );
 						}
 					}
-					//録画中番組以外を登録
-					if( $eid != $rewrite_eid ){
-						// 番組延伸による過去分の重複削除
-						if( $eid != -1 ){
-							$options = 'WHERE channel_id = '.$channel_id.' AND eid = '.$eid;
-							$num = DBRecord::countRecords( PROGRAM_TBL, $options );
-							if( $num > 0 ){
-								$reco = DBRecord::createRecords( PROGRAM_TBL, $options );
-								$reco[0]->delete();
+
+					// 番組延伸による過去分の重複削除
+					if( $eid !== -1 ){
+						$options = "WHERE channel_id = '".$channel_id."' AND eid = '".$eid."' AND program_disc != '".$program_disc."'";
+						$num = DBRecord::countRecords( PROGRAM_TBL, $options );
+						if( $num > 0 ){
+							$reco = DBRecord::createRecords( PROGRAM_TBL, $options );
+							foreach( $reco as $del_pro ){
+								$prg_st    = toTimestamp( $del_pro->starttime );
+								$prev_recs = DBRecord::createRecords( RESERVE_TBL, "WHERE complete = '0' AND program_id = '".$del_pro->id."' ORDER BY starttime DESC" );
+								foreach( $prev_recs as $reserve ){
+									if( (int)($reserve->autorec) === 0 ){
+										// 手動予約の退避
+										$arr = array();
+										$arr['eid']    = $eid;
+										$arr['old_st'] = $prg_st;
+										$arr['st_tm']  = toTimestamp( $reserve->starttime );
+										$arr['ed_tm']  = !$reserve->shortened ? toTimestamp( $reserve->endtime ) : toTimestamp( $reserve->endtime )+$ed_tm_sft;
+										$arr['ch_id']  = $channel_id;
+										$arr['title']  = $reserve->title;
+										$arr['desc']   = $reserve->description;
+										$arr['cat_id'] = (int)$reserve->category_id;
+										$arr['rs_md']  = (int)$reserve->mode;
+										$arr['discon'] = (int)$reserve->discontinuity;
+										$arr['rs_dt']  = (int)$reserve->dirty;
+										$arr['prior']  = (int)$reserve->priority;
+										array_push( $stk_rev, $arr );
+									}else{
+//										reclog( $rev_ds.'は時間変更の可能性があり予約取り消し' );
+										$key_stk[$key_cnt++] = (int)$reserve->autorec;
+									}
+									Reservation::cancel( $reserve->id );
+								}
+								if( !$skip_ch ){		// 非表示CHはログを出さない
+									reclog( 'EPG更新::時間重複した番組ID'.$del_pro->id.': '.$channel_disc.'::'.$eid.' '.date("Y-m-d H:i-",$prg_st).date("H:i",toTimestamp( $del_pro->endtime )).
+											'『'.$del_pro->title.'』を削除', EPGREC_DEBUG  );
+									// 自動予約禁止フラグの保存
+									if( !(boolean)$del_pro->autorec )
+										$stk_auto[] = $eid;
+								}
+								$del_pro->delete();
 							}
 						}
+					}
 
+					//録画中番組以外を登録
+					if( $eid !== $rewrite_eid ){
 						$rec = new DBRecord( PROGRAM_TBL );
 						$rec->channel_disc = $channel_disc;
 						$rec->channel_id   = $channel_id;
@@ -1145,8 +1193,7 @@ NEXT_SUB:;
 						$rec->update();
 						$ev_cnt++;
 					}
-				}
-				else {
+				}else{
 					// 番組内容更新
 					$chg_element = FALSE;
 					$reserve_chg = FALSE;
@@ -1158,49 +1205,49 @@ NEXT_SUB:;
 						$reserve_chg = TRUE;
 					}else
 						$title_old = $title;
-					if( (int)($rec->category_id) != $category_id ){
+					if( (int)($rec->category_id) !== $category_id ){
 						$rec->category_id = $category_id;
 						$chg_element = TRUE;
 						$reserve_chg = TRUE;
 					}
-					if( (int)($rec->sub_genre) != $sub_genre ){
+					if( (int)($rec->sub_genre) !== $sub_genre ){
 						$rec->sub_genre = $sub_genre;
 						$chg_element = TRUE;
 						$reserve_chg = TRUE;
 					}
-					if( $category_id==15 && $sub_genre==14 )		// 補完した放送休止は除外
+					if( $category_id===15 && $sub_genre===14 )		// 補完した放送休止は除外
 						$reserve_chg = FALSE;
 					if( strcmp( $rec->description , $desc ) != 0 ){
 						$rec->description = $desc;
 						$chg_element      = TRUE;
 					}
-					if( (int)($rec->genre2) != $genre2 ){
+					if( (int)($rec->genre2) !== $genre2 ){
 						$rec->genre2 = $genre2;
 						$chg_element = TRUE;
 					}
-					if( (int)($rec->sub_genre2) != $sub_genre2 ){
+					if( (int)($rec->sub_genre2) !== $sub_genre2 ){
 						$rec->sub_genre2 = $sub_genre2;
 						$chg_element     = TRUE;
 					}
-					if( (int)($rec->genre3) != $genre3 ){
+					if( (int)($rec->genre3) !== $genre3 ){
 						$rec->genre3 = $genre3;
 						$chg_element = TRUE;
 					}
-					if( (int)($rec->sub_genre3) != $sub_genre3 ){
+					if( (int)($rec->sub_genre3) !== $sub_genre3 ){
 						$rec->sub_genre3 = $sub_genre3;
 						$chg_element     = TRUE;
 					}
-					if( (int)($rec->video_type) != $video_type ){
+					if( (int)($rec->video_type) !== $video_type ){
 						$rec->video_type = $video_type;
 						$chg_element     = TRUE;
 						$reserve_chg     = TRUE;
 					}
-					if( (int)($rec->audio_type) != $audio_type ){
+					if( (int)($rec->audio_type) !== $audio_type ){
 						$rec->audio_type = $audio_type;
 						$chg_element     = TRUE;
 						$reserve_chg     = TRUE;
 					}
-					if( (int)($rec->multi_type) != $multi_type ){
+					if( (int)($rec->multi_type) !== $multi_type ){
 						$rec->multi_type = $multi_type;
 						$chg_element     = TRUE;
 						$reserve_chg     = TRUE;
@@ -1241,8 +1288,68 @@ NEXT_SUB:;
 			}
 		}
 		unset( $program );
-		if( $ev_cnt != $ev_lmt )
+/*		// 番組延伸による過去登録分の削除漏れ対策
+		foreach( $event_sch as $program ) {
+			if( $program['eid'] !== -1 ){
+				$options = 'WHERE channel_id = '.$channel_id.' AND eid = '.$program['eid'].' ORDER BY endtime DESC';
+				$num = DBRecord::countRecords( PROGRAM_TBL, $options );
+				if( $num > 1 ){
+					$reco = DBRecord::createRecords( PROGRAM_TBL, $options );
+					if( $reco[1]->program_disc === $program['program_disc'] ){
+						$pre = $reco[0];
+					}else{
+						$pre = $reco[1];
+					}
+					$prg_st    = toTimestamp( $pre->starttime );
+					$prev_recs = DBRecord::createRecords( RESERVE_TBL, "WHERE complete = '0' AND program_id = '".$pre->id."' ORDER BY starttime DESC" );
+					foreach( $prev_recs as $reserve ){
+						if( (int)($reserve->autorec) === 0 ){
+							// 手動予約の退避
+							$arr = array();
+							$arr['eid']    = $program['eid'];
+							$arr['old_st'] = $prg_st;
+							$arr['st_tm']  = toTimestamp( $reserve->starttime );
+							$arr['ed_tm']  = !$reserve->shortened ? toTimestamp( $reserve->endtime ) : toTimestamp( $reserve->endtime )+$ed_tm_sft;
+							$arr['ch_id']  = $channel_id;
+							$arr['title']  = $reserve->title;
+							$arr['desc']   = $reserve->description;
+							$arr['cat_id'] = (int)$reserve->category_id;
+							$arr['rs_md']  = (int)$reserve->mode;
+							$arr['discon'] = (int)$reserve->discontinuity;
+							$arr['rs_dt']  = (int)$reserve->dirty;
+							$arr['prior']  = (int)$reserve->priority;
+							array_push( $stk_rev, $arr );
+						}else{
+//							reclog( $rev_ds.'は時間変更の可能性があり予約取り消し' );
+							$key_stk[$key_cnt++] = (int)$reserve->autorec;
+						}
+						Reservation::cancel( $reserve->id );
+					}
+					if( !$skip_ch ){		// 非表示CHはログを出さない
+						reclog( 'EPG更新::時間重複した番組ID'.$pre->id.': '.$channel_disc.'::'.$pre->eid.' '.date("Y-m-d H:i-",$prg_st).date("H:i",toTimestamp( $pre->endtime )).'『'.$pre->title.'』を削除', EPGREC_DEBUG  );
+						// 自動予約禁止フラグの保存
+						if( !(boolean)$pre->autorec )
+							$stk_auto[] = (int)$pre->eid;
+					}
+					$pre->delete();
+				}
+			}
+		}
+*/
+		if( $ev_cnt !== $ev_lmt )
 			$first_epg = FALSE;
+
+		// 自動予約禁止フラグの復帰
+		foreach( $stk_auto as $can_eid ){
+			$options = "WHERE channel_id = '".$channel_id."' AND eid = '".$can_eid."'";
+			$hit = DBRecord::countRecords( PROGRAM_TBL, $options );
+			if( $hit > 0 ) {
+				$prg = DBRecord::createRecords( PROGRAM_TBL, $options );
+				$prg[0]->autorec = 0;
+				$prg[0]->update();
+			}
+		}
+		unset( $stk_auto );
 
 		//手動予約のタイムシフト再予約
 		foreach( $stk_rev as $post ){
@@ -1290,7 +1397,7 @@ NEXT_SUB:;
 					$resq      = INSTALL_PATH.'/repairEpg.php '.$channel_id;
 					$ps_output = shell_exec( PS_CMD );
 					if( strpos( $ps_output, $resq ) === FALSE ){
-						reclog( '番組構成修正スクリプト起動 '.$resq.'['.$type.':'.$map["$disc"].':'.$channel_rec->sid.']' );
+						reclog( '番組構成修正スクリプト起動 '.$resq.'['.$type.':'.$map["$disc"].':'.$channel_rec->sid.']', EPGREC_DEBUG );
 						@exec( $resq.' '.toTimestamp( $event['starttime']).' '.toTimestamp( $event['endtime']).' >/dev/null 2>&1 &' );
 					}else
 						return (string)toTimestamp( $event['starttime'] );
@@ -1334,7 +1441,7 @@ NEXT_SUB:;
 						$key_point = array_search( $disc, array_keys( $map ) );
 						if( $key_point!==FALSE && $map["$disc"]!=='NC' ){
 							// xx_channel.phpの編集
-							$f_nm  = INSTALL_PATH.'/settings/'.($type==='BS' ? 'bs_channel.php':'cs_channel.php');
+							$f_nm  = INSTALL_PATH.'/settings/'.strtolower($type).'_channel.php';
 							$st_ch = file( $f_nm, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES );
 							array_splice( $st_ch, $key_point+3, 1 );
 							$fp = fopen( $f_nm, 'w' );

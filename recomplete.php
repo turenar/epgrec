@@ -21,7 +21,7 @@ $reserve_id = $argv[1];
 
 try{
 	$rrec = new DBRecord( RESERVE_TBL, 'id' , $reserve_id );
-	$rev_ds = '予約ID:'.$rrec->id.' '.$rrec->channel_disc.':T'.$rrec->tuner.'-Ch'.$rrec->channel.' '.$rrec->starttime.'『'.htmlspecialchars($rrec->title).'』';
+	$rev_ds = '予約ID:'.$rrec->id.' '.$rrec->channel_disc.':T'.$rrec->tuner.'-Ch'.$rrec->channel.' '.$rrec->starttime.'『'.$rrec->title.'』';
 
 	if( (int)$rrec->autorec > 0 ){
 		$restart_lmt = toTimestamp( $rrec->starttime ) + REC_RETRY_LIMIT;
@@ -80,6 +80,7 @@ try{
 				$syslog = '<br><font color="#ff0000">'.str_replace( "\n", '<br>', htmlspecialchars($log) ).'</font>';
 			else
 				$syslog = '<br>'.str_replace( "\n", '<br>', htmlspecialchars($log) );
+			$rev_ds = htmlspecialchars($rev_ds);
 		}else
 			$syslog = NULL;
 		// 不具合が出る場合は、以下を入れ替えること

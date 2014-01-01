@@ -31,6 +31,7 @@ function searchProces( $pid )
 		$sid = $_GET['sid'];
 	$GR_max = (int)$settings->gr_tuners;
 	$ST_max = (int)$settings->bs_tuners;
+	$EX_max = EXTRA_TUNERS;
 	for( $sem_cnt=0; $sem_cnt<$GR_max; $sem_cnt++ ){
 		$rv_smph          = $sem_cnt + SEM_GR_START;
 		$sem_id[$rv_smph] = sem_get_surely( $rv_smph );
@@ -43,12 +44,23 @@ function searchProces( $pid )
 		if( $sem_id[$rv_smph] === FALSE )
 			exit;
 	}
+	for( $sem_cnt=0; $sem_cnt<$EX_max; $sem_cnt++ ){
+		$rv_smph          = $sem_cnt + SEM_EX_START;
+		$sem_id[$rv_smph] = sem_get_surely( $rv_smph );
+		if( $sem_id[$rv_smph] === FALSE )
+			exit;
+	}
 	if( $channel!=='-' && isset( $_GET['type'] ) ){
 		$type = substr( $_GET['type'], 0, 2 );			// index.htmlのchannel_discから流用してるため
 		if( $type === 'GR' ){
 			$sql_type = "type = 'GR'";
 			$smf_key  = SEM_GR_START;
 			$tuners   = $GR_max;
+		}else
+		if( $type === 'EX' ){
+			$sql_type = "type = 'EX'";
+			$smf_key  = SEM_EX_START;
+			$tuners   = $EX_max;
 		}else{
 			//BS/CS
 			$sql_type = "(type = 'BS' OR type = 'CS')";
@@ -72,30 +84,50 @@ function searchProces( $pid )
 					// GR
 					$now_tuner = $rv_smph - SEM_GR_START;
 					$now_type  = 'GR';
-				}else{
+				}else
+				if( $rv_smph < SEM_EX_START ){
 					// satelite
 					$now_tuner = $rv_smph - SEM_ST_START;
 					$now_type  = 'BS';
+				}else{
+					// EX
+					$now_tuner = $rv_smph - SEM_EX_START;
+					$now_type  = 'EX';
 				}
-				$wave_disc = $type==='GR' ? 'GR' : 'BS';
+				$wave_disc = $type==='CS' ? 'BS' : $type;
 				$ctl_chng  = FALSE;
 				if( $channel === '-' )
 					$tuner_stop = TRUE;
-				else
-					if( $now_tuner < TUNER_UNIT1 )
-						$tuner_stop = !USE_RECPT1;			// DVBドライバーの対応は無し
-					else
+				else{
+					if( $now_type !== 'EX' ){
+						if( $now_tuner < TUNER_UNIT1 )
+							$tuner_stop = !USE_RECPT1;			// DVBドライバーの対応は無し
+						else
+							if( $wave_disc === $now_type )
+								if( $OTHER_TUNERS_CHARA["$now_type"][$now_tuner-TUNER_UNIT1]['httpS'] )
+									$tuner_stop = FALSE;
+								else
+									if( $OTHER_TUNERS_CHARA["$now_type"][$now_tuner-TUNER_UNIT1]['cntrl'] ){
+										$tuner_stop = FALSE;
+										$ctl_chng   = TRUE;
+									}else
+										$tuner_stop = TRUE;
+							else
+								$tuner_stop = TRUE;
+					}else{
 						if( $wave_disc === $now_type )
-							if( $OTHER_TUNERS_CHARA["$now_type"][$now_tuner-TUNER_UNIT1]['httpS'] )
+							if( $EX_TUNERS_CHARA[$now_tuner]['httpS'] )
 								$tuner_stop = FALSE;
 							else
-								if( $OTHER_TUNERS_CHARA["$now_type"][$now_tuner-TUNER_UNIT1]['cntrl'] ){
+								if( $EX_TUNERS_CHARA[$now_tuner]['cntrl'] ){
 									$tuner_stop = FALSE;
 									$ctl_chng   = TRUE;
 								}else
 									$tuner_stop = TRUE;
 						else
 							$tuner_stop = TRUE;
+					}
+				}
 				$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
 				// 録画コマンド常駐確認
 				$errno = searchProces( $real_view );
@@ -177,7 +209,7 @@ function searchProces( $pid )
 					if( $smph == 0 ){
 						// recpt1常駐判定
 						if( isset( $now_type ) ){
-							if( $slc_tuner >= TUNER_UNIT1 ){
+							if( $slc_tuner>=TUNER_UNIT1 && $now_type!=='EX' ){
 								// チューナー渡りのためリアルタイム視聴一時終了
 								$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
 								if( posix_kill( $real_view, 9 ) ){		// 録画コマンド停止 cvlcは自動終了
@@ -287,8 +319,9 @@ $asf_buf  = "<ASX version = \"3.0\">";
 $asf_buf .= "<PARAM NAME = \"Encoding\" VALUE = \"UTF-8\" />";
 $asf_buf .= "<ENTRY>";
 $asf_buf .= "<TITLE>".$channel.":".$sid.' '.$_GET['name']."</TITLE>";
-$now_type = $type==='GR' ? 'GR' : 'BS';
-if( ( $slc_tuner<TUNER_UNIT1 && USE_RECPT1 ) || ( $slc_tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$now_type"][$slc_tuner-TUNER_UNIT1]['httpS'] ) )
+$now_type = $type==='CS' ? 'BS' : $type;
+if( ( $type==='EX' && $EX_TUNERS_CHARA[$slc_tuner]['httpS'] ) ||
+		 ( $type!=='EX' && ( ( $slc_tuner<TUNER_UNIT1 && USE_RECPT1 ) || ( $slc_tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$now_type"][$slc_tuner-TUNER_UNIT1]['httpS'] ) ) ) )
 	$asf_buf .= "<REF HREF=\"http://".$_SERVER['SERVER_NAME'].':'.REALVIEW_HTTP_PORT.'/'.$channel."/".$sid."\" />";
 else
 	$asf_buf .= "<REF HREF=\"http://".$_SERVER['SERVER_NAME'].':'.REALVIEW_HTTP_PORT."/\" />";

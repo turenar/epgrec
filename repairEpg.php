@@ -70,6 +70,12 @@ if( search_getepg() === FALSE ){
 		$sql_type = "type = 'GR'";
 		$smf_key  = SEM_GR_START;
 		$tuners   = $settings->gr_tuners;
+	}else
+	if( $type === 'EX' ){
+		$smf_type = 'EX';
+		$sql_type = "type = 'EX'";
+		$smf_key  = SEM_EX_START;
+		$tuners   = EXTRA_TUNERS;
 	}else{
 		$smf_type = 'BS';
 		$sql_type = "(type = 'BS' OR type = 'CS')";
@@ -145,8 +151,9 @@ if( search_getepg() === FALSE ){
 						while( sem_release( $sem_id[$slc_tuner] ) === FALSE )
 							usleep( 100 );
 						sleep( (int)$settings->rec_switch_time );
-reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time()) );
-						if( ( $slc_tuner<TUNER_UNIT1 && RECPT1_EPG_PATCH ) || ( $slc_tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$slc_tuner-TUNER_UNIT1]['epgTs'] ) )
+reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time()), EPGREC_DEBUG );
+						if( ( $type!=='EX' && ( ( $slc_tuner<TUNER_UNIT1 && RECPT1_EPG_PATCH ) || ( $slc_tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$slc_tuner-TUNER_UNIT1]['epgTs'] ) ) )
+							|| ( $type==='EX' && $EX_TUNERS_CHARA[$slc_tuner]['epgTs'] ) )
 							$cmdline = 'SID=epg ';
 						else
 							$cmdline = "";

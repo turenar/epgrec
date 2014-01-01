@@ -14,8 +14,19 @@ function get_channels( $type )
 {
 	global $BS_CHANNEL_MAP;
 	global $CS_CHANNEL_MAP;
+	global $EX_CHANNEL_MAP;
 
-	$map = $type==='BS' ? $BS_CHANNEL_MAP : $CS_CHANNEL_MAP;
+	switch( $type ){
+		case 'BS':
+			$map = $BS_CHANNEL_MAP;
+			break;
+		case 'CS':
+			$map = $CS_CHANNEL_MAP;
+			break;
+		case 'EX':
+			$map = $EX_CHANNEL_MAP;
+			break;
+	}
 	$ext_pac = array();
 	$cer_pac = array();
 	try{
@@ -66,13 +77,23 @@ function rate_time( $minute )
 			$cer_chs = $bs_pac[1];
 		}
 	}
+	if( EXTRA_TUNERS ){
+		$ex_pac = get_channels( 'EX' );
+		if( (int)$settings->bs_tuners != 0 ){
+			$ext_chs = array_merge( $ext_chs, $ex_pac[0] );
+			$cer_chs = array_merge( $cer_chs, $ex_pac[1] );
+		}else{
+			$ext_chs = $ex_pac[0];
+			$cer_chs = $ex_pac[1];
+		}
+	}
 
 	// ストレージ空き容量取得
 	$ts_stream_rate = TS_STREAM_RATE;
 	$spool_path = INSTALL_PATH.$settings->spool;
 	// 全ストレージ空き容量仮取得
 	$root_mega = $free_mega = (int)( disk_free_space( $spool_path ) / ( 1024 * 1024 ) );
-	// スプール･ルート･ストレージの空き容量保存
+	// スプール・ルート・ストレージの空き容量保存
 	$stat  = stat( $spool_path );
 	$dvnum = (int)$stat['dev'];
 	$spool_disks = array();
@@ -92,7 +113,7 @@ function rate_time( $minute )
 	$arr['time']  = rate_time( $root_mega );
 	array_push( $spool_disks, $arr );
 	$devs = array( $dvnum );
-	// スプール･ルート上にある全ストレージの空き容量取得
+	// スプール・ルート上にある全ストレージの空き容量取得
 	$files = scandir( $spool_path );
 	if( $files !== FALSE ){
 		array_splice( $files, 0, 2 );
@@ -125,10 +146,16 @@ function rate_time( $minute )
 		}
 	}
 
-	if( (int)$settings->bs_tuners > 0 )
-		$link_add = !(boolean)$settings->cs_rec_flg ? 1 : 2;
-	else
-		$link_add = 0;
+	$link_add = '';
+	if( (int)$settings->gr_tuners > 0 )
+		$link_add .= '<option value="index.php">地上デジタル番組表</option>';
+	if( (int)$settings->bs_tuners > 0 ){
+		$link_add .= '<option value="index.php?type=BS">BSデジタル番組表</option>';
+		if( (boolean)$settings->cs_rec_flg )
+			$link_add .= '<option value="index.php?type=CS">CSデジタル番組表</option>';
+	}
+	if( EXTRA_TUNERS )
+		$link_add .= '<option value="index.php?type=EX">'.EXTRA_NAME.'番組表</option>';
 
 	$smarty = new Smarty();
 	$smarty->assign( 'link_add',    $link_add );

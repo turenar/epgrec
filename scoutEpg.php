@@ -85,10 +85,17 @@ function sig_handler()
 		$smf_key  = SEM_GR_START;
 		$tuners   = (int)$settings->gr_tuners;
 	}else{
-		$smf_type = 'BS';
-		$sql_type = "(type = 'BS' OR type = 'CS')";
-		$smf_key  = SEM_ST_START;
-		$tuners   = (int)$settings->bs_tuners;
+		if( $type === 'EX' ){
+			$smf_type = 'EX';
+			$sql_type = "type = 'EX'";
+			$smf_key  = SEM_EX_START;
+			$tuners   = EXTRA_TUNERS;
+		}else{
+			$smf_type = 'BS';
+			$sql_type = "(type = 'BS' OR type = 'CS')";
+			$smf_key  = SEM_ST_START;
+			$tuners   = (int)$settings->bs_tuners;
+		}
 		strtok( $rev->channel_disc, '_' );
 		$sid = strtok( '_' );
 	}
@@ -166,7 +173,8 @@ if( search_getepg() === FALSE ){
 						while( sem_release( $sem_id[$slc_tuner] ) === FALSE )
 							usleep( 100 );
 						sleep( (int)$settings->rec_switch_time );
-						if( ( $slc_tuner<TUNER_UNIT1 && RECPT1_EPG_PATCH ) || ( $slc_tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$slc_tuner-TUNER_UNIT1]['epgTs'] ) )
+						if( ( $type!=='EX' && ( ( $slc_tuner<TUNER_UNIT1 && RECPT1_EPG_PATCH ) || ( $slc_tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$slc_tuner-TUNER_UNIT1]['epgTs'] ) ) )
+							|| ( $type==='EX' && $EX_TUNERS_CHARA[$slc_tuner]['epgTs'] ) )
 							$cmdline = 'SID=epg ';
 						else
 							$cmdline = "";

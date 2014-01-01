@@ -91,6 +91,9 @@ try{
 		$arr['cat'] = $cat->name_en;
 		$arr['mode'] = $RECORD_MODE[$r->mode]['name'];
 		$arr['keyword'] = putProgramHtml( $arr['title'], '*', 0, $r->category_id, 16 );
+		$arr['key_id']  = (int)$r->autorec;
+		if( DBRecord::countRecords( KEYWORD_TBL, "WHERE id = '".$arr['key_id']."'" ) == 0 )
+			$arr['key_id'] = 0;
 		array_push( $records, $arr );
 	}
 	
@@ -136,11 +139,16 @@ try{
 		array_push( $stations, $arr );
 	}
 	
-	
-	if( (int)$settings->bs_tuners > 0 )
-		$link_add = $settings->cs_rec_flg==0 ? 1 : 2;
-	else
-		$link_add = 0;
+	$link_add = '';
+	if( (int)$settings->gr_tuners > 0 )
+		$link_add .= '<option value="index.php">地上デジタル番組表</option>';
+	if( (int)$settings->bs_tuners > 0 ){
+		$link_add .= '<option value="index.php?type=BS">BSデジタル番組表</option>';
+		if( (boolean)$settings->cs_rec_flg )
+			$link_add .= '<option value="index.php?type=CS">CSデジタル番組表</option>';
+	}
+	if( EXTRA_TUNERS )
+		$link_add .= '<option value="index.php?type=EX">'.EXTRA_NAME.'番組表</option>';
 
 
 	$smarty = new Smarty();

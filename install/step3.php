@@ -8,7 +8,7 @@ include_once("../tableStruct.inc.php");
 
 function cat_house( $id, $cat_ja, $cat_en ){
 	$cat_rec = new DBRecord( CATEGORY_TBL );
-//	$sql = "INSERT INTO `epgrec`.`".CATEGORY_TBL."` (`id`, `name_jp`, `name_en`, `category_disc`) VALUES (\'".$id."\', \'".$cat_ja."\', \'".$cat_en."\', \'".md5( $cat_ja.$cat_en )."\');";
+//	$sql = "INSERT INTO `epgrec`.`".CATEGORY_TBL."` (`id`, `name_jp`, `name_en`, `category_disc`) VALUES ('".$id."', '".$cat_ja."', '".$cat_en."', '".md5( $cat_ja.$cat_en )."');";
 	$cat_rec->name_jp       = $cat_ja;
 	$cat_rec->name_en       = $cat_en;
 	$cat_rec->category_disc = md5( $cat_ja . $cat_en );

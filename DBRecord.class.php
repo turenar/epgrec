@@ -115,7 +115,7 @@ class DBRecord {
 		if( $this->__id == 0 ) throw new exception( 'get:無効なid' );
 		if( $property === 'id' ) return $this->__id;
 		if( $this->__record_data === false ) throw new exception( 'get: 無効なレコード' );
-		if( ! array_key_exists( $property, $this->__record_data ) ) throw new exception( 'get: $propertyは存在しません' );
+		if( ! array_key_exists( $property, $this->__record_data ) ) throw new exception( 'get: $property['.$property.']は存在しません' );
 		
 //		return stripslashes($this->__record_data[$property]);
 		return $this->__record_data[$property];

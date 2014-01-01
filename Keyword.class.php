@@ -25,10 +25,12 @@ class Keyword extends DBRecord {
 									$typeGR = FALSE,
 									$typeBS = FALSE,
 									$typeCS = FALSE,
+									$typeEX = FALSE,
 									$category_id = 0,
 									$channel_id = 0,
-									$weekofday = 7,
+									$weekofday = 0x7f,
 									$prgtime = 24,
+									$period = 1,
 									$sub_genre = 16,
 									$first_genre = 1,
 									$limit = 300 ) {
@@ -64,32 +66,47 @@ class Keyword extends DBRecord {
 			}
 		}
 		
-		$types = 0;
-		if( $typeGR )
-			$types += 1;
-		if( $typeBS )
-			$types += 2;
-		if( $typeCS )
-			$types += 4;
-		switch( $types ){
-			case 1:
-				$options .= " AND type = 'GR'";
-				break;
-			case 2:
-				$options .= " AND type = 'BS'";
-				break;
-			case 4:
-				$options .= " AND type = 'CS'";
-				break;
-			case 3:
-				$options .= " AND ( type = 'GR' OR type = 'BS' )";
-				break;
-			case 5:
-				$options .= " AND ( type = 'GR' OR type = 'CS' )";
-				break;
-			case 6:
-				$options .= " AND ( type = 'BS' OR type = 'CS' )";
-				break;
+		$types = '';
+		$t_cnt = 0;
+		if( $typeGR ){
+			$types .= "'GR'";
+			$t_cnt++;
+		}
+		if( $typeBS ){
+			if( $types !== '' )
+				$types .= ',';
+			$types .= "'BS'";
+			$t_cnt++;
+		}
+		if( $typeCS ){
+			if( $types !== '' )
+				$types .= ',';
+			$types .= "'CS'";
+			$t_cnt++;
+		}
+		if( $typeEX ){
+			if( $types !== '' )
+				$types .= ',';
+			$types .= "'EX'";
+			$t_cnt++;
+		}
+		if( 0<$t_cnt && $t_cnt<4 )
+			$options .= ' AND type IN ('.$types.')';
+		
+		if( $channel_id != 0 ){
+			$options .= " AND channel_id = '".$channel_id."'";
+		}else{
+			$que = 'WHERE type IN ('.$types.") AND skip = '1'";
+			if( DBRecord::countRecords( CHANNEL_TBL, $que ) ){
+				$chs = DBRecord::createRecords( CHANNEL_TBL, $que );
+				$ch_ids = '';
+				foreach( $chs as $ch ){
+					if( $ch_ids !== '' )
+						$ch_ids .= ',';
+					$ch_ids .= "'".(string)$ch->id."'";
+				}
+				$options .= ' AND channel_id NOT IN ('.$ch_ids.')';
+			}
 		}
 		
 		if( $category_id != 0 ) {
@@ -108,17 +125,41 @@ class Keyword extends DBRecord {
 			}
 		}
 		
-		if( $channel_id != 0 ) {
-			$options .= " AND channel_id = '".$channel_id."'";
-		}
-		
-		if( $weekofday != 7 ) {
-			$options .= " AND WEEKDAY(starttime) = '".$weekofday."'";
-		}
-		
 		if( $prgtime != 24 ) {
-			$options .= " AND time(starttime) BETWEEN cast('".sprintf( '%02d:00:00', $prgtime)."' as time) AND cast('".sprintf('%02d:59:59', $prgtime)."' as time)";
-		}
+			if( $prgtime+$period <= 24 ){
+				$options .= self::setWeekofdays( $weekofday );
+				$options .= " AND time(starttime) BETWEEN cast('".sprintf( '%02d:00:00', $prgtime )."' as time) AND cast('".sprintf( '%02d:59:59', $prgtime+($period-1) )."' as time)";
+			}else{
+				$top_que = " time(starttime) BETWEEN cast('00:00:00' as time) AND cast('".sprintf( '%02d:59:59', ($period-(24-$prgtime)-1) )."' as time) ";
+				$btm_que = " time(starttime) BETWEEN cast('".sprintf( '%02d:00:00', $prgtime )."' as time) AND cast('23:59:59' as time) ";
+				if( $weekofday == 0x7f )
+					$options .= ' AND ('.$btm_que.'OR'.$top_que.')';
+				else{
+					$top_days = '';
+					$btm_days = '';
+					for( $b_cnt=0; $b_cnt<6; $b_cnt++ ){
+						if( $weekofday & ( 0x01 << $b_cnt ) ){
+							if( $top_days !== '' )
+								$top_days .= ',';
+							$top_days .= "'".(string)($b_cnt+1)."'";
+							if( $btm_days !== '' )
+								$btm_days .= ',';
+							$btm_days .= "'".(string)$b_cnt."'";
+						}
+					}
+					if( $weekofday & 0x40 ){
+						if( $top_days !== '' )
+							$top_days .= ',';
+						$top_days .= "'0'";
+						if( $btm_days !== '' )
+							$btm_days .= ',';
+						$btm_days .= "'6'";
+					}
+					$options .= ' AND ( ( WEEKDAY(starttime) IN ('.$top_days.') AND'.$top_que.') OR ( WEEKDAY(starttime) IN ('.$btm_days.') AND'.$btm_que.') )';
+				}
+			}
+		}else
+			$options .= self::setWeekofdays( $weekofday );
 		
 		$options .= ' ORDER BY starttime ASC  LIMIT '.$limit ;
 		
@@ -132,11 +173,27 @@ class Keyword extends DBRecord {
 		return $recs;
 	}
 	
+	private function setWeekofdays( $weekofday = 0x7f ){
+		if( $weekofday != 0x7f ){
+			$weeks = '';
+			for( $b_cnt=0; $b_cnt<7; $b_cnt++ ){
+				if( $weekofday & ( 0x01 << $b_cnt ) ){
+					if( $weeks !== '' )
+						$weeks .= ',';
+					$weeks .= "'".(string)$b_cnt."'";
+				}
+			}
+			return ' AND WEEKDAY(starttime) IN ('.$weeks.')';
+		}else
+			return '';
+	}
+	
 	private function getPrograms() {
 		if( $this->__id == 0 ) return false;
 		$recs = array();
 		try {
-			 $recs = self::search( $this->keyword, $this->use_regexp, $this->ena_title, $this->ena_desc, $this->typeGR, $this->typeBS, $this->typeCS, $this->category_id, $this->channel_id, $this->weekofday, $this->prgtime, $this->sub_genre, $this->first_genre );
+			 $recs = self::search( $this->keyword, $this->use_regexp, $this->ena_title, $this->ena_desc, $this->typeGR, $this->typeBS, $this->typeCS, $this->typeEX,
+			 						$this->category_id, $this->channel_id, $this->weekofdays, $this->prgtime, $this->period, $this->sub_genre, $this->first_genre );
 		}
 		catch( Exception $e ) {
 			throw $e;
@@ -153,7 +210,7 @@ class Keyword extends DBRecord {
 				// keyword_id占有チェック
 				$shm_cnt = SEM_KW_START;
 				do{
-					if( shmop_read_surely( $shm_id, $shm_cnt ) == $this->__id ){
+					if( shmop_read_surely( $shm_id, $shm_cnt ) === (int)$this->__id ){
 						while( sem_release( $sem_key ) === FALSE )
 							usleep( 100 );
 						usleep( 1000 );
@@ -164,9 +221,9 @@ class Keyword extends DBRecord {
 				// keyword_id占有
 				$shm_cnt = SEM_KW_START;
 				do{
-					if( shmop_read_surely( $shm_id, $shm_cnt ) != 0 )
+					if( shmop_read_surely( $shm_id, $shm_cnt ) !== 0 )
 						continue;
-					shmop_write_surely( $shm_id, $shm_cnt, $this->__id );
+					shmop_write_surely( $shm_id, $shm_cnt, (int)$this->__id );
 					while( sem_release( $sem_key ) === FALSE )
 						usleep( 100 );
 					break 2;
@@ -189,17 +246,45 @@ class Keyword extends DBRecord {
 				usleep( 100 );
 			throw $e;
 		}
-		// 一気に録画予約
-		foreach( $precs as $rec ) {
-			try {
-				if( $rec->autorec && ( $wave_type==='*' || $rec->type===$wave_type || $wave_type!=='GR' ) ){
-					$pieces = explode( ':', Reservation::simple( $rec->id, $this->__id, $this->autorec_mode, $this->discontinuity ) );
-					if( (int)$pieces[0] )
-						usleep( 1000 );		// 書き込みがDBに反映される時間を見極める。
+		if( count( $precs ) > 0 ){
+			// 一気に録画予約
+			foreach( $precs as $rec ) {
+				try {
+					if( $rec->autorec && ( $wave_type==='*' || $rec->type===$wave_type || ( $wave_type==='BS' && $rec->type==='CS' ) || ( $wave_type==='CS' && $rec->type==='BS' ) ) ){
+						$pieces = explode( ':', Reservation::simple( $rec->id, $this->__id, $this->autorec_mode, $this->discontinuity ) );
+						if( (int)$pieces[0] ){
+							usleep( 1000 );		// 書き込みがDBに反映される時間を見極める。
+							// 最終回フラグ
+							if( (int)$pieces[4] && (int)$this->rest_alert!=3 ){
+								$this->rest_alert = 3;
+								$this->update();
+							}
+						}
+					}
+				}
+				catch( Exception $e ) {
+					// 無視
 				}
 			}
-			catch( Exception $e ) {
-				// 無視
+			if( (int)$this->rest_alert == 2 ){
+				$this->rest_alert = 1;
+				$this->update();
+			}
+		}else{
+			switch( (int)$this->rest_alert ){
+				case 2:
+					if( $wave_type!=='*' || date( 'H', time() )!=='00' )
+						break;
+				case 1:
+					reclog( '<a href="programTable.php?keyword_id='.$this->__id.'">自動キーワードID:'.$this->__id.
+							' 『'.htmlspecialchars($this->keyword).'』</a>は、該当番組がありません。', EPGREC_WARN );
+					$this->rest_alert = 2;
+					$this->update();
+					break;
+				case 3:
+					reclog( '<a href="programTable.php?keyword_id='.$this->__id.'">自動キーワードID:'.$this->__id.
+							' 『'.htmlspecialchars($this->keyword).'』</a>の最終回は、放送されました。', EPGREC_WARN );
+					break;
 			}
 		}
 		// keyword_id開放
@@ -245,7 +330,7 @@ class Keyword extends DBRecord {
 	}
 
 	// staticなファンクションはオーバーライドできない
-	static function createKeywords( $options = "" ) {
+	static function createKeywords( $options = '' ) {
 		$retval = array();
 		$arr = array();
 		try{

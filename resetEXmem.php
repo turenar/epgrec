@@ -8,6 +8,7 @@
 
 	$settings = Settings::factory();
 
+	run_user_regulate();
 	$shm_id = shmop_open_surely();
 	if( isset( $argv[1] ) ){
 		$val = isset( $argv[2] ) ? (int)$argv[2] : (int)0;
@@ -18,6 +19,9 @@
 		}
 		for( $tuner=0; $tuner<$settings->bs_tuners;$tuner++ ){
 			shmop_write_surely( $shm_id, SEM_ST_START+$tuner, 0 );
+		}
+		for( $tuner=0; $tuner<EXTRA_TUNERS;$tuner++ ){
+			shmop_write_surely( $shm_id, SEM_EX_START+$tuner, 0 );
 		}
 		for( $tuner=0; $tuner<20;$tuner++ ){
 			shmop_write_surely( $shm_id, SEM_REALVIEW+$tuner, 0 );

@@ -122,8 +122,7 @@ table#reservation_table tr.freeze {background-color: #CCCCCC;}
   <td><a href="programTable.php?keyword_id={$keyword.id}">{$smarty.foreach.loop.iteration}</a></td>
   <td><a href="recordedTable.php?key={$keyword.id}">{$keyword.id}</a></td>
   <td style="text-align: left;">{$keyword.keyword|escape|truncate:300|wordwrap:100}</td>
-<!--  <td>{if $keyword.use_regexp}○{else}×{/if}</td>-->
-  <td>{$keyword.options}</td>
+  <td>{if $keyword.use_regexp}○{else}×{/if}</td>
   <td>{$keyword.type}</td>
   <td>{$keyword.channel|escape}</td>
   <td>{$keyword.category}<br>(<script type="text/javascript">sub_genre_view({$keyword.k_category}, {$keyword.sub_genre});</script>)</td>

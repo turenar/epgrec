@@ -63,7 +63,7 @@ function sig_handler()
 	pcntl_signal( SIGTERM, "sig_handler" );
 
 	$settings = Settings::factory();
-	$type     = $argv[1];	//GR/BS/CS
+	$type     = $argv[1];	//GR/BS/CS/EX
 	$tuner    = $argv[2];
 	$value    = $argv[3];	//ch
 	$rec_time = $argv[4];
@@ -71,15 +71,16 @@ function sig_handler()
 	$slp_time = isset( $argv[6] ) ? (int)$argv[6] : 0;
 	$cut_sids = isset( $argv[7] ) ? $argv[7] : "";
 
-	$shm_nm   = array( 'GR' => SEM_GR_START, 'BS' => SEM_ST_START );
-	$smf_type = $type=='GR' ? 'GR' : 'BS';
-	$dmp_type = $type=='GR' ? $ch_disk : '/'.$type;
+	$shm_nm   = array( 'GR' => SEM_GR_START, 'BS' => SEM_ST_START, 'EX' => SEM_EX_START );
+	$smf_type = $type=='CS' ? 'BS' : $type;
+	$dmp_type = $type=='GR' ? $ch_disk : '/'.($type=='EX' ? 'CS' : $type);
 	$temp_xml = $settings->temp_xml.'_'.$type.$value;
 	$temp_ts  = $settings->temp_data.'_'.$type.$value;
 
 	//EPG受信
 	sleep( $settings->rec_switch_time+1 );
-	if( ( $tuner<TUNER_UNIT1 && RECPT1_EPG_PATCH ) || ( $tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$tuner-TUNER_UNIT1]['epgTs'] ) )
+	if( ( $type!=='EX' && ( ( $tuner<TUNER_UNIT1 && RECPT1_EPG_PATCH ) || ( $tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$tuner-TUNER_UNIT1]['epgTs'] ) ) ) ||
+		( $type==='EX' && $EX_TUNERS_CHARA[$tuner]['epgTs'] ) )
 		$cmd_ts = 'SID=epg ';
 	$cmd_ts .= 'CHANNEL='.$value.' DURATION='.$rec_time.' TYPE='.$type.' TUNER_UNIT='.TUNER_UNIT1.' TUNER='.$tuner.' MODE=0 OUTPUT='.$temp_ts.' '.DO_RECORD . ' >/dev/null 2>&1';
 	$pro    = rec_start( $cmd_ts );
