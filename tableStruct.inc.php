@@ -15,6 +15,7 @@ define( "RESERVE_STRUCT",
 	"category_id integer not null default '0',".					// カテゴリID
 	"starttime datetime not null default '1970-01-01 00:00:00',".	// 開始時刻
 	"endtime datetime not null default '1970-01-01 00:00:00',".		// 終了時刻
+	"shortened boolean not null default '0',".						// 隣接短縮フラグ
 	"job integer not null default '0',".							// job番号
 	"path blob default null,".										// 録画ファイルパス
 	"complete boolean not null default '0',".						// 完了フラグ
@@ -23,6 +24,7 @@ define( "RESERVE_STRUCT",
 	"mode integer not null default '0',".							// 録画モード
 	"tuner integer not null default '0',".							// チューナー番号
 	"priority integer not null default '10',".						// 優先度
+	"overlap boolean not null default '1',".							// ダーティフラグ
 	"dirty boolean not null default '0',".							// ダーティフラグ
 	"discontinuity boolean not null default '0',".					// 隣接録画禁止フラグ 禁止なら1
 	"index reserve_chid_idx (channel_id),".							// インデックス
@@ -60,6 +62,7 @@ define( "PROGRAM_STRUCT",
 	"endtime datetime not null default '1970-01-01 00:00:00',".		// 終了時刻
 	"program_disc varchar(128) not null default 'none',".	 		// 識別用hash
 	"autorec boolean not null default '1',".						// 自動録画有効無効
+	"key_id integer not null default '0',".							// 自動予約禁止フラグをたてた自動キーワードID
 	"index program_chid_idx (channel_id),".							// インデックス
 	"index program_chdisc_idx (channel_disc),".
 	"index program_st_idx (starttime),".
@@ -96,10 +99,11 @@ define( "CATEGORY_STRUCT",
 define( "KEYWORD_STRUCT",
 	"id integer not null auto_increment primary key,".				// ID
 	"keyword varchar(512) not null default '*',".					// 表示名
-	"type varchar(8) not null default '*',".						// 種別 -> 有効・無効フラグ '-'なら無効
+	"kw_enable boolean not null default '1',".						// 有効・無効フラグ
 	"typeGR boolean not null default '1',".							// 地デジフラグ
 	"typeBS boolean not null default '1',".							// BSフラグ
 	"typeCS boolean not null default '1',".							// CSフラグ
+	"typeEX boolean not null default '1',".							// CSフラグ
 	"channel_id integer not null default '0',".						// channel ID
 	"category_id integer not null default '0',".					// カテゴリ(ジャンル)ID
 	"sub_genre integer not null default '16',".						// サブジャンルID
@@ -107,15 +111,20 @@ define( "KEYWORD_STRUCT",
 	"ena_title boolean not null default '1',".						// タイトル検索対象フラグ
 	"ena_desc boolean not null default '1',".						// 概要検索対象フラグ
 	"autorec_mode integer not null default '0',".					// 自動録画のモード02/23/2010追加
-	"weekofday enum ('0','1','2','3','4','5','6','7' ) not null default '7'".// 曜日、同追加
-	",prgtime enum ('0','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24') not null default '24',".	// 時間　03/13/2010追加
-	"first_genre boolean not null default '1',".						// 1
+	"weekofdays integer not null default '127',".					// 曜日
+	"prgtime enum ('0','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24') not null default '24',".	// 時間　03/13/2010追加
+	"period integer not null default '1',".							// 上の期間
+	"first_genre boolean not null default '1',".					// 1
 	"priority integer not null default '10',".						// 優先度
+	"overlap boolean not null default '1',".						// 重複予約許可フラグ
 	"sft_start integer not null default '0',".						// 録画開始時刻シフト量(秒)
 	"sft_end integer not null default '0',".						// 録画終了時刻シフト量(秒)
 	"discontinuity boolean not null default '0',".					// 隣接録画禁止フラグ 禁止なら1
 	"directory varchar(256) default null,".							// 保存ディレクトリ
 	"filename_format varchar(256) default null,".					// 録画ファイル名の形式
+	"criterion_dura integer not null default '0',".					// 収録時間変動警告の基準時間
+	"rest_alert integer not null default '1',".						// 放送休止警報
+	"smart_repeat boolean not null default '1',".					// 
 	"index keyword_pri_idx (priority)".
 	""
 );

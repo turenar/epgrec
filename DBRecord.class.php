@@ -53,7 +53,7 @@ class DBRecord {
 		$sqlstr = 'use '.self::$__settings->db_name;
 		$res = $this->__query($sqlstr);
 		if( $res === false ) throw new exception('createTable: ' . $sqlstr );
-		$sqlstr = 'CREATE TABLE IF NOT EXISTS '.$this->__table.' (' .$tblstring.") DEFAULT CHARACTER SET 'utf8'";
+		$sqlstr = 'CREATE TABLE IF NOT EXISTS '.$this->__table.' (' .$tblstring.") ENGINE=MyISAM DEFAULT CHARACTER SET 'utf8'";
 		$result = $this->__query( $sqlstr );
 		if( $result === false ) throw new exception( 'createTable:テーブル作成失敗' );
 	}
@@ -102,7 +102,7 @@ class DBRecord {
 		if( $this->__record_data === false ) throw new exception('set: DBの異常？' );
 		
 		if( array_key_exists( $property, $this->__record_data ) ) {
-//			$this->__record_data[$property] = mysql_escape_string($value);
+//			$this->__record_data[$property] = mysql_real_escape_string($value);
 			$this->__record_data[$property] = $value;
 			$this->__f_dirty = true;
 		}
@@ -115,7 +115,7 @@ class DBRecord {
 		if( $this->__id == 0 ) throw new exception( 'get:無効なid' );
 		if( $property === 'id' ) return $this->__id;
 		if( $this->__record_data === false ) throw new exception( 'get: 無効なレコード' );
-		if( ! array_key_exists( $property, $this->__record_data ) ) throw new exception( 'get: $propertyは存在しません' );
+		if( ! array_key_exists( $property, $this->__record_data ) ) throw new exception( 'get: $property['.$property.']は存在しません' );
 		
 //		return stripslashes($this->__record_data[$property]);
 		return $this->__record_data[$property];

@@ -5,12 +5,14 @@ include_once( INSTALL_PATH . "/recLog.inc.php" );
 
 class Settings extends SimpleXMLElement {
 	
-	const CONFIG_XML = "/settings/config.xml";
-	
+	private static function conf_xml(){
+		return file_exists( '/etc/epgrecUNA/config.xml' ) ?  '/etc/epgrecUNA/config.xml' : INSTALL_PATH.'/settings/config.xml';
+	}
+
 	public static function factory() {
-		
-		if( file_exists( INSTALL_PATH . self::CONFIG_XML ) ) {
-			$xmlfile = file_get_contents(INSTALL_PATH . self::CONFIG_XML);
+		$CONFIG_XML = self::conf_xml();
+		if( file_exists( $CONFIG_XML ) ) {
+			$xmlfile = file_get_contents( $CONFIG_XML );
 			$obj = new self($xmlfile);
 			
 			// 8月14日以降に追加した設定項目の自動生成
@@ -164,10 +166,12 @@ class Settings extends SimpleXMLElement {
 			}
 		}
 		if( $_SERVER['REMOTE_ADDR'] !== '127.0.0.1' && strncmp( $_SERVER['REMOTE_ADDR'], '192.168.',  8 ) ){
-			$alert_msg = 'グローバルIPからの設定変更です。['.$_SERVER['REMOTE_HOST'].'('.$_SERVER['REMOTE_ADDR'].')] ';
-			reclog( $alert_msg, EPGREC_WARN );
-			file_put_contents( INSTALL_PATH.$this->spool.'/alert.log', date("Y-m-d H:i:s").' '.$alert_msg."\n", FILE_APPEND );
-			syslog( LOG_WARNING, $alert_msg );
+			if( $_SERVER['HTTPS'] !== 'on' ){
+				$alert_msg = 'グローバルIPからの設定変更です。['.$_SERVER['REMOTE_HOST'].'('.$_SERVER['REMOTE_ADDR'].')] ';
+				reclog( $alert_msg, EPGREC_WARN );
+				file_put_contents( INSTALL_PATH.$this->spool.'/alert.log', date("Y-m-d H:i:s").' '.$alert_msg."\n", FILE_APPEND );
+				syslog( LOG_WARNING, $alert_msg );
+			}
 			if( SETTING_CHANGE_GIP === FALSE )
 				return;
 		}
@@ -180,7 +184,7 @@ class Settings extends SimpleXMLElement {
 	}
 	
 	public function save() {
-		$this->asXML(INSTALL_PATH . self::CONFIG_XML);
+		$this->asXML( self::conf_xml() );
 	}
 }
 ?>

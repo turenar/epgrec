@@ -15,10 +15,10 @@ function word_chk( $chk_wd )
 
 $settings = Settings::factory();
 
-$weekofdays = array( '月', '火', '水', '木', '金', '土', '日', '－' );
+$weekofdays = array( '月', '火', '水', '木', '金', '土', '日' );
 $prgtimes = array();
 for( $i=0 ; $i < 25; $i++ ) {
-	$prgtimes[$i] = $i == 24 ? 'なし' : $i.'時～';
+	$prgtimes[$i] = $i == 24 ? 'なし' : $i.'時';
 }
 
 // 新規キーワードがポストされた
@@ -32,10 +32,11 @@ if( isset($_POST['add_keyword']) ) {
 			}else
 				$rec = new Keyword();
 			$rec->keyword      = $_POST['k_search'];
-			$rec->type         = isset($_POST['k_enable']) ? $_POST['k_type'] : '-';
+			$rec->kw_enable    = isset( $_POST['k_kw_enable'] );
 			$rec->typeGR       = $_POST['k_typeGR'];
 			$rec->typeBS       = $_POST['k_typeBS'];
 			$rec->typeCS       = $_POST['k_typeCS'];
+			$rec->typeEX       = $_POST['k_typeEX'];
 			$rec->category_id  = $_POST['k_category'];
 			$rec->sub_genre    = $_POST['k_sub_genre'];
 			$rec->first_genre  = $_POST['k_first_genre'];
@@ -43,26 +44,47 @@ if( isset($_POST['add_keyword']) ) {
 			$rec->use_regexp   = $_POST['k_use_regexp'];
 			$rec->ena_title    = $_POST['k_ena_title'];
 			$rec->ena_desc     = $_POST['k_ena_desc'];
-			$rec->weekofday    = $_POST['k_weekofday'];
+			$rec->weekofdays   = $_POST['k_weekofday'];
 			$rec->prgtime      = $_POST['k_prgtime'];
+			$rec->period       = $_POST['k_period'];
 			$rec->autorec_mode = $_POST['autorec_mode'];
 			$rec->sft_start    = parse_time( $_POST['k_sft_start'] );
 			$rec->sft_end      = parse_time( $_POST['k_sft_end'] );
-			if( isset($_POST['k_discontinuity']) && ($_POST['k_discontinuity']) ) {
-				$rec->discontinuity = (int)($_POST['k_discontinuity']);
-			}else
-				$rec->discontinuity = 0;
+			$rec->discontinuity   = isset($_POST['k_discontinuity']);
 			$rec->priority        = $_POST['k_priority'];
+			$rec->overlap         = isset( $_POST['k_overlap'] );
+			$rec->rest_alert      = isset( $_POST['k_rest_alert'] );
+			$rec->criterion_dura  = isset( $_POST['k_criterion_enab'] ) ? $_POST['k_criterion_dura'] : 0;
+			$rec->smart_repeat    = isset( $_POST['k_smart_repeat'] );
 			$rec->filename_format = word_chk( $_POST['k_filename'] );
 			$rec->directory       = word_chk( $_POST['k_directory'] );
 			$rec->update();
 			if( $keyword_id )
 				$rec->rev_delete();
-			if( $rec->type !== '-' ){
+			if( (boolean)$rec->kw_enable ){
+				$t_cnt = 0;
+				if( (boolean)$rec->typeGR ){
+					$type = 'GR';
+					$t_cnt++;
+				}
+				if( (boolean)$rec->typeBS ){
+					$type = 'BS';
+					$t_cnt++;
+				}
+				if( (boolean)$rec->typeCS ){
+					$type = 'CS';
+					$t_cnt++;
+				}
+				if( (boolean)$rec->typeEX ){
+					$type = 'EX';
+					$t_cnt++;
+				}
+				if( $t_cnt > 1 )
+					$type = '*';
 				// 録画予約実行
 				$sem_key = sem_get_surely( SEM_KW_START );
 				$shm_id  = shmop_open_surely();
-				$rec->reservation( $rec->type, $shm_id, $sem_key );
+				$rec->reservation( $type, $shm_id, $sem_key );
 				shmop_close( $shm_id );
 			}
 		}
@@ -81,9 +103,8 @@ try {
 		$arr = array();
 		$arr['id'] = $rec->id;
 		$arr['keyword'] = $rec->keyword;
-//		$arr['type'] = $rec->type == '*' ? 'ALL' : $rec->type;
-		$arr['type'] = "";
-		if( $rec->typeGR && $rec->typeBS && ( !$cs_rec_flg || $rec->typeCS ) ){
+		$arr['type'] = '';
+		if( $rec->typeGR && $rec->typeBS && ( !$cs_rec_flg || $rec->typeCS ) && ( EXTRA_TUNERS==0 || $rec->typeEX ) ){
 			$arr['type'] .= 'ALL';
 		}else{
 			$cnt = 0;
@@ -91,19 +112,26 @@ try {
 				$arr['type'] .= 'GR';
 				$cnt++;
 			}
-			if( $rec->typeBS ){
-				if( $cnt )
-					$arr['type'] .= '+';
-				$arr['type'] .= 'BS';
-				$cnt++;
+			if( $settings->bs_tuners > 0 ){
+				if( $rec->typeBS ){
+					if( $cnt )
+						$arr['type'] .= '<br>';
+					$arr['type'] .= 'BS';
+					$cnt++;
+				}
+				if( $cs_rec_flg && $rec->typeCS ){
+					if( $cnt )
+						$arr['type'] .= '<br>';
+					$arr['type'] .= 'CS';
+				}
 			}
-			if( $rec->typeCS ){
+			if( EXTRA_TUNERS>0 && $rec->typeEX ){
 				if( $cnt )
-					$arr['type'] .= '+';
-				$arr['type'] .= 'CS';
+					$arr['type'] .= '<br>';
+				$arr['type'] .= 'EX';
 			}
 		}
-		$arr['k_type'] = $rec->type==='-' ? FALSE : TRUE;
+		$arr['k_type'] = $rec->kw_enable;
 		if( $rec->channel_id ) {
 			try {
 				$crec = new DBRecord(CHANNEL_TBL, 'id', $rec->channel_id );
@@ -124,12 +152,29 @@ try {
 		$arr['sub_genre'] = $rec->sub_genre;
 		$arr['first_genre'] = $rec->first_genre;
 		
-		$arr['use_regexp'] = $rec->use_regexp;
-		
-		$arr['weekofday'] = $weekofdays[$rec->weekofday];
-//		$arr['k_weekofday'] = $rec->weekofday;
+		$arr['options'] = '';
+		if( defined( 'KATAUNA' ) ){
+			$arr['options']  = (boolean)$rec->use_regexp ? '正' : '−';
+			$arr['options'] .= (boolean)$rec->ena_title ? 'タ' : '−';
+			$arr['options'] .= (boolean)$rec->ena_desc ? '概' : '−';
+			$arr['options'] .= '<br>';
+			$arr['options'] .= (boolean)$rec->overlap ? '多' : '−';
+			$arr['options'] .= (boolean)$rec->rest_alert ? '無' : '−';
+			$arr['options'] .= (boolean)$rec->criterion_dura ? '幅' : '−';
+		}else
+			$arr['options'] = (boolean)$rec->use_regexp ? '○' : '×';
+
+		if( $rec->weekofdays != 0x7f ){
+			$arr['weekofday'] = '';
+			for( $b_cnt=0; $b_cnt<7; $b_cnt++ ){
+				if( $rec->weekofdays & ( 0x01 << $b_cnt ) ){
+					$arr['weekofday'] .= $weekofdays[$b_cnt];
+				}
+			}
+		}else
+			$arr['weekofday'] = '−';
 		$arr['prgtime'] = $prgtimes[$rec->prgtime];
-//		$arr['k_prgtime'] = $rec->prgtime;
+		$arr['period']  = $rec->period;
 		$arr['autorec_mode'] = $RECORD_MODE[(int)$rec->autorec_mode]['name'];
 		$arr['sft_start'] = transTime( $rec->sft_start, TRUE );
 		$arr['sft_end']   = transTime( $rec->sft_end, TRUE );
@@ -142,10 +187,16 @@ catch( Exception $e ) {
 	exit( $e->getMessage() );
 }
 
-if( (int)$settings->bs_tuners > 0 )
-	$link_add = $settings->cs_rec_flg==0 ? 1 : 2;
-else
-	$link_add = 0;
+	$link_add = '';
+	if( (int)$settings->gr_tuners > 0 )
+		$link_add .= '<option value="index.php">地上デジタル番組表</option>';
+	if( (int)$settings->bs_tuners > 0 ){
+		$link_add .= '<option value="index.php?type=BS">BSデジタル番組表</option>';
+		if( (boolean)$settings->cs_rec_flg )
+			$link_add .= '<option value="index.php?type=CS">CSデジタル番組表</option>';
+	}
+	if( EXTRA_TUNERS )
+		$link_add .= '<option value="index.php?type=EX">'.EXTRA_NAME.'番組表</option>';
 
 $smarty = new Smarty();
 

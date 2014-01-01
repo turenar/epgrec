@@ -84,9 +84,9 @@
 				}
 			});
 		},
-		customform:function(id) {
+		customform:function(pro_id,key_id) {
 			$('#floatBox4Dialog').dialog('close');
-			$.get('reservationform.php', { program_id: id }, function(data) {
+			$.get('reservationform.php', { program_id: pro_id, keyword_id: key_id }, function(data) {
 				if(data.match(/^error/i)){
 					alert(data);
 				}
@@ -258,7 +258,7 @@
 <!--
 body {padding:4px;margin:0;font-size:10pt;}
 a {text-decoration:none;}
-input.example1 { width: 75%; }
+input.example1 { width: 100%; }
 
 table#reservation_table {
     border: 1px #BBB solid;
@@ -318,73 +318,77 @@ table#reservation_table td.rev_id, table#reservation_table td.autorec {display: 
 
 <body onLoad="change_subGenre({$k_category});selected_subGenre({$k_category},{$k_sub_genre})">
 
-<h2>
-{$sitetitle}　{if $keyword_id}<input type="button" value="削除" onClick="javascript:PRG.delkey('{$keyword_id}')" />{/if}
-</h2>
-
-<form>
+<h2><form>
+{$sitetitle}
 <select onChange="popJump(this)">
-<option value="#">メニュー
-<option value="index.php">地上デジタル番組表
-{if $link_add > 0}
- <option value="index.php?type=BS">BSデジタル番組表
- {if $link_add == 2}
-  <option value="index.php?type=CS">CSデジタル番組表
- {/if}
-{/if}
+<option value="#">メニュー</option>
+{$link_add}
 {foreach from=$menu_list item=record}
-<option value="{$record.url}">{$record.name}
+<option value="{$record.url}">{$record.name}</option>
 {/foreach}
 </select>
-</form>
+</form></h2>
 
 <div>
-絞り込み：
+<fieldset>
+<legend><b>絞り込み</b></legend>
 <form name="myForm" method="post" action="programTable.php">
-<input type="hidden" name="do_search" value="1" />
-<input type="hidden" name="enable" value="{$enable}" />
-<input type="hidden" name="keyword_id" value="{$keyword_id}" />
-<input type="hidden" name="sft_start" value="{$sft_start}" />
-<input type="hidden" name="sft_end" value="{$sft_end}" />
-<input type="hidden" name="discontinuity" value="{$discontinuity}" />
-<input type="hidden" name="priority" value="{$priority}" />
-<input type="hidden" name="directory" value="{$directory}" />
-<input type="hidden" name="filename" value="{$filename}" />
-検索語句(<input type="checkbox" name="use_regexp" value="1" {if $use_regexp}checked{/if} />正規表現 <input type="checkbox" name="ena_title" value="1" {if $ena_title}checked{/if} />タイトル <input type="checkbox" name="ena_desc" value="1" {if $ena_desc}checked{/if} />概要)<input type="text" name="search" value="{$search}" class="example1" /><br />
-種別(
+<input type="hidden" name="do_search" value="1">
+<input type="hidden" name="keyword_id" value="{$keyword_id}">
+<input type="hidden" name="kw_enable" value="{$kw_enable}">
+<input type="hidden" name="sft_start" value="{$sft_start}">
+<input type="hidden" name="sft_end" value="{$sft_end}">
+<input type="hidden" name="discontinuity" value="{$discontinuity}">
+<input type="hidden" name="priority" value="{$priority}">
+<input type="hidden" name="overlap" value="{$overlap}">
+<input type="hidden" name="autorec_mode" value="{$autorec_mode}">
+<input type="hidden" name="directory" value="{$directory}">
+<input type="hidden" name="filename" value="{$filename}">
+<input type="hidden" name="rest_alert" value="{$rest_alert}">
+<input type="hidden" name="criterion_enab" value="{$criterion_enab}">
+<input type="hidden" name="smart_repeat" value="{$smart_repeat}">
+<b>検索語句:</b>(<input type="checkbox" name="use_regexp" value="1" {if $use_regexp}checked="checked"{/if}>正規表現 <input type="checkbox" name="ena_title" value="1" {if $ena_title}checked="checked"{/if}>タイトル <input type="checkbox" name="ena_desc" value="1" {if $ena_desc}checked="checked"{/if}>概要)<br>
+<input type="text" name="search" value="{$search|escape}" class="example1"><br>
+<b>種別:</b>(
   {foreach from=$types item=type}
-    <input type="checkbox" name="type{$type.value}" value="1" {$type.checked}/>{$type.name} 
+    <input type="checkbox" name="type{$type.value}" value="1" {$type.checked}>{$type.name} 
   {/foreach}
-) 局<select name="station">
+)　<b>放送局:</b><select name="station">
   {foreach from=$stations item=st}
     <option value="{$st.id}" {$st.selected}>{$st.name}</option>
   {/foreach}
   </select>
-ジャンル(<input type="checkbox" name="first_genre" value="0" {if $first_genre == 0}checked{/if} />全保持)
+　<b>ジャンル:</b>(<input type="checkbox" name="first_genre" value="0" {if $first_genre == 0}checked="checked"{/if} >全保持)
 <select name="category_id" onChange="$k_sub_genre=change_subGenre(this.selectedIndex)">
   {foreach from=$cats item=cat}
   <option value="{$cat.id}" {$cat.selected}>{$cat.name}</option>
   {/foreach}
   </select>
-
-サブジャンル<select name="sub_genre">
+<b>サブジャンル</b><select name="sub_genre">
   <option value={if $k_category != 15}"16"{else}"18"{/if}>すべて</option>
-  </select>
-開始時<select name="prgtime">
+  </select><br>
+
+<b>時間帯:</b><select name="prgtime">
   {foreach from=$prgtimes item=prgt}
   <option value="{$prgt.value}" {$prgt.selected}>{$prgt.name}</option>
   {/foreach}
   </select>
-
-曜日<select name='weekofday'>
-  {foreach from=$weekofdays item=day}
-  <option value="{$day.id}" {$day.selected}>{$day.name}</option>
+から <select name="period">
+  {foreach from=$periods item=peri}
+  <option value="{$peri.value}" {$peri.selected}>{$peri.name}</option>
   {/foreach}
-</select>
-<input type="submit" value="絞り込む" />
-</form>
-</div>
+  </select>
 
+　<b>曜日:</b>(
+  {foreach from=$weekofdays item=week}
+    <input type="checkbox" name="week{$week.value}" value="1" {$week.checked}>{$week.name} 
+  {/foreach}
+)
+　<input type="submit" value="絞り込む">
+　({$programs|@count}件ヒット)
+</form>
+</fieldset>
+</div>
 
 
 {if count($programs)}
@@ -392,17 +396,18 @@ table#reservation_table td.rev_id, table#reservation_table td.autorec {display: 
  <tr>
   <th>№</th>
   <th>種別</th>
-  <th>局名</th>
+  <th>放送局名</th>
   <th>日付</th>
   <th>開始-終了<br>(放送時間)</th>
   <th>タイトル</th>
   <th>概要</th>
+  <th>自動<br>ID</th>
   <th style="margin: 0;padding: 0;">簡易<br>録画</th>
   <th style="margin: 0;padding: 0;">詳細<br>録画</th>
  </tr>
 
 {foreach from=$programs name=loop item=program}
- <tr id="resid_{$program.id}" class="ctg_{$program.cat}{if $program.rec > 0}{if $program.key_id > 0} prg_rec{else} prg_rec_oth{/if}{/if}{if ! $program.autorec} freeze{/if}">
+ <tr id="resid_{$program.id}" class="ctg_{$program.cat}{if $program.rec > 0}{if $program.key_id == $keyword_id} prg_rec{else} prg_rec_oth{/if}{/if}{if ! $program.autorec} freeze{/if}">
   <td style="text-align: center;"><a {if $program.keyword != ""}href="{$program.keyword}"{/if}>{$smarty.foreach.loop.iteration}</a></td>
   <td>{$program.type}</td>
   <td>{$program.station_name}</td>
@@ -410,8 +415,9 @@ table#reservation_table td.rev_id, table#reservation_table td.autorec {display: 
   <td style="text-align: center;">{$program.starttime}{$program.endtime}<br>　　({$program.duration})</td>
   <td style="text-align: left;">{$program.title|escape}</td>
   <td style="text-align: left;">{$program.description|escape}</td>
-  <td style="margin: 0;padding: 0;" class="tgl_btn"><input type="button" value={if $program.rev_id}"削除"{else}"録画"{/if} onClick="javascript:PRG.tgl_button('{$program.id}',this)" /></td>
-  <td style="margin: 0;padding: 0;"><input type="button" value="詳細" onClick="javascript:PRG.customform('{$program.id}')" /></td>
+  <td style="text-align: right;">{if $program.excl }*{/if}{if !$program.key_id }□{else}<a href="programTable.php?keyword_id={$program.key_id}">{$program.key_id}</a>{/if}</td>
+  <td style="margin: 0;padding: 0;" class="tgl_btn"><input type="button" value={if $program.rev_id}"削除"{else}"録画"{/if} onClick="javascript:PRG.tgl_button('{$program.id}',this)"></td>
+  <td style="margin: 0;padding: 0;"><input type="button" value="詳細" onClick="javascript:PRG.customform('{$program.id}','0')"><br><input type="button" value="補整" onClick="javascript:PRG.customform('{$program.id}','{if $keyword_id}{$keyword_id}{else}{$program.key_id}{/if}')"></td>
   <td class="rev_id">{$program.rev_id}</td>
   <td class="autorec">{$program.autorec}</td>
  </tr>
@@ -420,56 +426,69 @@ table#reservation_table td.rev_id, table#reservation_table td.autorec {display: 
 {else}
   該当する番組はありません
 {/if}
-<div>{$programs|@count}件ヒット</div>
 {if count($programs) >= 300}<div>表示最大300件まで</div>{/if}
 {if $do_keyword}
 {if $k_category != 15 || $k_sub_genre>=0x3f }
-{if (count($programs) < 300)}
+{if $do_keyword || (count($programs) < 300)}
 <div>
-<form method="post" action="keywordTable.php">
+<fieldset>
+<legend><b>検索条件</b></legend>
   <b>語句:</b>{if $search == null}なし{else}{$search|escape}{/if}
-  <b>正規表現:</b>{if $use_regexp}使う{else}使わない{/if}
-  <b>検索対象:</b>{if $ena_title}タイトル{/if}{if $ena_desc}{if $ena_title}+{/if}概要{/if}
-  <b>種別:</b>{if $k_typeGR}GR {/if}{if $k_typeBS}BS {/if}{if $k_typeCS}CS{/if}
-  <b>局:</b>{if $k_station == 0}すべて{else}{$k_station_name}{/if}
-  <b>ジャンル({if $first_genre == 1}第一{else}全保持{/if}):</b>{if $k_category == 0}すべて{else}{$k_category_name}{/if}
+  <b>　正規表現:</b>{if $use_regexp}使う{else}使わない{/if}
+  <b>　検索対象:</b>{if $ena_title}タイトル{/if}{if $ena_desc}{if $ena_title}+{/if}概要{/if}
+  <br><b>種別:</b>{$type_names}
+  <b>　局:</b>{if $k_station == 0}すべて{else}{$k_station_name}{/if}
+  <b>　ジャンル({if $first_genre == 1}第一{else}全保持{/if}):</b>{if $k_category == 0}すべて{else}{$k_category_name}{/if}
   <b>サブジャンル:</b><script type="text/javascript">sub_genre_view({$k_category}, {$k_sub_genre});</script>
-  <b>曜日:</b>{if $weekofday == 7}なし{else}{$k_weekofday}曜{/if}
-  <b>時間:</b>{if $prgtime == 24}なし{else}{$prgtime}時～{/if}
-  <b>件数:</b>{$programs|@count}
-  <input type="hidden" name="add_keyword" value="{$do_keyword}" />
-  <input type="hidden" name="keyword_id" value="{$keyword_id}" />
-  <input type="hidden" name="k_use_regexp" value="{$use_regexp}" />
-  <input type="hidden" name="k_ena_title" value="{$ena_title}" />
-  <input type="hidden" name="k_ena_desc" value="{$ena_desc}" />
-  <input type="hidden" name="k_search" value="{$search}" />
-  <input type="hidden" name="k_type" value="{$k_type}" />
-  <input type="hidden" name="k_typeGR" value="{$k_typeGR}" />
-  <input type="hidden" name="k_typeBS" value="{$k_typeBS}" />
-  <input type="hidden" name="k_typeCS" value="{$k_typeCS}" />
-  <input type="hidden" name="k_category" value="{$k_category}" />
-  <input type="hidden" name="k_station" value="{$k_station}" />
-  <input type="hidden" name="k_weekofday" value={$weekofday} />
-  <input type="hidden" name="k_prgtime" value={$prgtime} />
-  <input type="hidden" name="k_sub_genre" value="{$k_sub_genre}" />
-  <input type="hidden" name="k_first_genre" value="{$first_genre}" />
-  <br><b>開始時刻シフト:</b><input type="text" name="k_sft_start" value="{$sft_start}" size="8" class="required digits" /><b>分  </b>
-  <b>終了時刻シフト:</b><input type="text" name="k_sft_end" value="{$sft_end}" size="8" class="required digits" /><b>分  </b>
-  <b>隣接禁止:</b><input type="checkbox" name="k_discontinuity" value="1" {if $discontinuity }checked{/if} />
-  <b>録画モード:</b><select name="autorec_mode" >
+  <b>　曜日:</b>{if $weekofday == 0x7f}なし{else}{$wds_name}{/if}
+  <b>　時間帯:</b>{if $prgtime == 24}なし{else}{$prgtime}時から{$period}時間{/if}
+  <b>　件数:</b>{$programs|@count}<br>
+</fieldset>
+<form method="post" action="keywordTable.php">
+<fieldset>
+<legend><b>自動予約設定</b></legend>
+  <input type="hidden" name="add_keyword" value="{$do_keyword}">
+  <input type="hidden" name="keyword_id" value="{$keyword_id}">
+  <input type="hidden" name="k_use_regexp" value="{$use_regexp}">
+  <input type="hidden" name="k_ena_title" value="{$ena_title}">
+  <input type="hidden" name="k_ena_desc" value="{$ena_desc}">
+  <input type="hidden" name="k_search" value="{$search}">
+  <input type="hidden" name="k_typeGR" value="{$k_typeGR}">
+  <input type="hidden" name="k_typeBS" value="{$k_typeBS}">
+  <input type="hidden" name="k_typeCS" value="{$k_typeCS}">
+  <input type="hidden" name="k_typeEX" value="{$k_typeEX}">
+  <input type="hidden" name="k_category" value="{$k_category}">
+  <input type="hidden" name="k_station" value="{$k_station}">
+  <input type="hidden" name="k_weekofday" value="{$weekofday}">
+  <input type="hidden" name="k_prgtime" value="{$prgtime}">
+  <input type="hidden" name="k_period" value="{$period}">
+  <input type="hidden" name="k_sub_genre" value="{$k_sub_genre}">
+  <input type="hidden" name="k_first_genre" value="{$first_genre}">
+  <input type="hidden" name="k_criterion_dura" value="{$criterion_dura}">
+  <input type="checkbox" name="k_kw_enable" value="1" {if $kw_enable}checked="checked"{/if}><b>自動予約</b>　
+  <input type="checkbox" name="k_overlap" value="1" {if $overlap}checked="checked"{/if}><b>多重予約許可</b>　
+<!--  <input type="checkbox" name="k_smart_repeat" value="1" {if $smart_repeat}checked="checked"{/if} disabled><b>リピート予約</b>　-->
+  <input type="checkbox" name="k_rest_alert" value="1" {if $rest_alert}checked="checked"{/if}><b>無該当警告</b>　
+  <input type="checkbox" name="k_criterion_enab" value="1" {if $criterion_enab}checked="checked"{/if}><b>時間量変動警告</b>
+  <br>
+  <b>開始時刻シフト</b><input type="text" name="k_sft_start" value="{$sft_start}" size="8" class="required digits"><b>分　</b>
+  <b>終了時刻シフト</b><input type="text" name="k_sft_end" value="{$sft_end}" size="8" class="required digits"><b>分　</b>
+  <input type="checkbox" name="k_discontinuity" value="1" {if $discontinuity }checked="checked"{/if}><b>隣接禁止　</b>
+  <b>録画モード</b><select name="autorec_mode" >
   {foreach from=$autorec_modes item=mode name=recmode }
      <option value="{$smarty.foreach.recmode.index}" {$mode.selected} >{$mode.name}</option>
   {/foreach}
-   </select>
-  <b>優先度:</b><input type="text" name="k_priority" value="{$priority}" size="2" class="required digits" />
-  <br><b>保存ディレクトリー:</b>{$spool|escape}<input type="text" name="k_directory" value="{$directory|escape}" size="80" class="required" />
-  <br><b>録画ファイル名の形式:</b><input type="text" name="k_filename" value="{$filename|escape}" size="80" class="required" />
+   </select>　
+  <b>優先度</b><input type="text" name="k_priority" value="{$priority}" size="2" class="required digits">
+  <br><b>保存ディレクトリー </b>{$spool|escape}<input type="text" name="k_directory" value="{$directory|escape}" size="80" class="required">
+  <br><b>録画ファイル名の形式 </b><input type="text" name="k_filename" value="{$filename|escape}" size="80" class="required">
 <table cellspacing="1" border="1" style="text-align: center;">
   <tr><th>特殊文字列</th><td>%TITLE%</td><td>%ST%</td><td>%ET%</td><td>%TYPE%</td><td>%CH%</td><td>%DOW%</td><td>%DOWJ%</td><td>%YEAR%</td><td>%MONTH%</td><td>%DAY%</td><td>%HOUR%</td><td>%MIN%</td><td>%SEC%</td><td>%DURATION%</td></tr>
   <tr><th>置換後の内容</th><td>番組タイトル</td><td>開始日時<br>（ex.200907201830)</td><td>終了日時<br>（同左）</td><td>GR/BS/CS</td><td>チャンネル番号</td><td>曜日<br>（Sun-Mon）</td><td>曜日<br>（日-土）</td><td>開始年</td><td>開始月</td><td>開始日</td><td>開始時</td><td>開始分</td><td>開始秒</td><td>録画時間<br>（秒）</td></tr>
 </table>
-  <br><input type="checkbox" name="k_enable" value="1" {if $enable}checked{/if} /><b>有効</b>
-  <input type="submit" value={if !$keyword_id }"この絞り込みを自動録画キーワードに登録"{else}"この設定で自動録画キーワードを更新"{/if} />
+</fieldset>
+　<input type="submit" value={if !$keyword_id }"この絞り込みを自動録画キーワードに登録"{else}"この設定で登録キーワードを更新"{/if}>
+{if $keyword_id}<b>／</b><input type="button" value="削除" onClick="javascript:PRG.delkey('{$keyword_id}')">{/if}
   </form>
 </div>
 {/if}

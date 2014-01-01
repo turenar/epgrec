@@ -51,6 +51,8 @@ function cleanup( $rarr, $cmd ){
 	$BS_tuners = (int)$settings->bs_tuners;
 	$CS_flag   = $settings->cs_rec_flg==0 ? FALSE : TRUE;
 
+	run_user_regulate();
+
 	garbageClean();			//  不要プログラム削除
 
 /* 別口で対応
@@ -273,7 +275,7 @@ ST_ESP:
 					$gr_bs_sepa = TRUE;
 					$gr_use = $GR_tuners>=3 ? 3 : $GR_tuners;
 					$bs_use = 1;
-					reclog( 'shepherd.php::テンポラリー容量が不十分なため地上波･衛星波並列受信が出来ません。空き容量を確保してください。', EPGREC_WARN );
+					reclog( 'shepherd.php::テンポラリー容量が不十分なため地上波・衛星波並列受信が出来ません。空き容量を確保してください。', EPGREC_WARN );
 				}else{
 					$bs_tmp = array( 0, 3, 4, 6 );
 					if( $GR_tuners > 0 ){
@@ -292,14 +294,14 @@ ST_ESP:
 							//所要時間算出
 							$gr_times = (int)ceil( $GR_num / $gr_use ) * $gr_rec_tm;
 							$para_tm  = $gr_times<$bs_tim[$bs_use] ? $bs_tim[$bs_use] : $gr_times;
-							//セパレート･モード時の所要時間算出
+							//セパレート・モード時の所要時間算出
 							$gr_use_sepa = $GR_tuners>$tune_cnts ? $tune_cnts : $GR_tuners;
 							$gr_times    = (int)ceil( $GR_num / $gr_use_sepa ) * $gr_rec_tm;
 							for( $bs_use_sepa=$bs_max; $bs_use_sepa>0; $bs_use_sepa-- )
 								if( $bs_tmp[$bs_use_sepa] <= $tune_cnts )
 									break;
 							$sepa_tm = $gr_times + $bs_tim[$bs_use_sepa];
-							//地上波･衛星波 分離判定
+							//地上波・衛星波 分離判定
 							if( $sepa_tm < $para_tm ){
 								$gr_bs_sepa = TRUE;
 								$gr_use = $gr_use_sepa;
@@ -322,12 +324,14 @@ ST_ESP:
 			$bs_use = 0;
 		}
 	}
+	// スカパー！プレミアム
+	$ex_use = EXTRA_TUNERS;
 
 	// BS/CSを処理する
 	if( $bs_use > 0 ){
 		$proST = dog_release( INSTALL_PATH.'/collie.php '.$bs_use );
 		if( $gr_bs_sepa ){
-			//セパレート･モード時のウェイト
+			//セパレート・モード時のウェイト
 			sleep( $bs_tim[$bs_use]+10 );
 			$ST_tm = 0;
 		}else
@@ -336,6 +340,20 @@ ST_ESP:
 	}else{
 		$proST = FALSE;
 		$ST_tm = 0;
+	}
+	// スカパー！プレミアム
+	if( $ex_use > 0 ){
+		$proET = dog_release( INSTALL_PATH.'/greatpyrenees.php '.$ex_use );
+		if( $gr_bs_sepa ){
+			//セパレート・モード時のウェイト
+			sleep( EX_EPG_TIME+10 );
+			$EX_tm = 0;
+		}else
+			//初期スリープ時間設定
+			$EX_tm = EX_EPG_TIME - 120;		// 設定により変動が多いので
+	}else{
+		$proEX = FALSE;
+		$EX_tm = 0;
 	}
 	// 地上波を処理する
 	if( $gr_use > 0 ){
@@ -348,10 +366,12 @@ ST_ESP:
 	// 初期スリープ時間設定
 	if( $sleep_tm < $ST_tm )
 		$sleep_tm = $ST_tm;
+	if( $sleep_tm < $EX_tm )
+		$sleep_tm = $EX_tm;
 
 	// EPG更新待ち
 	$wtd_tm = $sleep_tm;
-	while( $proST !== FALSE || $proGR !== FALSE ){
+	while( $proST !== FALSE || $proGR !== FALSE || $proEX !== FALSE ){
 		sleep( $sleep_tm );
 		$sleep_tm = 1;
 		if( $proST !== FALSE ){
@@ -359,6 +379,13 @@ ST_ESP:
 			if( $st['running'] == FALSE ){
 				proc_close( $proST );
 				$proST = FALSE;
+			}
+		}
+		if( $proEX !== FALSE ){
+			$st = proc_get_status( $proEX );
+			if( $st['running'] == FALSE ){
+				proc_close( $proEX );
+				$proEX = FALSE;
 			}
 		}
 		if( $proGR !== FALSE ){
@@ -377,6 +404,11 @@ ST_ESP:
 				cleanup( $rarr, 'collie.php' );
 				while( $st['running'] );
 				proc_close( $proST );
+			}
+			if( $proEX !== FALSE ){
+				cleanup( $rarr, 'greatpyrenees.php' );
+				while( $st['running'] );
+				proc_close( $proEX );
 			}
 			if( $proGR !== FALSE ){
 				cleanup( $rarr, 'sheepdog.php' );
@@ -404,9 +436,9 @@ ST_ESP:
 					$sleep_tm     = $search_core - time();
 					if( $sleep_tm < 0 )
 						$sleep_tm = 0;
-					reclog( 'PT2 fault: SYSTEM REBOOT '.toDatetime($search_core+$settings->extra_time+10), EPGREC_WARN );
+					reclog( REBOOT_COMMENT.toDatetime($search_core+$settings->extra_time+10), EPGREC_WARN );
 					// 10は、録画完了後のDB書き込み待ち
-					sleep( $sleep_tm+$settings->extra_time+10 );		//使用中でない事が確認できる方法がないかな･･･
+					sleep( $sleep_tm+$settings->extra_time+10 );		//使用中でない事が確認できる方法がないかな・・・
 					system( REBOOT_CMD );
 					break;
 				}else{

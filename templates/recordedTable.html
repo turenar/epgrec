@@ -18,7 +18,7 @@
 		dialog:function(id, title){
 			$('#floatBox4Dialog').dialog({title:'削除',width:500});
 			var str = '<div class="prg_title">' + title + 'を削除します</div>';
-			str += '<form><div style="text-align:center;">録画ファイルも削除する<input type="checkbox" id="delete_file" name="delete_file" value="1" /></div></form>';
+			str += '<form><div style="text-align:center;">録画ファイルも削除する<input type="checkbox" id="delete_file" name="delete_file" value="1"></div></form>';
 			str +='<div style="margin:2em 0 1em 0;text-align:center;"><a href="javascript:PRG.rec(' + id + ')" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">この録画を本当に削除する</a></div>';
 			$('#floatBox4Dialog').html(str);
 			$('#floatBox4Dialog').dialog('open', 'center');
@@ -45,8 +45,8 @@
 			$('#floatBox4Dialog').dialog({title:'変更',width:500});
 			var str;
 			str  = '<div class="prg_title">録画ID:' + id + '</div>';
-			str += '<input type="hidden" name="reserve_id" id="id_reserve_id" value="' + id +  '" />';
-			str += '<div><span class="labelLeft">タイトル</span><input name="title" id="id_title" size="30"  value="'+ $('#tid_' + id ).html() + '" /></div>';
+			str += '<input type="hidden" name="reserve_id" id="id_reserve_id" value="' + id +  '">';
+			str += '<div><span class="labelLeft">タイトル</span><input name="title" id="id_title" size="30"  value="'+ $('#tid_' + id ).html() + '"></div>';
 			str += '<div><span class="labelLeft">概要</span><textarea name="description" id="id_description" cols="30" rows="5" >' + $('#did_' + id ).html() + '</textarea></div>';
 			str += '<div style="margin:2em 0 1em 0;text-align:center;"><a href="javascript:PRG.edit()" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">変更する</a></div>';
 			
@@ -152,31 +152,22 @@ table#reservation_table tr.ctg_10, #category_select a.ctg_10 {background-color: 
 
 <body>
 
-<h2>{$sitetitle}</h2>
-
-
-<form>
+<h2><form>{$sitetitle}
 <select onChange="popJump(this)">
-<option value="#">メニュー
-<option value="index.php">地上デジタル番組表
-{if $link_add > 0}
- <option value="index.php?type=BS">BSデジタル番組表
- {if $link_add == 2}
-  <option value="index.php?type=CS">CSデジタル番組表
- {/if}
-{/if}
+<option value="#">メニュー</option>
+{$link_add}
 {foreach from=$menu_list item=record}
-<option value="{$record.url}">{$record.name}
+<option value="{$record.url}">{$record.name}</option>
 {/foreach}
 </select>
-</form>
+</form></h2>
 
 
 <div>
 絞り込み：
 <form method="post" action="recordedTable.php" >
-<input type="hidden" name="do_search" value="1" />
-検索語句<input type="text" name="search" value="{$search}" class="example1" /><br>
+<input type="hidden" name="do_search" value="1">
+検索語句<input type="text" name="search" value="{$search|escape}" class="example1"><br>
 局<select name="station">
   {foreach from=$stations item=st}
     <option value="{$st.id}" {$st.selected}>{$st.name}</option>
@@ -187,11 +178,11 @@ table#reservation_table tr.ctg_10, #category_select a.ctg_10 {background-color: 
   <option value="{$cat.id}" {$cat.selected}>{$cat.name}</option>
   {/foreach}
   </select>
-<input type="submit" value="絞り込む" />
+<input type="submit" value="絞り込む">
 </form>
 </div>
 
-タイトルや内容をクリックすると視聴できます（ブラウザの設定でASFとVLCを関連付けている必要があります）
+タイトルをクリックすると視聴できます（ブラウザの設定でASFとVLCを関連付けている必要があります）
 {if count($records)}
 <table id="reservation_table">
  <tr>
@@ -202,7 +193,8 @@ table#reservation_table tr.ctg_10, #category_select a.ctg_10 {background-color: 
   <th>モード</th>
   {if $use_thumbs == 1}<th>サムネール</th>{/if}
   <th>タイトル</th>
-  <th>内容</th>
+  <th>概要</th>
+  <th>自動<br>ID</th>
   <th>変更</th>
   <th>削除</th>
  </tr>
@@ -215,10 +207,11 @@ table#reservation_table tr.ctg_10, #category_select a.ctg_10 {background-color: 
   <td>{$rec.station_name}</td>
   <td>{$rec.mode}</td>
   {if $use_thumbs == 1}<td><a href="{$rec.asf}">{$rec.thumb}</a></td>{/if}
-  <td><a href="{$rec.asf}" id="tid_{$rec.id}">{$rec.title}</a></td>
-  <td><a id="did_{$rec.id}">{$rec.description}</a></td>
-  <td><input type="button" value="変更" onClick="javascript:PRG.editdialog('{$rec.id}')" /></td>
-  <td><input type="button" value="削除" onClick="javascript:PRG.dialog('{$rec.id}','{$rec.title}')" /></td>
+  <td style="text-align: left;"><a href="{$rec.asf}" id="tid_{$rec.id}">{$rec.title}</a></td>
+  <td style="text-align: left;"><a id="did_{$rec.id}">{$rec.description}</a></td>
+  <td style="text-align: right;">{if !$rec.key_id }□{else}<a href="programTable.php?keyword_id={$rec.key_id}">{$rec.key_id}</a>{/if}</td>
+  <td><input type="button" value="変更" onClick="javascript:PRG.editdialog('{$rec.id}')"></td>
+  <td><input type="button" value="削除" onClick="javascript:PRG.dialog('{$rec.id}','{$rec.title}')"></td>
  </tr>
 {/foreach}
 </table>

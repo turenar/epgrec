@@ -3,6 +3,7 @@
 define( 'E_INFO' , 0 );
 define( 'EPGREC_WARN', 1 );
 define( 'EPGREC_ERROR', 2 );
+define( 'EPGREC_DEBUG', 3 );
 
 
 function reclog( $message , $level = E_INFO ) {

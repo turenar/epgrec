@@ -11,7 +11,7 @@ $program_id = $_GET['program_id'];
 $settings = Settings::factory();
 
 try {
-	exit( Reservation::simple( $program_id , 0, $settings->autorec_mode) );
+	exit( Reservation::simple( $program_id , 0, $settings->autorec_mode, ((int)$settings->force_cont_rec===0 ? 1 : 0) ) );
 }
 catch( Exception $e ) {
 	exit( "Error:". $e->getMessage() );

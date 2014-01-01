@@ -49,12 +49,13 @@ function myErrorHandler($errno, $errstr, $errfile, $errline)
 	return true;
 }
 
+	run_user_regulate();
 // 定義したエラーハンドラを設定する
 $old_error_handler = set_error_handler("myErrorHandler");
 
 	$cnt = 0;
 	$shm_id = shmop_open_surely();
-	for( $tuner=1; $tuner<=60; $tuner++ ){
+	for( $tuner=1; $tuner<=80; $tuner++ ){
 		$rv_smph = shmop_read_surely( $shm_id, $tuner );
 		if( $rv_smph )
 			echo $tuner."::".$rv_smph."\n";

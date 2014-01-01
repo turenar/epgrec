@@ -7,7 +7,7 @@
 	include_once( INSTALL_PATH . '/reclib.php' );
 	include_once( INSTALL_PATH . '/recLog.inc.php' );
 
-	$usable_tuners = (int)$argv[1];
+	run_user_regulate();
 
 	while( ( list( $ch_disk, $value ) = each( $GR_CHANNEL_MAP ) ) ){
 		$sql_cmd = "WHERE channel_disc LIKE '".$ch_disc."_%'";
@@ -20,25 +20,25 @@
 					$ch->channel = $value;
 					$ch->update();
 					// 自動キーワード
-					$sql_cmd = "WHERE channel_id = ".$ch->id;
+					$sql_cmd = "WHERE typeGR = '1' AND channel_id = ".$ch->id;
 					$num     = DBRecord::countRecords( KEYWORD_TBL , $sql_cmd );
 					if( $num > 0 ){
 						$kws = DBRecord::createRecords( KEYWORD_TBL , $sql_cmd.' ORDER BY priority DESC' );
 						foreach( $kws as $key ){
-							$key->rev_delete();
-							if( $key->type !== '-' ){
+							if( (boolean)$key->kw_enable ){
+								$key->rev_delete();
 								// 録画予約実行
 								$sem_key = sem_get_surely( SEM_KW_START );
 								$shm_id  = shmop_open_surely( TRUE );
 								if( $shm_id !== FALSE ){
-									$key->reservation( $key->type, $shm_id, $sem_key );
+									$key->reservation( 'GR', $shm_id, $sem_key );
 									shmop_close( $shm_id );
 								}
 							}
 						}
 					}
 					// 手動予約
-					$sql_cmd = "WHERE channel_id = ".$ch->id."' AND autorec = '0'";
+					$sql_cmd = "WHERE typeGR = '1' AND channel_id = '".$ch->id."' AND autorec = '0' AND complete = '0'";
 					$num     = DBRecord::countRecords( RESERVE_TBL , $sql_cmd );
 					if( $num > 0 ){
 						$revs = DBRecord::createRecords( RESERVE_TBL , $sql_cmd.' ORDER BY priority DESC' );

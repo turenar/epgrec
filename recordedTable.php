@@ -31,13 +31,18 @@ if(isset( $_POST['do_search'] )) {
 		if( $_POST['search'] != "" ) {
 			$search = $_POST['search'];
 //			$options .= " AND CONCAT(title,description) like '%".mysql_real_escape_string($_POST['search'])."%'";
-			foreach( explode( " ", mysql_real_escape_string( $search ) ) as $key )
-				if( substr( $key, 0, 1 ) == '-' ){
+			foreach( explode( ' ', trim($search) ) as $key ){
+				$k_len = strlen( $key );
+				if( $k_len>1 && $key[0]==='-' ){
+					$k_len--;
 					$key = substr( $key, 1 );
-					$options .= " AND CONCAT(title,' ', description) not like '%$key%'";
-				}else{
-					$options .= " AND CONCAT(title,' ', description) like '%$key%'";
-				}
+					$options .= " AND CONCAT(title,' ', description) not like ";
+				}else
+					$options .= " AND CONCAT(title,' ', description) like ";
+				if( $key[0]==='"' && $k_len>2 && $key[$k_len-1]==='"' )
+					$key = substr( $key, 1, $k_len-2 );
+				$options .= "'%".mysql_real_escape_string( $key )."%'";
+			}
 		}
 	}
 	if( isset($_POST['category_id'])) {
@@ -87,6 +92,9 @@ try{
 		$arr['cat'] = $cat->name_en;
 		$arr['mode'] = $RECORD_MODE[$r->mode]['name'];
 		$arr['keyword'] = putProgramHtml( $arr['title'], '*', 0, $r->category_id, 16 );
+		$arr['key_id']  = (int)$r->autorec;
+		if( DBRecord::countRecords( KEYWORD_TBL, "WHERE id = '".$arr['key_id']."'" ) == 0 )
+			$arr['key_id'] = 0;
 		array_push( $records, $arr );
 	}
 	
@@ -132,11 +140,16 @@ try{
 		array_push( $stations, $arr );
 	}
 	
-	
-	if( (int)$settings->bs_tuners > 0 )
-		$link_add = $settings->cs_rec_flg==0 ? 1 : 2;
-	else
-		$link_add = 0;
+	$link_add = '';
+	if( (int)$settings->gr_tuners > 0 )
+		$link_add .= '<option value="index.php">地上デジタル番組表</option>';
+	if( (int)$settings->bs_tuners > 0 ){
+		$link_add .= '<option value="index.php?type=BS">BSデジタル番組表</option>';
+		if( (boolean)$settings->cs_rec_flg )
+			$link_add .= '<option value="index.php?type=CS">CSデジタル番組表</option>';
+	}
+	if( EXTRA_TUNERS )
+		$link_add .= '<option value="index.php?type=EX">'.EXTRA_NAME.'番組表</option>';
 
 
 	$smarty = new Smarty();

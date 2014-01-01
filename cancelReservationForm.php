@@ -9,13 +9,17 @@ $week_tb = array( "日", "月", "火", "水", "木", "金", "土" );
 if( ! isset( $_GET['reserve_id'] ) )
 	exit("Error: 予約IDが指定されていません" );
 $reserve_id = $_GET['reserve_id'];
-$autorec    = isset( $_GET['autorec'] ) ? $_GET['autorec'] : '1';
 
 try {
 	$rec = new DBRecord( RESERVE_TBL, "id" , $reserve_id );
 	$start_time = toTimestamp($rec->starttime);
 	$end_time   = toTimestamp($rec->endtime);
 	$duration   = $end_time - $start_time;
+	$settings   = Settings::factory();
+	if( time() >= $start_time - $settings->former_time )
+		$autorec = '0';
+	else
+		$autorec = isset( $_GET['autorec'] ) ? $_GET['autorec'] : '1';
 
 	$smarty = new Smarty();
 	$smarty->assign( "type", $rec->type );

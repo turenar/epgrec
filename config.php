@@ -43,7 +43,7 @@ $GR_CHANNEL_MAP = array(
 	"GR19" => "19", // 中京TV
 //	"GR27" => "27", // 三重TV
 	"GR21" => "21", // 東海TV
-	"GR22" => "22", // 名古屋TV (メ～テレ)
+	"GR22" => "22", // 名古屋TV (メ〜テレ)
 	"GR13" => "13", // NHK Educational
 	"GR20" => "20", // NHK Gemeral
 );
@@ -77,7 +77,7 @@ $RECORD_MODE = array(
 );
 
 
-define( "TUNER_UNIT1", 0 );							// 第一チューナーの各放送波の論理チューナ数(地上波･衛星波で共用 ex.PT1が1枚なら2)
+define( "TUNER_UNIT1", 0 );							// 第一チューナーの各放送波の論理チューナ数(地上波・衛星波で共用 ex.PT1が1枚なら2)
 define( "TUNER_UNIT2", 0 );							// 上記以外の論理チューナ数(未使用)
 
 // PT1キャラデバ版ドライバー使用時に変更すること
@@ -114,6 +114,24 @@ $OTHER_TUNERS_CHARA = array(
 	)
 );
 
+// スカパー！プレミアム（対応中、ただしハードが無いのでデバッグ不可能）
+define( 'EXTRA_TUNERS', 0 );					// チューナー数
+define( 'EXTRA_NAME', 'スカパー！プレミアム' );	// 放送波名
+define( 'EX_EPG_TIME', 240 );					// EPG受信時間
+define( 'EX_EPG_CHANNEL',  'CS15_0'  );			// EPG受信Ch
+$EX_TUNERS_CHARA = array(
+	0 => array(
+		'epgTs' => FALSE,			// EPG用TS出力パッチ使用時はTRUE
+		'cntrl' => FALSE,			// recpt1ctl対応パッチ使用時はTRUE
+		'httpS' => FALSE,			// httpサーバー機能対応時はTRUE
+	),
+	1 => array(
+		'epgTs' => FALSE,
+		'cntrl' => FALSE,
+		'httpS' => FALSE,
+	),
+);
+
 // リアルタイム視聴
 define( "REALVIEW_HTTP", FALSE );					// リアルタイム視聴を有効にするときはtrueに
 define( "REALVIEW_HTTP_PORT", "8888" ); 			// リアルタイム視聴ポート番号を入力する
@@ -122,6 +140,10 @@ define( "REALVIEW_PID", "/tmp/realview" );			// リアルタイム視聴チュ�
 // EPG取得関連
 define( "HIDE_CH_EPG_GET", FALSE );					// 非表示チャンネルのEPGを取得するならTRUE
 define( "EXTINCT_CH_AUTO_DELETE", FALSE );			// 廃止チャンネルを自動削除するならTRUE(HIDE_CH_EPG_GET=TRUE時のみに有効・メンテナンス画面あり)
+
+// 自動キーワ−ド予約の警告設定初期値(登録キーワード毎に変更可能)
+define( 'CRITERION_CHECK', FALSE );					// 収録時間変動
+define( 'REST_ALERT', FALSE );						// 番組がヒットしない場合
 
 define( "SETTING_CHANGE_GIP", FALSE );				// グローバルIPからの設定変更を許可する場合はTRUE
 //////////////////////////////////////////////////////////////////////////////
@@ -132,11 +154,14 @@ define( "INSTALL_PATH", dirname(__FILE__) );		// インストールパス
 
 // 以降は必要に応じて変更する
 
+define( 'MANUAL_REV_PRIORITY', 10 );				// 手動予約の優先度
+define( 'HTTPD_USER', 'www-data' );					// HTTPD(apache)アカウント
+define( 'HTTPD_GROUP', 'www-data' );					// HTTPD(apache)アカウント
 define( "PADDING_TIME", 180 );						// 詰め物時間(変更禁止)
 define( "DO_RECORD", INSTALL_PATH . "/do-record.sh" );		// レコードスクリプト
 define( "COMPLETE_CMD", INSTALL_PATH . "/recomplete.php" );	// 録画終了コマンド
 define( "GEN_THUMBNAIL", INSTALL_PATH . "/gen-thumbnail.sh" );	// サムネール生成スクリプト
-define( "PS_CMD", "ps -u www-data -f" );			// apacheアカウントで実行中のコマンドPID取得に使用
+define( 'PS_CMD', 'ps -u '.HTTPD_USER.' -f' );			// HTTPD(apache)アカウントで実行中のコマンドPID取得に使用
 define( "RECPT1_CTL", "/usr/local/bin/recpt1ctl" );		// recpt1のコントロールコマンド
 define( 'FIRST_REC', 80 );							// EPG[schedule]受信時間
 define( 'SHORT_REC', 6 );							// EPG[p/f]受信時間
@@ -152,11 +177,13 @@ define( "BS_XML_SIZE", (int)(4*1024*1024) );	// BS EPG XMLファイルサイズ
 define( "TS_STREAM_RATE", 110 );					// １分あたりのTSサイズ(MB・ストレージ残り時間計算用)
 
 // PT1_REBOOTをTRUEにする場合は、root権限で visudoコマンドを実行して
-// www-data ALL = (ALL) NOPASSWD: /sbin/shoutdown
+// www-data ALL = (ALL) NOPASSWD: /sbin/shutdown
 // の一行を追加してください。詳しくは visudoを調べてください。
 
 define( "PT1_REBOOT", FALSE );							// PT1が不安定なときにリブートするかどうか
 define( "REBOOT_CMD", 'sudo /sbin/shutdown -r now' );	// リブートコマンド
+//define( 'REBOOT_CMD', 'sudo '.INSTALL_PATH.'/driver_reset.sh' );	// pt1ドライバー再読込み こっちにする場合は、modprobeをHTTPDから使えるようにして
+define( 'REBOOT_COMMENT', 'PT2 is out of order: SYSTEM REBOOT ' );
 
 // BS/CSでEPGを取得するチャンネル
 // 通常は変える必要はありません
@@ -168,20 +195,39 @@ define( "BS_EPG_CHANNEL",  "BS15_0"  );	// BS
 define( "CS1_EPG_CHANNEL", "CS2" );	// CS1 2,8,10
 define( "CS2_EPG_CHANNEL", "CS4" );	// CS2 4,6,12,14,16,18,20,22,24
 
+
+// DBテーブル情報　以下は変更しないでください
+define( 'RESERVE_TBL',  'reserveTbl' );						// 予約テーブル
+define( 'PROGRAM_TBL',  'programTbl' );						// 番組表
+define( 'CHANNEL_TBL',  'channelTbl' );						// チャンネルテーブル
+define( 'CATEGORY_TBL', 'categoryTbl' );					// カテゴリテーブル
+define( 'KEYWORD_TBL', 'keywordTbl' );						// キーワードテーブル
+// ログテーブル
+define( 'LOG_TBL', 'logTbl' );
+
 // 全国用BSデジタルチャンネルマップ
-include_once( INSTALL_PATH."/settings/bs_channel.php" );
+check_ch_map( 'bs_channel.php' );
+include_once( INSTALL_PATH.'/settings/bs_channel.php' );
 
 // 全国用CSデジタルチャンネルマップ
-include_once( INSTALL_PATH."/settings/cs_channel.php" );
+check_ch_map( 'cs_channel.php' );
+include_once( INSTALL_PATH.'/settings/cs_channel.php' );
 
+// スカパー！プレミアム・チャンネルマップ
+if( EXTRA_TUNERS ){
+	check_ch_map( 'ex_channel.php' );
+	include_once( INSTALL_PATH.'/settings/ex_channel.php' );
+}
 
 // 地上デジタルチャンネルテーブルsettings/gr_channel.phpが存在するならそれを
 // 優先する
-if( file_exists( INSTALL_PATH."/settings/gr_channel.php" ) ) {
+if( check_ch_map( 'gr_channel.php', isset( $GR_CHANNEL_MAP ) ) ){
 	unset($GR_CHANNEL_MAP);
-	include_once( INSTALL_PATH."/settings/gr_channel.php" );
+	include_once( INSTALL_PATH.'/settings/gr_channel.php' );
 }
 
+/* 
+// おそらく誰も使っていないと思われるので無効化 セキュリティ強化の一環
 //
 // settings/site_conf.phpがあればそれを優先する
 //
@@ -197,15 +243,33 @@ if( file_exists( INSTALL_PATH."/settings/site_conf.php" ) ) {
 if( file_exists( INSTALL_PATH."/settings/config_custom.php" ) ) {
 	include_once( INSTALL_PATH."/settings/config_custom.php" );
 }
+*/
 
 
-// DBテーブル情報　以下は変更しないでください
-
-define( "RESERVE_TBL",  "reserveTbl" );						// 予約テーブル
-define( "PROGRAM_TBL",  "programTbl" );						// 番組表
-define( "CHANNEL_TBL",  "channelTbl" );						// チャンネルテーブル
-define( "CATEGORY_TBL", "categoryTbl" );					// カテゴリテーブル
-define( "KEYWORD_TBL", "keywordTbl" );						// キーワードテーブル
-// ログテーブル
-define( "LOG_TBL", "logTbl" );
+// セキュリティ強化
+// チャンネルMAPファイルを操作された場合(削除・不正コード挿入など)を想定
+// epgrecUNA以外からの操作が可能なため対応
+function check_ch_map( $ch_file, $gr_safe=FALSE )
+{
+	$inc_file = INSTALL_PATH.'/settings/'.$ch_file;
+	if( file_exists( $inc_file ) ){
+		if( filesize( $inc_file ) > 0 ){
+			$rd_data = file_get_contents( $inc_file );
+			$search  = '$'.strtoupper( substr( $ch_file, 0, 2 ) ).'_CHANNEL_MAP';
+			if( strpos( $rd_data, $search )!==FALSE && strpos( $rd_data, ");\n?>" )!==FALSE ){
+				if( substr_count( $rd_data, ';' ) == 1 ){
+					return TRUE;
+				}
+			}
+		}
+	}
+	if( $gr_safe )
+		return FALSE;
+	else{
+		include_once( INSTALL_PATH . '/DBRecord.class.php' );
+		include_once( INSTALL_PATH . '/recLog.inc.php' );
+		reclog( $inc_file.' が壊れているか不正コードが挿入されている可能性があります。ファイルを確認してください。', EPGREC_ERROR );
+		exit;
+	}
+}
 ?>

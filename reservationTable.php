@@ -29,8 +29,13 @@ try{
 		$ch  = new DBRecord(CHANNEL_TBL, 'id', $r->channel_id );
 		$cat = new DBRecord(CATEGORY_TBL, 'id', $r->category_id );
 		if( $r->program_id ){
-			$prg = new DBRecord(PROGRAM_TBL, "id", $r->program_id );
-			$sub_genre = $prg->sub_genre;
+			try{
+				$prg = new DBRecord(PROGRAM_TBL, "id", $r->program_id );
+				$sub_genre = $prg->sub_genre;
+			}catch( exception $e ) {
+				reclog( 'reservationTable.php::予約ID:'.$r->id.'  '.$e->getMessage(), EPGREC_ERROR );
+				$sub_genre = 16;
+			}
 		}else
 			$sub_genre = 16;
 		$arr = array();
@@ -42,7 +47,7 @@ try{
 		$start_time = toTimestamp($r->starttime);
 		$arr['date'] = date( 'm/d(', $start_time ).$week_tb[date( 'w', $start_time )].')';
 		$arr['starttime'] = date( 'H:i:s-', $start_time );
-		$arr['endtime'] = date( 's', $end_time )=='00' ? date( 'H:i:s', $end_time ) : '<font color="#0000ff">'.date( 'H:i:s', $end_time ).'</font>';
+		$arr['endtime'] = !$r->shortened ? date( 'H:i:s', $end_time ) : '<font color="#0000ff">'.date( 'H:i:s', $end_time ).'</font>';
 		$arr['duration'] = date( 'H:i:s', $end_time-$start_time-9*60*60 );
 		$arr['prg_top'] = date( 'YmdH', $start_time-60*60*1 );
 		$arr['mode'] = $RECORD_MODE[$r->mode]['name'];
@@ -61,7 +66,7 @@ try{
 		$ts_stream_rate = TS_STREAM_RATE;
 		// 全ストレージ空き容量取得
 		$root_mega = $free_mega = (int)( disk_free_space( $spool_path ) / ( 1024 * 1024 ) );
-		// スプール･ルート･ストレージの空き容量保存
+		// スプール・ルート・ストレージの空き容量保存
 		$stat  = stat( $spool_path );
 		$dvnum = (int)$stat['dev'];
 		$spool_disks = array();
@@ -74,7 +79,7 @@ try{
 		$arr['time']  = rate_time( $root_mega );
 		array_push( $spool_disks, $arr );
 		$devs = array( $dvnum );
-		// スプール･ルート上にある全ストレージの空き容量取得
+		// スプール・ルート上にある全ストレージの空き容量取得
 		$files = scandir( $spool_path );
 		if( $files !== FALSE ){
 			array_splice( $files, 0, 2 );
@@ -112,10 +117,16 @@ try{
 		array_push( $spool_disks, $arr );
 	}
 
-	if( (int)$settings->bs_tuners > 0 )
-		$link_add = !(boolean)$settings->cs_rec_flg ? 1 : 2;
-	else
-		$link_add = 0;
+	$link_add = '';
+	if( (int)$settings->gr_tuners > 0 )
+		$link_add .= '<option value="index.php">地上デジタル番組表</option>';
+	if( (int)$settings->bs_tuners > 0 ){
+		$link_add .= '<option value="index.php?type=BS">BSデジタル番組表</option>';
+		if( (boolean)$settings->cs_rec_flg )
+			$link_add .= '<option value="index.php?type=CS">CSデジタル番組表</option>';
+	}
+	if( EXTRA_TUNERS )
+		$link_add .= '<option value="index.php?type=EX">'.EXTRA_NAME.'番組表</option>';
 
 	$smarty = new Smarty();
 	$smarty->assign( 'sitetitle','録画予約一覧');

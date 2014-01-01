@@ -14,13 +14,18 @@ if( isset($_GET['delete_id']) ){
 
 		// xx_channel.phpの編集
 		$settings = Settings::factory();
-		if( $type === 'BS' ){
-			$map  = $BS_CHANNEL_MAP;
-			$f_nm = INSTALL_PATH.'/settings/bs_channel.php';
-		}else{
-			$map  = $CS_CHANNEL_MAP;
-			$f_nm = INSTALL_PATH.'/settings/cs_channel.php';
+		switch( $type ){
+			case 'BS':
+				$map = $BS_CHANNEL_MAP;
+				break;
+			case 'CS':
+				$map = $CS_CHANNEL_MAP;
+				break;
+			case 'EX':
+				$map = $EX_CHANNEL_MAP;
+				break;
 		}
+		$f_nm      = INSTALL_PATH.'/settings/'.strtolower($type).'_channel.php';
 		$st_ch     = file( $f_nm, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES );
 		$key_point = array_search( $disc, array_keys( $map ) );
 		if( $key_point !== FALSE ){

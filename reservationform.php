@@ -3,15 +3,31 @@ include_once('config.php');
 include_once( INSTALL_PATH . "/DBRecord.class.php" );
 include_once( INSTALL_PATH . "/Smarty/Smarty.class.php" );
 include_once( INSTALL_PATH . "/reclib.php" );
+include_once( INSTALL_PATH . '/Settings.class.php' );
+$settings = Settings::factory();
 
 if( ! isset( $_GET['program_id'] ) ) exit("Error: 番組IDが指定されていません" );
 $program_id = $_GET['program_id'];
 
+$keyword_id = isset( $_GET['keyword_id'] ) ? (int)$_GET['keyword_id'] : 0;
+
 try {
   $prec = new DBRecord( PROGRAM_TBL, "id", $program_id );
-  
-  sscanf( $prec->starttime, "%4d-%2d-%2d %2d:%2d:%2d", $syear, $smonth, $sday, $shour, $smin, $ssec );
-  sscanf( $prec->endtime, "%4d-%2d-%2d %2d:%2d:%2d", $eyear, $emonth, $eday, $ehour, $emin, $esec );
+  if( $keyword_id ){
+	$keyc = new DBRecord( KEYWORD_TBL, "id", $keyword_id );
+	$starttime     = toDatetime( toTimestamp( $prec->starttime )  + $keyc->sft_start );
+	$endtime       = toDatetime( toTimestamp( $prec->endtime ) + $keyc->sft_end );
+	$autorec_mode  = (int)$keyc->autorec_mode;
+	$discontinuity = (boolean)$keyc->discontinuity ? ' checked="checked"' : '';
+  }else{
+	$starttime     = $prec->starttime;
+	$endtime       = $prec->endtime;
+	$autorec_mode  = (int)$settings->autorec_mode;
+	$discontinuity = $settings->force_cont_rec!=1 ? ' checked="checked" disabled' : '';
+  }
+
+  sscanf( $starttime, "%4d-%2d-%2d %2d:%2d:%2d", $syear, $smonth, $sday, $shour, $smin, $ssec );
+  sscanf( $endtime, "%4d-%2d-%2d %2d:%2d:%2d", $eyear, $emonth, $eday, $ehour, $emin, $esec );
   
   $crecs = DBRecord::createRecords( CATEGORY_TBL );
   $cats = array();
@@ -43,6 +59,9 @@ try {
   $smarty->assign( "channel", $prec->channel );
   $smarty->assign( "channel_id", $prec->channel_id );
   $smarty->assign( "record_mode" , $RECORD_MODE );
+  $smarty->assign( "autorec_mode" , $autorec_mode );
+  $smarty->assign( "discontinuity" , $discontinuity );
+  $smarty->assign( 'priority', MANUAL_REV_PRIORITY );
   
   $smarty->assign( "title", $prec->title );
   $smarty->assign( "description", $prec->description );

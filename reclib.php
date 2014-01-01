@@ -13,11 +13,13 @@ define( 'SHM_SCAL_WIDE',  8 );					// 変数の桁数+1
 // ftok()のID・セマフォ・共有メモリーのキー (双方で共用)
 define( 'SEM_GR_START',  1 );							//  1-20:地デジ (0:未使用or録画中 1:EPG受信 2:リアルタイム視聴)
 define( 'SEM_ST_START', (SEM_GR_START+MAX_TUNERS) );	// 21-40:衛星 (0:未使用or録画中 1:EPG受信 2:リアルタイム視聴)
-define( 'SEM_REALVIEW', (SEM_ST_START+MAX_TUNERS) );	// 41:   リアルタイム視聴(チューナー番号)
-define( 'SEM_EPGDUMP',  (SEM_REALVIEW+1) );				// 42:   epgdump
-define( 'SEM_EPGSTORE', (SEM_REALVIEW+2) );				// 43:   EPGのDB展開
-define( 'SEM_REBOOT',   (SEM_REALVIEW+3) );				// 44:   リブート・フラグ
-define( 'SEM_KW_START', (SEM_REALVIEW+9) );				// 50-59:キーワード予約排他処理用(キーワードID)
+define( 'SEM_EX_START', (SEM_ST_START+MAX_TUNERS) );	// 41-60:スカパー！プレミアム (0:未使用or録画中 1:EPG受信 2:リアルタイム視聴)
+define( 'SEM_REALVIEW', (SEM_EX_START+MAX_TUNERS) );	// 61:   リアルタイム視聴(チューナー番号)
+define( 'SEM_EPGDUMP',  (SEM_REALVIEW+1) );				// 62:   epgdump
+define( 'SEM_EPGSTORE', (SEM_REALVIEW+2) );				// 63:   EPGのDB展開
+define( 'SEM_REBOOT',   (SEM_REALVIEW+3) );				// 64:   リブート・フラグ
+define( 'SEM_KW_START', (SEM_REALVIEW+10) );			// 71-80:キーワード予約排他処理用(キーワードID)
+define( 'SEM_MAX',      (SEM_KW_START+SEM_KW_MAX-1) );	// 
 define( 'SHM_ID',      255 );							// 共用メモリー
 
 if( ! defined( 'EPERM'  ) ) define( 'EPERM',  1 );
@@ -66,6 +68,25 @@ function mb_str_replace($search, $replace, $target, $encoding = "UTF-8" ) {
 }
 
 
+// 対象文字列の指定バイト位置がマルチバイト文字(UTF-8)か否か判定しマルチバイト文字なら文字先頭への退避数を返す
+function check_char_type( $src, $point ){
+	$ret = 0;
+	if( ord($src[$point]) & 0x80 ){
+		while( ( ord($src[$point]) & 0xF0) < 0xE0 ){
+			$point--;
+			$ret++;
+		}
+	}
+	return $ret;
+}
+
+
+// UTF-8対応strncpy
+function mb_strncpy( $src, $len ){
+	return substr( $src, 0, $len-check_char_type( $src, $len ) );		// mb_strcut() -> substr()
+}
+
+
 // psのレコードからトークン切り出し
 function ps_tok( $src ){
 	$ps_tk = new stdClass;
@@ -109,6 +130,37 @@ function get_ipckey( $id ){
 	return ftok( FTOK_KEY, $id );	// ftok()は、仕様上で唯一性を担保できないバグあり
 */
 	return $id;
+}
+
+function run_user_regulate(){
+	$usr_stat = posix_getpwuid( posix_getuid() );
+	switch( $usr_stat['name'] ){
+		case 'root':
+			$groupinfo = posix_getgrnam( HTTPD_GROUP );
+			if( $groupinfo === FALSE ){
+				echo 'setting group name is invalid.('.HTTPD_GROUP.")\n";
+				exit -1;
+			}
+			if( !posix_setgid( $groupinfo['gid'] ) ){
+				echo "can not change the group.\n";
+				exit -1;
+			}
+			$userinfo  = posix_getpwnam( HTTPD_USER );
+			if( $userinfo === FALSE ){
+				echo 'setting user name is invalid.('.HTTPD_USER.")\n";
+				exit -1;
+			}
+			if( !posix_setuid( $userinfo['uid'] ) ){
+				echo "can not change the user.\n";
+				exit -1;
+			}
+			break;
+		case HTTPD_USER:
+			break;
+		default:
+			echo $usr_stat['name']." can not run this script.\n";
+			exit -1;
+	}
 }
 
 function sem_log( $fnc_name, $errno, $php_err ){
@@ -157,10 +209,10 @@ function shmop_open_surely( $ret_mode=FALSE ){
 		if( $shm_id !== FALSE )
 			return $shm_id;
 		else{
-			$shm_id = shmop_open( $key, 'n', 0644, 1000 );
+			$shm_id = shmop_open( $key, 'n', 0644, SEM_MAX*SHM_SCAL_WIDE );
 			if( $shm_id !== FALSE ){
 				// 初期化
-				for( $cnt=1; $cnt<=MAX_TUNERS*2+20; $cnt++ ){
+				for( $cnt=1; $cnt<=SEM_MAX; $cnt++ ){
 					if( !shmop_write_surely( $shm_id, $cnt, 0 ) ){
 						reclog( '共有メモリの初期化に失敗しました。', EPGREC_WARN );
 						shmop_delete( $shm_id );
@@ -211,7 +263,7 @@ function shmop_open_surely( $ret_mode=FALSE ){
 // 共有メモリセグメントを再取得 (注:共有変数が化けている可能性あり)
 function shm_restore( &$shm_id ){
 	$restore_box = array();
-	for( $cnt=0; $cnt<MAX_TUNERS*2+20; $cnt++ ){
+	for( $cnt=0; $cnt<SEM_MAX; $cnt++ ){
 		$read_tmp = shmop_read( $shm_id, $cnt*SHM_SCAL_WIDE, SHM_SCAL_WIDE );
 		if( $read_tmp !== FALSE ){
 			array_push( $restore_box, $read_tmp );
@@ -222,19 +274,20 @@ function shm_restore( &$shm_id ){
 			return FALSE;
 		}
 	}
-	// ここまでくるなら正常だが･･･
+	// ここまでくるなら正常だが・・・
 	while( !shmop_delete( $shm_id ) )
 		usleep( 1000 );
 	shmop_close( $shm_id );
 	$shm_id = shmop_open_surely( TRUE );
 	if( $shm_id !== FALSE ){
-		foreach( $restore_box as $cnt => $piece )
+		foreach( $restore_box as $cnt => $piece ){
 			$sorce   = trim( $piece );
 			$src_str = ctype_digit( $sorce ) ? sprintf( '%-'.(SHM_SCAL_WIDE-1).'d', (int)$sorce ) : $piece;
 			if( !shmop_write_surely( $shm_id, $cnt+1, $src_str ) ){
 				reclog( '共有メモリのリストアに失敗しました。', EPGREC_WARN );
 				return FALSE;
 			}
+		}
 		return TRUE;
 	}else
 		return FALSE;
@@ -334,7 +387,7 @@ function shmop_write_surely( &$shm_id, $shm_name, $sorce ){
 function putProgramHtml( $src, $type, $channel_id, $genre, $sub_genre ){
 	if( $src !== "" ){
 		$temp = trim($src);
-		if( strncmp( $temp, '[￥]', 5 ) == 0 ){
+		if( strncmp( $temp, '[¥]', 5 ) == 0 ){
 			$out_title = substr( $temp, 5 );
 		}else
 			$out_title = $temp;

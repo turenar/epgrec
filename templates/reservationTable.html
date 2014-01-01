@@ -163,23 +163,15 @@ table#reservation_table td.tuner3 {border: solid thick yellow; border-collapse: 
 
 <body>
 
-<h2>{$sitetitle}</h2>
-
-<form>
+<h2><form>{$sitetitle}
 <select onChange="popJump(this)">
-<option value="#">メニュー
-<option value="index.php">地上デジタル番組表
-{if $link_add > 0}
- <option value="index.php?type=BS">BSデジタル番組表
- {if $link_add == 2}
-  <option value="index.php?type=CS">CSデジタル番組表
- {/if}
-{/if}
+<option value="#">メニュー</option>
+{$link_add}
 {foreach from=$menu_list item=record}
-<option value="{$record.url}">{$record.name}
+<option value="{$record.url}">{$record.name}</option>
 {/foreach}
 </select>
-</form>
+</form></h2>
 
 {if $ts_rate }<div><div style="text-align: right;">録画ストレージ残容量 {$free_size}GB  およそ{$free_time}分({$ts_rate}MB/min)</div></div>{/if}
 
@@ -210,8 +202,8 @@ table#reservation_table td.tuner3 {border: solid thick yellow; border-collapse: 
   <td id="tid_{$reserve.id}">{$reserve.title|escape}</td>
   <td id="did_{$reserve.id}">{$reserve.description|escape}</td>
   <td style="text-align: right;">{if $reserve.autorec != "□"}<a href="programTable.php?keyword_id={$reserve.autorec}">{/if}{$reserve.autorec}</a></td>
-  <td style="padding: 0;"><input type="button" value="編集" onClick="javascript:PRG.editdialog('{$reserve.id}')" /></td>
-  <td style="padding: 0;"><input type="button" value="削除" onClick="javascript:PRG.cancelform('{$reserve.id}')" /></td>
+  <td style="padding: 0;"><input type="button" value="編集" onClick="javascript:PRG.editdialog('{$reserve.id}')"></td>
+  <td style="padding: 0;"><input type="button" value="削除" onClick="javascript:PRG.cancelform('{$reserve.id}')"></td>
  </tr>
 {/foreach}
 </table>
