@@ -1,0 +1,14 @@
+Asuhaはepgrec UNA (http://d.hatena.ne.jp/katauna/)
+にいくつかのどうでもいいような細かいパッチを加えたソフトウェアです。
+
+名前はUNA氏版との衝突を避けただけでいかなる意味も持ちません。本流epgrecの上に加えられたほとんどすべてのコントリビュートはUNA氏によるものです。ありがとうございます。
+
+epgrec本家及びuna氏版のREADME、 README.epgrec.txt 3／22fix版のブランチです.txt
+も読んでください。
+
+Based on epgrec-una 2013/12/29 fix1 (branch: una-orig)
+
+=== ライセンスについて ===
+LGPL3.0
+
+ただし、上流であるepgrec本家及びuna氏版への、このプロジェクトによる成果のマージは、私が所有する著作権は放棄されているものとみなして、いかなる対価なしにできるものとする。
