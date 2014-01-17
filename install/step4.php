@@ -210,7 +210,7 @@ $ <?php echo INSTALL_PATH; ?>/getepg.php [Enter]
 と実行してください。</p>
 <br>
 <p>EPGの受信には<?php echo $getepg_th_tm; ?>分程度かかります。</p>
-<a href="step5.php?script=/getepg.php&amp;time=<?php echo $getepg_th_tm; ?>">このリンクをクリックするとEPGの初回受信を開始します。</a>
+<a href="step5.php?type=getepg&amp;time=<?php echo $getepg_th_tm; ?>">このリンクをクリックするとEPGの初回受信を開始します。</a>
 <p><br><br></p>
 <p>EPG受信を並列受信EPG取得スクリプト"shepherd.php"にて行うと<?php echo $shepherd_tm; ?>分程度かかります。</p>
 
@@ -226,6 +226,6 @@ $ <?php echo INSTALL_PATH; ?>/getepg.php [Enter]
 地デジ10局+BS+CSを同時受信する場合は、2720MB使用します。<br>
 十分なテンポラリーを確保した環境下での最短受信時間は、<?php echo $shepherd_th_tm; ?>分です。</p>
 
-<a href="step5.php?script=/shepherd.php&amp;time=<?php echo $shepherd_tm; ?>">このリンクをクリックすると並列受信EPG取得スクリプト"shepherd.php"にてEPGの初回受信を開始します。</a>
+<a href="step5.php?type=shepherd&amp;time=<?php echo $shepherd_tm; ?>">このリンクをクリックすると並列受信EPG取得スクリプト"shepherd.php"にてEPGの初回受信を開始します。</a>
 </body>
 </html>
