@@ -6,7 +6,9 @@ Asuhaはepgrec UNA (http://d.hatena.ne.jp/katauna/)
 epgrec本家及びuna氏版のREADME、 README.epgrec.txt 3／22fix版のブランチです.txt
 も読んでください。
 
-Based on epgrec-una 2013/12/29 fix1 (branch: una-orig)
+Based on epgrec-una 2013/12/29 fix2.1 (Released 2014/1/18)
+Branch una-orig has original code
+
 
 === ライセンスについて ===
 LGPL3.0
