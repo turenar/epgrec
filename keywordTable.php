@@ -154,13 +154,13 @@ try {
 		
 		$arr['options'] = '';
 		if( defined( 'KATAUNA' ) ){
-			$arr['options']  = (boolean)$rec->use_regexp ? '正' : '−';
-			$arr['options'] .= (boolean)$rec->ena_title ? 'タ' : '−';
-			$arr['options'] .= (boolean)$rec->ena_desc ? '概' : '−';
+			$arr['options']  = (boolean)$rec->use_regexp ? '正' : '－';
+			$arr['options'] .= (boolean)$rec->ena_title ? 'タ' : '－';
+			$arr['options'] .= (boolean)$rec->ena_desc ? '概' : '－';
 			$arr['options'] .= '<br>';
-			$arr['options'] .= (boolean)$rec->overlap ? '多' : '−';
-			$arr['options'] .= (boolean)$rec->rest_alert ? '無' : '−';
-			$arr['options'] .= (boolean)$rec->criterion_dura ? '幅' : '−';
+			$arr['options'] .= (boolean)$rec->overlap ? '多' : '－';
+			$arr['options'] .= (boolean)$rec->rest_alert ? '無' : '－';
+			$arr['options'] .= (boolean)$rec->criterion_dura ? '幅' : '－';
 		}else
 			$arr['options'] = (boolean)$rec->use_regexp ? '○' : '×';
 
@@ -172,7 +172,7 @@ try {
 				}
 			}
 		}else
-			$arr['weekofday'] = '−';
+			$arr['weekofday'] = '－';
 		$arr['prgtime'] = $prgtimes[$rec->prgtime];
 		$arr['period']  = $rec->period;
 		$arr['autorec_mode'] = $RECORD_MODE[(int)$rec->autorec_mode]['name'];

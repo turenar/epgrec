@@ -93,7 +93,7 @@ function rate_time( $minute )
 	$spool_path = INSTALL_PATH.$settings->spool;
 	// 全ストレージ空き容量仮取得
 	$root_mega = $free_mega = (int)( disk_free_space( $spool_path ) / ( 1024 * 1024 ) );
-	// スプール・ルート・ストレージの空き容量保存
+	// スプール･ルート･ストレージの空き容量保存
 	$stat  = stat( $spool_path );
 	$dvnum = (int)$stat['dev'];
 	$spool_disks = array();
@@ -113,7 +113,7 @@ function rate_time( $minute )
 	$arr['time']  = rate_time( $root_mega );
 	array_push( $spool_disks, $arr );
 	$devs = array( $dvnum );
-	// スプール・ルート上にある全ストレージの空き容量取得
+	// スプール･ルート上にある全ストレージの空き容量取得
 	$files = scandir( $spool_path );
 	if( $files !== FALSE ){
 		array_splice( $files, 0, 2 );
