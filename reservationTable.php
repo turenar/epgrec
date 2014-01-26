@@ -66,7 +66,7 @@ try{
 		$ts_stream_rate = TS_STREAM_RATE;
 		// 全ストレージ空き容量取得
 		$root_mega = $free_mega = (int)( disk_free_space( $spool_path ) / ( 1024 * 1024 ) );
-		// スプール・ルート・ストレージの空き容量保存
+		// スプール･ルート･ストレージの空き容量保存
 		$stat  = stat( $spool_path );
 		$dvnum = (int)$stat['dev'];
 		$spool_disks = array();
@@ -79,7 +79,7 @@ try{
 		$arr['time']  = rate_time( $root_mega );
 		array_push( $spool_disks, $arr );
 		$devs = array( $dvnum );
-		// スプール・ルート上にある全ストレージの空き容量取得
+		// スプール･ルート上にある全ストレージの空き容量取得
 		$files = scandir( $spool_path );
 		if( $files !== FALSE ){
 			array_splice( $files, 0, 2 );

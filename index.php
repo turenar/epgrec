@@ -332,7 +332,7 @@ $smarty->assign( '__nowDay', date('d', $now_time) );
 $smarty->assign( 'REALVIEW_HTTP', REALVIEW_HTTP ? 1 : 0 );
 
 $sitetitle = date( 'Y', $top_time ) . '年' . date( 'm', $top_time ) . '月' . date( 'd', $top_time ) . '日'. date( 'H', $top_time ) .
-              '時〜'.( $type == 'GR' ? '地上' : $type ).'デジタル'.'番組表'.($single_ch_disc ? '['.$single_ch_name.']' : '');
+              '時～'.( $type == 'GR' ? '地上' : $type ).'デジタル'.'番組表'.($single_ch_disc ? '['.$single_ch_name.']' : '');
 
 $smarty->assign('sitetitle', $sitetitle );
 

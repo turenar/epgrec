@@ -275,7 +275,7 @@ ST_ESP:
 					$gr_bs_sepa = TRUE;
 					$gr_use = $GR_tuners>=3 ? 3 : $GR_tuners;
 					$bs_use = 1;
-					reclog( 'shepherd.php::テンポラリー容量が不十分なため地上波・衛星波並列受信が出来ません。空き容量を確保してください。', EPGREC_WARN );
+					reclog( 'shepherd.php::テンポラリー容量が不十分なため地上波･衛星波並列受信が出来ません。空き容量を確保してください。', EPGREC_WARN );
 				}else{
 					$bs_tmp = array( 0, 3, 4, 6 );
 					if( $GR_tuners > 0 ){
@@ -294,14 +294,14 @@ ST_ESP:
 							//所要時間算出
 							$gr_times = (int)ceil( $GR_num / $gr_use ) * $gr_rec_tm;
 							$para_tm  = $gr_times<$bs_tim[$bs_use] ? $bs_tim[$bs_use] : $gr_times;
-							//セパレート・モード時の所要時間算出
+							//セパレート･モード時の所要時間算出
 							$gr_use_sepa = $GR_tuners>$tune_cnts ? $tune_cnts : $GR_tuners;
 							$gr_times    = (int)ceil( $GR_num / $gr_use_sepa ) * $gr_rec_tm;
 							for( $bs_use_sepa=$bs_max; $bs_use_sepa>0; $bs_use_sepa-- )
 								if( $bs_tmp[$bs_use_sepa] <= $tune_cnts )
 									break;
 							$sepa_tm = $gr_times + $bs_tim[$bs_use_sepa];
-							//地上波・衛星波 分離判定
+							//地上波･衛星波 分離判定
 							if( $sepa_tm < $para_tm ){
 								$gr_bs_sepa = TRUE;
 								$gr_use = $gr_use_sepa;
@@ -331,7 +331,7 @@ ST_ESP:
 	if( $bs_use > 0 ){
 		$proST = dog_release( INSTALL_PATH.'/collie.php '.$bs_use );
 		if( $gr_bs_sepa ){
-			//セパレート・モード時のウェイト
+			//セパレート･モード時のウェイト
 			sleep( $bs_tim[$bs_use]+10 );
 			$ST_tm = 0;
 		}else
@@ -345,7 +345,7 @@ ST_ESP:
 	if( $ex_use > 0 ){
 		$proET = dog_release( INSTALL_PATH.'/greatpyrenees.php '.$ex_use );
 		if( $gr_bs_sepa ){
-			//セパレート・モード時のウェイト
+			//セパレート･モード時のウェイト
 			sleep( EX_EPG_TIME+10 );
 			$EX_tm = 0;
 		}else
@@ -438,7 +438,7 @@ ST_ESP:
 						$sleep_tm = 0;
 					reclog( REBOOT_COMMENT.toDatetime($search_core+$settings->extra_time+10), EPGREC_WARN );
 					// 10は、録画完了後のDB書き込み待ち
-					sleep( $sleep_tm+$settings->extra_time+10 );		//使用中でない事が確認できる方法がないかな・・・
+					sleep( $sleep_tm+$settings->extra_time+10 );		//使用中でない事が確認できる方法がないかな･･･
 					system( REBOOT_CMD );
 					break;
 				}else{

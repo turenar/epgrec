@@ -274,7 +274,7 @@ function shm_restore( &$shm_id ){
 			return FALSE;
 		}
 	}
-	// ここまでくるなら正常だが・・・
+	// ここまでくるなら正常だが･･･
 	while( !shmop_delete( $shm_id ) )
 		usleep( 1000 );
 	shmop_close( $shm_id );
@@ -387,7 +387,7 @@ function shmop_write_surely( &$shm_id, $shm_name, $sorce ){
 function putProgramHtml( $src, $type, $channel_id, $genre, $sub_genre ){
 	if( $src !== "" ){
 		$temp = trim($src);
-		if( strncmp( $temp, '[¥]', 5 ) == 0 ){
+		if( strncmp( $temp, '[￥]', 5 ) == 0 ){
 			$out_title = substr( $temp, 5 );
 		}else
 			$out_title = $temp;

@@ -437,7 +437,7 @@ function storeProgram( $type, $xmlfile ) {
 						$options = "WHERE channel_disc = '".$channel_disc."' AND eid = '".$event_pf[$pf_cnt]['eid']."'";
 						$hit = DBRecord::countRecords( PROGRAM_TBL, $options );
 						if( $hit > 0 ){
-							// 複数の場合を未考慮(EPG更新にバグがあるかな・・・)
+							// 複数の場合を未考慮(EPG更新にバグがあるかな･･･)
 							$sch = DBRecord::createRecords( PROGRAM_TBL, $options );
 
 							if( $pf_cnt == 0 ){
@@ -1408,7 +1408,7 @@ reclog( $event_sch[$sch_cnt]['starttime'].'　'.$event_sch[$sch_cnt]['endtime'],
 		unset( $event_pf );
 	}
 
-	// 自動キーワ−ド再予約
+	// 自動キーワ－ド再予約
 	// 残りのEPG処理に時間がかかる場合に直近番組が始まってしまい再予約に失敗する対策
 //	doKeywordReservation( $type, $shm_id );
 	if( $key_cnt ){
