@@ -65,16 +65,17 @@ try{
 	$ts_path = INSTALL_PATH .$settings->spool . '/'. $rrec->path;
 	if( file_exists( $ts_path ) ) {
 		// PT1のログを取得
-		$get_time = time();
+		//$get_time = time();
 		usleep(10 * 1000);
-		$be_time  = (int)(($get_time-1)/10) * 10;
-		$set_time = (int)(($get_time+1)/10) * 10;
-		$cmd      = get_logcmd( $be_time );
+		//$be_time  = (int)(($get_time-1)/10) * 10;
+		//$set_time = (int)(($get_time+1)/10) * 10;
+		//$cmd      = get_logcmd( $be_time );
+		$cmd      = INSTALL_PATH."/check-drop.sh '$ts_path' 2>&1 | tee ".INSTALL_PATH."/log| grep 0x01";
 		$log      = shell_exec( $cmd );
-		if( $be_time != $set_time ){
+		/*if( $be_time != $set_time ){
 			$cmd  = get_logcmd( $set_time );
 			$log .= shell_exec( $cmd );
-		}
+		}*/
 		if( $log != NULL ){
 			if( strpos( $log, 'Drop=00000000:00000000:00000000:00000000' ) === FALSE )
 				$syslog = '<br><font color="#ff0000">'.str_replace( "\n", '<br>', htmlspecialchars($log) ).'</font>';
@@ -102,7 +103,7 @@ try{
 			$rrec->update();
 			if( $settings->mediatomb_update == 1 ) {
 				// ちょっと待った方が確実っぽい
-				@exec('sync');
+				//@exec('sync');
 				sleep(15);
 				$dbh = mysql_connect( $settings->db_host, $settings->db_user, $settings->db_pass );
 				if( $dbh !== false ) {
