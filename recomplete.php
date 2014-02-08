@@ -70,7 +70,8 @@ try{
 		//$be_time  = (int)(($get_time-1)/10) * 10;
 		//$set_time = (int)(($get_time+1)/10) * 10;
 		//$cmd      = get_logcmd( $be_time );
-		$cmd      = INSTALL_PATH."/check-drop.sh '$ts_path' 2>&1 | tee ".INSTALL_PATH."/log| grep 0x01";
+		// grep pid=0x01XX and sort by packet counts
+		$cmd      = INSTALL_PATH."/check-drop.sh '$ts_path' 2>&1 | grep 0x01 | sort -t'=' -k 3 -nr";
 		$log      = shell_exec( $cmd );
 		/*if( $be_time != $set_time ){
 			$cmd  = get_logcmd( $set_time );
