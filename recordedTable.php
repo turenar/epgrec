@@ -5,7 +5,6 @@ include_once( INSTALL_PATH . '/Smarty/Smarty.class.php' );
 include_once( INSTALL_PATH . '/Reservation.class.php' );
 include_once( INSTALL_PATH . '/Settings.class.php' );
 include_once( INSTALL_PATH . '/reclib.php' );
-include_once( INSTALL_PATH . '/settings/menu_list.php' );
 
 $settings = Settings::factory();
 
@@ -243,13 +242,19 @@ try{
 				$arr['thumb'] = '';
 			$arr['keyword']     = putProgramHtml( $arr['title'], '*', 0, $r['category_id'], 16 );
 			$arr['key_id']      = (int)$r['autorec'];
-			if( $arr['key_id'] && DBRecord::countRecords( KEYWORD_TBL, 'WHERE id='.$arr['key_id'] ) == 0 ){
+			if( $arr['key_id'] && DBRecord::countRecords( KEYWORD_TBL, 'WHERE id='.$arr['key_id'] )==0 ){
+				$wrt_set = array();
 				$arr['key_id'] = $wrt_set['autorec'] = 0;
+				$rev_obj->force_update( $r['id'], $wrt_set );
+			}
+			if( $r['complete']==0 && time()>$end_time+(int)$settings->extra_time+2 ){
+				$wrt_set = array();
+				$wrt_set['complete'] = 1;
 				$rev_obj->force_update( $r['id'], $wrt_set );
 			}
 			if( file_exists( INSTALL_PATH.$settings->spool.'/'.$r['path'] ) ){
 				$arr['view_set'] = '<a href="'.$arr['asf'].'" title="クリックすると視聴できます（ブラウザの設定でASFとVLCを関連付けている必要があります）"'.
-									' style="white-space: pre; background-color: '.(time()<$end_time ? 'greenyellow' : 'limegreen').'; color: black;"> '.
+									' style="white-space: pre; background-color: '.($r['complete']==0 ? 'greenyellow' : 'limegreen').'; color: black;"> '.
 									(isset($RECORD_MODE[$r['mode']]['tsuffix']) ? 'TS' : $RECORD_MODE[$r['mode']]['name']).' </a>';
 			}else
 				$arr['view_set'] = '';
@@ -273,7 +278,8 @@ try{
 								$trans_obj->force_delete( $tran_unit['id'] );
 							break;
 						case 3:
-							$element = '<a style="white-space: pre; background-color: red; color: white;"> '.$tran_unit['name'].' </a>';
+							$element = '<a style="white-space: pre; background-color: red; color: white;"'.
+								( file_exists( $tran_unit['path'] ) ? ' href="'.$arr['asf'].'&trans='.$tran_unit['id'].'"> ' : '> ' ).$tran_unit['name'].' </a>';
 							break;
 					}
 					if( $element !== '' ){
@@ -289,17 +295,6 @@ try{
 		}
 	}
 
-	$link_add = '';
-	if( (int)$settings->gr_tuners > 0 )
-		$link_add .= '<option value="index.php">地上デジタル番組表</option>';
-	if( (int)$settings->bs_tuners > 0 ){
-		$link_add .= '<option value="index.php?type=BS">BSデジタル番組表</option>';
-		if( (boolean)$settings->cs_rec_flg )
-			$link_add .= '<option value="index.php?type=CS">CSデジタル番組表</option>';
-	}
-	if( EXTRA_TUNERS )
-		$link_add .= '<option value="index.php?type=EX">'.EXTRA_NAME.'番組表</option>';
-
 
 	$smarty = new Smarty();
 	$smarty->assign('sitetitle','録画済一覧'.($key_id!==FALSE ? ' No.'.$key_id : '') );
@@ -313,8 +308,7 @@ try{
 	$smarty->assign( 'use_thumbs', $settings->use_thumbs );
 	$smarty->assign( 'full_mode', $full_mode );
 	$smarty->assign( 'pager', $full_mode ? '' : make_pager( 'recordedTable.php', $separate_records, $stations[0]['count'], $page ) );
-	$smarty->assign( 'link_add', $link_add );
-	$smarty->assign( 'menu_list', $MENU_LIST );
+	$smarty->assign( 'menu_list', link_menu_create() );
 	$smarty->display('recordedTable.html');
 }
 catch( exception $e ){

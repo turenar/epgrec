@@ -18,7 +18,7 @@ $TRANS_MODE = array(
 		'size'    => '',					// 解像度
 		'audio'   => '-acodec copy',		// オーディオ(CODEC・関連オプション)
 		'abrate'  => '',					// オーディオビットレート
-		'tm_rate' => 1.5,					// (未対応)変換時間効率倍数(ジョブ制御用)
+		'tm_rate' => 1.5,					// 変換時間効率倍数(ジョブ制御用)
 	),
 	4 => array(
 		'name'    => 'MPEG4SD',

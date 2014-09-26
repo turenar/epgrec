@@ -998,7 +998,7 @@ LOG_THROW:;
 				// しょぼかるからサブタイトル取得(しょぼかるのスケジュール未登録分用)
 				// 注意:epgdumpの非公開関数でEPG番組名が"タイトル #nn「」"の形に正規化されているのを前提としているのでここを有効にするだけでは恩恵はまったくない
 				//      またこの処理を予約する際に必ず動くような使い方をすると「しょぼいカレンダー」に迷惑なのでやらないように(これは一括処理から漏れたものの最後の足掻き処理です)
-				if( $category_id==8 && strpos( $filename, '「」' )!==FALSE ){
+				if( $category_id==8 && ( strpos( $filename, '「」' )!==FALSE || strpos( $filename, ' 他」' )!==FALSE ) ){
 					$title_piece = explode( ' #', $filename );		// タイトル分離
 					$trans       = str_replace( ' ', '', $title_piece[0] );
 					if( ( $handle = fopen( INSTALL_PATH.'/settings/Title_base.csv', 'r+') ) !== FALSE ){
@@ -1064,7 +1064,7 @@ LOG_THROW:;
 													else
 														$sub_pieces[0] = $title_piece[1];
 													foreach( $sub_pieces as $sub_piece ){
-														if( strpos( $sub_piece.'」', '「」' ) !== FALSE ){
+														if( strpos( $sub_piece.'」', '「」' )!==FALSE || strpos( $sub_piece.'」', ' 他」' )!==FALSE ){
 															$scount = (int)$sub_piece;							// 強引？
 															if( $scount <= $st_count ){
 																$num_cmp = sprintf( '%d*', $scount );
@@ -1215,9 +1215,9 @@ LOG_THROW:;
 			fwrite($pipes[0], 'echo $$ >/tmp/tuner_'.$rrec->type.$tuner."\n" );		//SHのPID
 			if( $sleep_time ){
 				if( $program_id && $sleep_time > $settings->rec_switch_time )
-					fwrite($pipes[0], "echo 'temp' > ".$spool_path.'/tmp & sync & '.INSTALL_PATH.'/scoutEpg.php '.$rrec->id." &\n" );		//HDD spin-up + 単発EPG更新
+					fwrite($pipes[0], "echo 'temp' > ".$spool_path.$add_dir.'/tmp & sync & '.INSTALL_PATH.'/scoutEpg.php '.$rrec->id." &\n" );		//HDD spin-up + 単発EPG更新
 				else
-					fwrite($pipes[0], "echo 'temp' > ".$spool_path."/tmp & sync &\n" );		//HDD spin-up
+					fwrite($pipes[0], "echo 'temp' > ".$spool_path.$add_dir."/tmp & sync &\n" );		//HDD spin-up
 				fwrite($pipes[0], $settings->sleep.' '.$sleep_time."\n" );
 			}
 			fwrite($pipes[0], DO_RECORD.' '.$rrec->id."\n" );		//$rrec->id追加は録画キャンセルのためのおまじない

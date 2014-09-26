@@ -9,6 +9,8 @@
   include_once( INSTALL_PATH . '/storeProgram.inc.php' );
 	include_once( INSTALL_PATH . '/reclib.php' );
   include_once( INSTALL_PATH . '/recLog.inc.php' );
+include( INSTALL_PATH . '/powerReduce.inc.php' );
+
 define( 'TIME_LIMIT', 1.5*60*60 );
 
 	$settings = Settings::factory();
@@ -105,6 +107,7 @@ if( search_getepg() === FALSE ){
 	$start_tm = $now_tm = time();
 	if( $st_tm > $start_tm+TIME_LIMIT )
 		$st_tm = $start_tm + TIME_LIMIT;
+	power_reduce( REPAIREPG );
 	while(1){
 		if( $now_tm < $st_tm ){
 			$sp_tm = $st_tm - $now_tm;
@@ -226,6 +229,7 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 		}
 		$now_tm = time();
 	}
+	power_reduce( RESUME );
 	shmop_close( $shm_id );
 }
 	exit();

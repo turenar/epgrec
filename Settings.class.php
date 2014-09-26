@@ -27,6 +27,31 @@ class Settings extends SimpleXMLElement {
 				$obj->cs_rec_flg = 0;
 				$obj->save();
 			}
+			// 節電モード
+			if( $obj->exists('use_power_reduce') == 0 ) {
+				$obj->use_power_reduce = 0;
+				$obj->save();
+			}
+			// getepg起動タイマー
+			if( $obj->exists('getepg_timer') == 0 ) {
+				$obj->getepg_timer = 4;
+				$obj->save();
+			}
+			// 何分前にウェイクアップさせるか
+			if( $obj->exists('wakeup_before') == 0 ) {
+				$obj->wakeup_before = 10;
+				$obj->save();
+			}
+			// 録画後待機時間
+			if( $obj->exists('rec_after') == 0 ) {
+				$obj->rec_after = 30;
+				$obj->save();
+			}
+			// シャットダウンコマンド
+			if( $obj->exists('shutdown') == 0 ) {
+				$obj->shutdown = '/sbin/shutdown';
+				$obj->save();
+			}
 			return $obj;
 		}
 		else {
@@ -125,6 +150,21 @@ class Settings extends SimpleXMLElement {
 			
 			// CS録画
 			$xml->cs_rec_flg = 0;
+
+			// 節電
+			$xml->use_power_reduce = 0;
+
+			// getepg起動間隔（時間）
+			$xml->getepg_timer = 4;
+
+			// ウェイクアップさせる時間
+			$xml->wakeup_before = 10;
+
+			// 録画後待機時間
+			$xml->rec_after = 30;
+
+			// シャットダウンコマンド
+			$xml->shutdown = '/sbin/shutdown';
 			
 			$xml->save();
 			
@@ -158,7 +198,8 @@ class Settings extends SimpleXMLElement {
 					}
 				}
 				// 不法侵入による攻撃
-				$alert_msg = '不法侵入者による攻撃を受けました。IP::['.$_SERVER['REMOTE_ADDR'].'('.$_SERVER['REMOTE_HOST'].')] '.$key.' => '.$trim_post;
+				$host_name = isset( $_SERVER['REMOTE_HOST'] ) ? $_SERVER['REMOTE_HOST'] : 'NONAME';
+				$alert_msg = '不法侵入者による攻撃を受けました。IP::['.$_SERVER['REMOTE_ADDR'].'('.$host_name.')] '.$key.' => '.$trim_post;
 				reclog( $alert_msg, EPGREC_WARN );
 				file_put_contents( INSTALL_PATH.$this->spool.'/alert.log', date('Y-m-d H:i:s').' '.$alert_msg."\n", FILE_APPEND );
 				syslog( LOG_WARNING, $alert_msg );
@@ -167,7 +208,8 @@ class Settings extends SimpleXMLElement {
 		}
 		if( $NET_AREA === 'G' ){
 			if( !$AUTHORIZED ){			// $_SERVER['HTTPS']!=='on'
-				$alert_msg = 'グローバルIPからの設定変更です。IP::['.$_SERVER['REMOTE_ADDR'].'('.$_SERVER['REMOTE_HOST'].')] ';
+				$host_name = isset( $_SERVER['REMOTE_HOST'] ) ? $_SERVER['REMOTE_HOST'] : 'NONAME';
+				$alert_msg = 'グローバルIPからの設定変更です。IP::['.$_SERVER['REMOTE_ADDR'].'('.$host_name.')] ';
 				reclog( $alert_msg, EPGREC_WARN );
 				file_put_contents( INSTALL_PATH.$this->spool.'/alert.log', date('Y-m-d H:i:s').' '.$alert_msg."\n", FILE_APPEND );
 				syslog( LOG_WARNING, $alert_msg );

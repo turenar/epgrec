@@ -152,6 +152,7 @@ define( 'SEPARATE_RECORDS_RESERVE', FALSE );		// 1ページ中の表示レコー
 define( 'VIEW_OVERLOAD_RESERVE', FALSE );			// 1ページ表示での上限を指定数上乗せする・FALSEは共通を使用(予約一覧用)
 define( 'SEPARATE_RECORDS_RECORDED', FALSE );		// 1ページ中の表示レコード数・0指定でページ化無効・FALSEは共通を使用(録画済一覧用)
 define( 'VIEW_OVERLOAD_RECORDED', FALSE );			// 1ページ表示での上限を指定数上乗せする・FALSEは共通を使用(録画済一覧用)
+define( 'SEPARATE_RECORDS_LOGVIEW', 3000 );			// 1ページ中の表示レコード数・0指定でページ化無効・FALSEは共通を使用(ログ一覧用)
 
 // セキュリティ関連
 define( "SETTING_CHANGE_GIP", FALSE );				// グローバルIPからの設定変更を許可する場合はTRUE

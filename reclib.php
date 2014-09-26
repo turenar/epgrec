@@ -19,6 +19,7 @@ define( 'SEM_EPGDUMP',  (SEM_REALVIEW+1) );				// 62:   epgdump
 define( 'SEM_EPGSTORE', (SEM_REALVIEW+2) );				// 63:   EPGのDB展開
 define( 'SEM_REBOOT',   (SEM_REALVIEW+3) );				// 64:   リブート・フラグ
 define( 'SEM_TRANSCODE',(SEM_REALVIEW+4) );				// 65:   トランスコードマネージャ起動確認
+define( 'SEM_PW_REDUCE',(SEM_REALVIEW+5) );				// 66:   間欠運用管理資源
 define( 'SEM_KW_START', (SEM_REALVIEW+10) );			// 71-80:キーワード予約排他処理用(キーワードID)
 define( 'SEM_MAX',      (SEM_KW_START+SEM_KW_MAX-1) );	// 
 define( 'SHM_ID',      255 );							// 共用メモリー
@@ -73,7 +74,7 @@ function mb_str_replace($search, $replace, $target, $encoding = "UTF-8" ) {
 function check_char_type( $src, $point ){
 	$ret = 0;
 	if( ord($src[$point]) & 0x80 ){
-		while( ( ord($src[$point]) & 0xF0) < 0xE0 ){
+		while( ( ord($src[$point]) & 0xC0) !== 0xC0 ){
 			$point--;
 			$ret++;
 		}
@@ -478,7 +479,7 @@ function get_directrys( $spool_path )
 	return $dir_collection;
 }
 
-function make_pager( $link, $separate_records, $total, $page )
+function make_pager( $link, $separate_records, $total, $page, $option='' )
 {
 	if( $total > $separate_records ){
 		$page_limit = (int)($total / $separate_records);
@@ -490,7 +491,7 @@ function make_pager( $link, $separate_records, $total, $page )
 			$loop_limit = $page_limit;
 			$cnt = $loop_limit-9>1 ? $loop_limit-9 : 1;
 		}
-		$link  = ' href="'.$link.'?page=';
+		$link  = ' href="'.$link.'?'.$option.'page=';
 		$pager = '<div style="text-align: right;">| <a';
 		if( $page > 1 )
 			$pager .= $link.'1"';
@@ -525,6 +526,8 @@ function make_pager( $link, $separate_records, $total, $page )
 
 function at_clean( $r, $settings, $resv_cancel=FALSE )
 {
+	global $RECORD_MODE;
+
 	if( $resv_cancel || strpos( $RECORD_MODE[$r['mode']]['suffix'], '.ts' )!==FALSE ){
 		// 残留AT削除
 		while(1){
@@ -560,5 +563,64 @@ function at_clean( $r, $settings, $resv_cancel=FALSE )
 	}else
 		// トランスコード中には手をつけない(将来的にはdo-record.shから分離するので今はこれだけ)
 		return 1;
+}
+
+function storage_free_space( $path )
+{
+	$piece = explode( '/', $path );
+	array_pop( $piece );
+	return disk_free_space( implode( '/', $piece ) );
+}
+
+function link_menu_create( $mode = 'none' )
+{
+	global $settings,$NET_AREA;
+
+	include( INSTALL_PATH . '/settings/menu_list.php' );
+
+	if( $mode !== 'INDEX' ){
+		$link_add = array();
+		if( (int)$settings->gr_tuners > 0 )
+			$link_add[] = array( 'name' => '地上デジタル番組表', 'url' => 'index.php' );
+		if( (int)$settings->bs_tuners > 0 ){
+			$link_add[] = array( 'name' => 'BSデジタル番組表', 'url' => 'index.php?type=BS' );
+			if( (boolean)$settings->cs_rec_flg )
+				$link_add[] = array( 'name' => 'CSデジタル番組表', 'url' => 'index.php?type=CS' );
+		}
+		if( EXTRA_TUNERS )
+			$link_add[] = array( 'name' => EXTRA_NAME.'番組表', 'url' => 'index.php?type=EX' );
+		$MENU_LIST = array_merge( $link_add, $MENU_LIST );
+	}
+	// 間欠運用
+	if( (int)$settings->use_power_reduce != 0 ){
+		include( INSTALL_PATH . '/powerReduce.inc.php' );
+
+		if( $NET_AREA === 'H' ){
+			$wakeupvars = power_settings();
+			if( $wakeupvars->reason !== OTHER )
+				power_reduce( STAY );	// 間欠運用の一時停止
+		}
+		$wakeupvars = power_settings();
+		switch( $wakeupvars->reason ){
+			case GETEPG:
+				$power_stat = '間欠運用一時停止(現:EPG更新中)';
+				$power_cmd  = STAY;
+				break;
+			case RESERVE:
+				$power_stat = '間欠運用一時停止(現:録画中)';
+				$power_cmd  = STAY;
+				break;
+			case REPAIREPG:
+				$power_stat = '間欠運用強制再開(現:EPG修正中)';
+				$power_cmd  = FORCE;
+				break;
+			case OTHER:
+				$power_stat = '間欠運用再開(>電源停止)';
+				$power_cmd  = RESUME;
+				break;
+		}
+		$MENU_LIST[] = array( 'url' => 'epgwakealarm.php?mode='.$power_cmd, 'name' => $power_stat );
+	}
+	return $MENU_LIST;
 }
 ?>

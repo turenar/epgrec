@@ -9,6 +9,7 @@
 	include_once( INSTALL_PATH . '/Settings.class.php' );
 	include_once( INSTALL_PATH . '/storeProgram.inc.php' );
 	include_once( INSTALL_PATH . '/recLog.inc.php' );
+	include( INSTALL_PATH . '/powerReduce.inc.php' );
 
 function dog_release( $cmd ){
 	$descspec = array(
@@ -45,6 +46,14 @@ function cleanup( $rarr, $cmd ){
 	}
 }
 
+function exit_shephewrd(){
+	global $shepherd_st;
+
+	// 省電力
+	power_reduce( GETEPG, $shepherd_st );
+	exit();
+}
+
 	$shepherd_st = time();
 	$settings  = Settings::factory();
 	$GR_tuners = (int)$settings->gr_tuners;
@@ -66,7 +75,7 @@ function cleanup( $rarr, $cmd ){
 			if( $sleep_next < $shepherd_st+2*60*60-(10+1)*60 )
 				sleep( $sleep_next-time() );
 			else
-				exit();
+				exit_shephewrd();
 		}else
 			break;
 	}
@@ -158,7 +167,7 @@ function cleanup( $rarr, $cmd ){
 	if( $gr_pt1>0 || $bs_pt1>0 ){
 		if( $gr_oth && $tmpdrive_size<=(GR_OTH_EPG_SIZE+GR_XML_SIZE) ){
 			reclog( 'shepherd.php::テンポラリー容量が不十分なためEPG更新が出来ません。空き容量を確保してください。', EPGREC_ERR );
-			exit();
+			exit_shephewrd();
 		}
 		if( $bs_oth && $tmpdrive_size<=(BS_OTH_EPG_SIZE+BS_XML_SIZE) ){
 			reclog( 'shepherd.php::テンポラリー容量が不十分なためBS/CSのEPG更新が出来ません。空き容量を確保してください。', EPGREC_ERR );
@@ -277,7 +286,7 @@ ST_ESP:
 		$tune_cnts = (int)( $tmpdrive_size / GR_OTH_EPG_SIZE );
 		if( $tune_cnts == 0 ){
 			reclog( 'shepherd.php::テンポラリー容量が不十分なためEPG更新が出来ません。空き容量を確保してください。', EPGREC_ERR );
-			exit();
+			exit_shephewrd();
 		}
 		// XML取り込みは、BS 2.5分(atomD525) CS 1分(仮定)を想定
 		$gr_rec_tm = FIRST_REC + $settings->rec_switch_time + 1;
@@ -468,5 +477,6 @@ ST_ESP:
 		}
 	}
 	shmop_close( $shm_id );
-	exit();
+
+	exit_shephewrd();
 ?>

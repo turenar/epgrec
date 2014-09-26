@@ -5,7 +5,6 @@ include_once( INSTALL_PATH . '/DBRecord.class.php' );
 include_once( INSTALL_PATH . '/Smarty/Smarty.class.php' );
 include_once( INSTALL_PATH . '/reclib.php' );
 include_once( INSTALL_PATH . '/Settings.class.php' );
-include_once( INSTALL_PATH . '/settings/menu_list.php' );
 
 // 設定ファイルの有無を検査する
 if( ! file_exists( INSTALL_PATH.'/settings/config.xml') && !file_exists( '/etc/epgrecUNA/config.xml' ) ) {
@@ -311,6 +310,7 @@ for( $i = 0 ; $i < $iMax; $i++ ) {
 	array_push( $tvtimes, $tmp );
 }
 
+
 $smarty->assign( 'tvtimes', $tvtimes );
 $smarty->assign( 'pre8link', $get_param2.'&time='.date('YmdH', $top_time - 8*3600 ) );
 $smarty->assign( 'prelink', $get_param2.'&time='.date('YmdH', $top_time - 3600 ) );
@@ -338,7 +338,7 @@ $smarty->assign('sitetitle', $sitetitle );
 
 $smarty->assign('top_time', str_replace( '-', '/' ,toDatetime($top_time)) );
 $smarty->assign('last_time', str_replace( '-', '/' ,toDatetime($last_time)) );
-$smarty->assign( 'menu_list', $MENU_LIST );
+$smarty->assign( 'menu_list', link_menu_create('INDEX') );
 
 
 $smarty->display('index.html');

@@ -24,11 +24,27 @@
 //				$('#id_ffmpeg').attr('disabled',false);
 				$('#id_thumbs').attr('disabled',false);
 			}
+		},
+		
+		power_reduce:function() {
+			if( $('#id_use_power_reduce').val() == 0 ) {
+				$('#id_getepg_timer').attr('disabled','disabled');
+				$('#id_wakeup_before').attr('disabled','disabled');
+				$('#id_rec_after').attr('disabled','disabled');
+				$('#id_shutdown').attr('disabled','disabled');
+			}
+			else {
+				$('#id_getepg_timer').attr('disabled',false);
+				$('#id_wakeup_before').attr('disabled',false);
+				$('#id_rec_after').attr('disabled',false);
+				$('#id_shutdown').attr('disabled',false);
+			}
 		}
 	}
 	$(document).ready(function(){
 		$("#system_setting").validate();
 		PRG.thumbs();
+		PRG.power_reduce();
 	});
 
 {/literal}
@@ -57,7 +73,8 @@ div.setting { padding: 0px; margin-left: 20px; margin-bottom: 20px;}
 
 <div>{$message}</div>
 
-<h2>MySQLデータベース設定</h2>
+<fieldset>
+<legend><h2>MySQLデータベース設定</h2></legend>
 
 <form id="system_setting" method="post" action="{$post_to}">
 
@@ -92,9 +109,11 @@ div.setting { padding: 0px; margin-left: 20px; margin-bottom: 20px;}
 <div class="caption">テーブル名の冒頭に追加する接頭辞です。epgrecの再インストールを旧テーブルを使用せずに行うようなケースを除き、デフォルトのままで構いません。</div>
 <input type="text" name="tbl_prefix" value="{$settings->tbl_prefix}" size="15" class="required" />
 </div>
+</fieldset>
 
 
-<h2>インストール関連設定</h2>
+<fieldset>
+<legend><h2>インストール関連設定</h2></legend>
 
 <h3>インストールURL</h3>
 <div class="setting">
@@ -132,8 +151,10 @@ div.setting { padding: 0px; margin-left: 20px; margin-bottom: 20px;}
 <div><b>録画データ：</b><input type="text" name="temp_data" value="{$settings->temp_data}" size="30" class="required" /></div>
 <div><b>XMLファイル：</b><input type="text" name="temp_xml" value="{$settings->temp_xml}" size="30" class="required" /></div>
 </div>
+</fieldset>
 
-<h3>使用コマンドのパス設定</h3>
+<fieldset>
+<legend><h3>使用コマンドのパス設定</h3></legend>
 <div class="setting">
 <div class="caption">epgrecが内部的に使用するコマンドのパスを設定します。ほとんどの場合、設定を変える必要はないはずです。</div>
 <div><b>epgdump：</b><input type="text" name="epgdump" value="{$settings->epgdump}" size="30" class="required" /></div>
@@ -142,9 +163,51 @@ div.setting { padding: 0px; margin-left: 20px; margin-bottom: 20px;}
 <div><b>sleep：</b><input type="text" name="sleep" value="{$settings->sleep}" size="30" class="required" /></div>
 <div><b>FFmpeg：</b><input type="text" name="ffmpeg" value="{$settings->ffmpeg}" size="40" class="required" /></div>
 </div>
+</fieldset>
 
 
 </div>
+
+
+<fieldset>
+<legend><h3>省電力の設定</h3></legend>
+<div class="setting">
+<div class="caption">録画機の間欠運転を行い消費電力を低減させます。<br>
+この機能を使うためには、OSをインストールした状態のPCがACPIタイマーでシャットダウン状態から確実に復帰できる必要があります。<br>
+ACPIタイマーの動作が不確実なPCでは録画失敗の確率が高くなりますので注意してください。<br>
+詳しくはドキュメントを参照してください。</div>
+<select name="use_power_reduce" id="id_use_power_reduce" onChange="javascript:PRG.power_reduce()" >
+  <option value="0" {if $settings->use_power_reduce == 0} selected {/if}>使用しない</option>
+  <option value="1" {if $settings->use_power_reduce == 1} selected {/if}>使用する</option>
+</select>
+</div>
+
+<h3>録画スタート前に起動させる時間</h3>
+<div class="setting">
+<div class="caption">録画開始より前に起動させる時間を分単位で設定します。5分以上の値を設定したほうが無難でしょう。</div>
+<input type="text" name="wakeup_before" id="id_wakeup_before" value="{$settings->wakeup_before}" size="2" class="required digits" min="5" max="60" />分
+</div>
+
+<h3>録画後に待機させる時間</h3>
+<div class="setting">
+<div class="caption">録画終了後、次回イベント（録画・EPG更新）までシャットダウンさせずに待機させる最大時間を分単位で設定します。<br>
+指定時間以内に次回イベントが無い場合には即座にシャットダウンを実行します。<br>
+録画スタート前に起動させる時間以上の値を設定してください。</div>
+<input type="text" name="rec_after" id="id_rec_after" value="{$settings->rec_after}" size="2" class="required digits" min="5" max="60" />分
+</div>
+
+<h3>EPG更新間隔</h3>
+<div class="setting">
+<div class="caption">EPGを更新する間隔を時間単位で設定します。cron設定の倍数で設定してください。</div>
+<input type="text" name="getepg_timer" id="id_getepg_timer" value="{$settings->getepg_timer}" size="2" class="required digits" min="2" max="24" />時間
+</div>
+
+<h3>シャットダウンコマンド</h3>
+<div class="setting">
+<div class="caption">録画機をシャットダウンさせるコマンドを設定してください。</div>
+<div><input type="text" name="shutdown" id="id_shutdown" value="{$settings->shutdown}" size="40" class="required" /></div>
+</div>
+</fieldset>
 
 
 <input type="submit" value="設定を保存する" id="system_setting-submit" />

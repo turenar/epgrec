@@ -186,7 +186,7 @@ function searchProces( $pid )
 		while( sem_release( $rv_sem ) === FALSE )
 			usleep( 100 );
 		shmop_close( $shm_id );
-		echo '<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"></head><body onLoad="history.back()"></body></html>';
+		echo '<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"></head><body onLoad="location.href = document.referrer;"></body></html>';
 
 		exit( 1 );
 	}
