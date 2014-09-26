@@ -332,13 +332,16 @@ class Keyword extends DBRecord {
 	}
 
 	// キーワード編集対応にて下の関数より分離
-	public function rev_delete(){
+	public function rev_delete( $rec_now = FALSE ){
 		if( $this->id == 0 ) return;
 
 		$precs = array();
 		try {
-			// ジャンルだけなどのザックリとしたキーワードの削除だと他の予約を巻き込むので修正
-			$precs = self::createRecords( RESERVE_TBL, 'WHERE complete=0 AND autorec='.$this->id );
+			$del_que = 'WHERE complete=0 AND autorec='.$this->id;
+			// 録画中の予約の有無
+			if( !$rec_now )
+				$del_que .= ' AND starttime>now()';
+			$precs = self::createRecords( RESERVE_TBL, $del_que );
 		}
 		catch( Exception $e ){
 			return;
@@ -356,7 +359,7 @@ class Keyword extends DBRecord {
 	}
 
 	public function delete(){
-		$this->rev_delete();
+		$this->rev_delete( TRUE );
 		try {
 			parent::delete();
 		}
