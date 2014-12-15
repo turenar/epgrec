@@ -20,6 +20,16 @@ function garbageClean() {
 	$arr = DBRecord::createRecords( PROGRAM_TBL, 'WHERE starttime  > adddate( now(), 8 )' );
 	foreach( $arr as $val ) $val->delete();
 
+	// 重複警告防止フラグクリア
+	if( date( 'H', time() ) === '00' ){
+		$arr = array();
+		$arr = DBRecord::createRecords( PROGRAM_TBL, 'WHERE key_id!=0' );
+		foreach( $arr as $val ){
+			$val->key_id = 0;
+			$val->update();
+		}
+	}
+
 	// 8日以上前のログを消す
 	$arr = array();
 	$arr = DBRecord::createRecords( LOG_TBL, 'WHERE logtime < subdate( now(), 8 )' );
@@ -94,8 +104,13 @@ function storeProgram( $type, $xmlfile ) {
 		return -1;	// EPGデータが読み取れないなら何もしない
 	}
 	// channel抽出
-	$chs_para = unserialize( array_shift($params) );
-	if( $chs_para === FALSE ){
+	while(1){
+		$serial_line = array_shift( $params );
+		if( $serial_line !== NULL ){
+			$chs_para = unserialize( $serial_line );
+			if( $chs_para!==FALSE && count($chs_para)>0 )
+				break;
+		}
 		reclog( 'EPG更新:: 正常な'.$xmlfile.'が作成されなかった模様(TS中にSDTが無い)', EPGREC_WARN );
 //		$new_name = $xmlfile.'.'.toDatetime(time());
 //		rename( $xmlfile, $new_name );
@@ -279,17 +294,21 @@ function storeProgram( $type, $xmlfile ) {
 	$pro_obj   = new DBRecord( PROGRAM_TBL );
 	while( count($params) ){
 		// 取得
-		$ch_para = unserialize( array_shift($params) );
-		if( $ch_para === FALSE ){
+		while(1){
+			$serial_line = array_shift( $params );
+			if( $serial_line !== NULL ){
+				$ch_para = unserialize( $serial_line );
+				if( $ch_para !== FALSE )
+					break;
+			}
 			reclog( 'EPG更新:: 正常な'.$xmlfile.'が作成されなかった模様(TS中にSDTまたはEITが無い)', EPGREC_WARN );
 //			$new_name = $xmlfile.'.'.toDatetime(time());
 //			rename( $xmlfile, $new_name );
 			return -1;	// XMLが読み取れないなら何もしない
-		}else{
-			$channel_disc = $ch_para['disc'];
-			$pf_lmt       = $ch_para['pf_cnt'];
-			$ev_lmt       = $ch_para['sch_cnt'];
 		}
+		$channel_disc = $ch_para['disc'];
+		$pf_lmt       = $ch_para['pf_cnt'];
+		$ev_lmt       = $ch_para['sch_cnt'];
 		// チャンネル スキップ
 		if( $pf_lmt==0 && $ev_lmt==0 )
 			continue;	// EPGデータ無し
@@ -323,9 +342,12 @@ function storeProgram( $type, $xmlfile ) {
 		if( $pf_lmt ){
 			while(1){
 				if( count($params) ){
-					$event_pf = unserialize( array_shift($params) );
-					if( $event_pf !== FALSE )
-						break;
+					$serial_line = array_shift( $params );
+					if( $serial_line !== NULL ){
+						$event_pf = unserialize( $serial_line );
+						if( $event_pf !== FALSE )
+							break;
+					}
 				}
 				reclog( 'EPG更新:: 正常な'.$xmlfile.'が作成されなかった模様('.$channel_disc.'のpf読み取りに失敗しました。)', EPGREC_WARN );
 				return -1;	// XMLが読み取れないなら何もしない
@@ -430,9 +452,12 @@ function storeProgram( $type, $xmlfile ) {
 			// sch unserialize
 			while(1){
 				if( count($params) ){
-					$event_sch = unserialize( array_shift($params) );
-					if( $event_sch !== FALSE )
-						break;
+					$serial_line = array_shift( $params );
+					if( $serial_line !== NULL ){
+						$event_sch = unserialize( $serial_line );
+						if( $event_sch !== FALSE )
+							break;
+					}
 				}
 				reclog( 'EPG更新:: 正常な'.$xmlfile.'が作成されなかった模様('.$channel_disc.'のsch読み取りに失敗しました。)', EPGREC_WARN );
 				return -1;	// XMLが読み取れないなら何もしない
@@ -1059,9 +1084,9 @@ NEXT_SUB:;
 										}
 										//録画延伸指示(チューナ依存 recpt1ctl対応が必要)
 										if( $type === 'EX' )
-											$cmd_num = $EX_TUNERS_CHARA['reccmd'][$prev_tuner];
+											$cmd_num = $EX_TUNERS_CHARA[$prev_tuner]['reccmd'];
 										else
-											$cmd_num = $prev_tuner<TUNER_UNIT1 ? PT1_CMD_NUM : $OTHER_TUNERS_CHARA[$smf_type]['reccmd'][$prev_tuner-TUNER_UNIT1];
+											$cmd_num = $prev_tuner<TUNER_UNIT1 ? PT1_CMD_NUM : $OTHER_TUNERS_CHARA[$smf_type][$prev_tuner-TUNER_UNIT1]['reccmd'];
 										if( time()<$rec_end && $rec_cmds[$cmd_num]['cntrl'] ){
 											$add_time = toTimestamp($endtime) - $prg_ed;
 											$new_end  = toDatetime( $rec_end + $add_time );

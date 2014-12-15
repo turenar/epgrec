@@ -157,11 +157,11 @@ function exit_shephewrd(){
 		$bs_pt1 = 0;
 	}
 	for( $tuner=0; $tuner<$GR_tuners-TUNER_UNIT1; $tuner++ ){
-		if( $rec_cmds[$OTHER_TUNERS_CHARA['GR']['reccmd'][$tuner]]['epgTs'] )
+		if( $rec_cmds[$OTHER_TUNERS_CHARA['GR'][$tuner]['reccmd']]['epgTs'] )
 			$gr_pt1++;
 	}
 	for( $tuner=0; $tuner<$BS_tuners-TUNER_UNIT1; $tuner++ ){
-		if( $rec_cmds[$OTHER_TUNERS_CHARA['BS']['reccmd'][$tuner]]['epgTs'] )
+		if( $rec_cmds[$OTHER_TUNERS_CHARA['BS'][$tuner]['reccmd']]['epgTs'] )
 			$bs_pt1++;
 	}
 	$gr_oth = $GR_tuners - $gr_pt1;

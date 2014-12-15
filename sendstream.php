@@ -55,34 +55,34 @@ if( $pipe_mode ){
 		$ff_input = 'pipe:0';
 		$shm_name = (int)$_GET['shm'];
 		if( $shm_name >= SEM_EX_START ){
-			if( count($EX_TUNERS_CHARA['reccmd']) > $shm_name-SEM_EX_START ){
+			if( count($EX_TUNERS_CHARA) > $shm_name-SEM_EX_START ){
 				$cmd_num = $EX_TUNERS_CHARA[$shm_name-SEM_EX_START]['reccmd'];
 				$device  = $EX_TUNERS_CHARA[$shm_name-SEM_EX_START]['device']!=='' ? ' '.trim($EX_TUNERS_CHARA[$shm_name-SEM_EX_START]['device']) : '';
 			}else{
-				reclog( 'sendstream:$EX_TUNERS_CHARA[\'reccmd\']の設定数が不足($_GET[\'shm\']='.$shm_name.')', EPGREC_WARN );
+				reclog( 'sendstream:$EX_TUNERS_CHARAの設定数が不足($_GET[\'shm\']='.$shm_name.')', EPGREC_WARN );
 				exit();
 			}
 		}else{
 			if( $shm_name >= SEM_ST_START ){
-				$cmd_num = $shm_name - SEM_ST_START;
-				$type    = 'BS';
+				$tuner = $shm_name - SEM_ST_START;
+				$type  = 'BS';
 			}else
 				if( $shm_name >= SEM_GR_START ){
-					$cmd_num = $shm_name - SEM_GR_START;
-					$type    = 'GR';
+					$tuner = $shm_name - SEM_GR_START;
+					$type  = 'GR';
 				}else{
 					reclog( 'sendstream:チューナー指定が無効($_GET[\'shm\']='.$shm_name.')', EPGREC_WARN );
 					exit();
 				}
-			if( $cmd_num < TUNER_UNIT1 ){
+			if( $tuner < TUNER_UNIT1 ){
 				$cmd_num = PT1_CMD_NUM;
 				$device  = '';
 			}else
-				if( count($OTHER_TUNERS_CHARA["$type"]['reccmd']) > $cmd_num-TUNER_UNIT1 ){
-					$cmd_num = $OTHER_TUNERS_CHARA["$type"][$cmd_num-TUNER_UNIT1]['reccmd'];
-					$device  = $OTHER_TUNERS_CHARA["$type"][$cmd_num-TUNER_UNIT1]['device']!=='' ? ' '.trim($OTHER_TUNERS_CHARA["$type"][$cmd_num-TUNER_UNIT1]['device']) : '';
+				if( count($OTHER_TUNERS_CHARA[$type]) > $tuner-TUNER_UNIT1 ){
+					$cmd_num = $OTHER_TUNERS_CHARA[$type][$tuner-TUNER_UNIT1]['reccmd'];
+					$device  = $OTHER_TUNERS_CHARA[$type][$tuner-TUNER_UNIT1]['device']!=='' ? ' '.trim($OTHER_TUNERS_CHARA[$type][$tuner-TUNER_UNIT1]['device']) : '';
 				}else{
-					reclog( 'sendstream:$OTHER_TUNERS_CHARA['.$type.'][\'reccmd\']の設定数が不足($_GET[\'shm\']='.$shm_name.')', EPGREC_WARN );
+					reclog( 'sendstream:$OTHER_TUNERS_CHARA['.$type.']の設定数が不足($_GET[\'shm\']='.$shm_name.')', EPGREC_WARN );
 					exit();
 				}
 		}

@@ -102,9 +102,9 @@ function searchProces( $pid )
 					$tuner_stop = TRUE;
 				else{
 					if( $now_type === 'EX' )
-						$cmd_num = $EX_TUNERS_CHARA['reccmd'][$now_tuner];
+						$cmd_num = $EX_TUNERS_CHARA[$now_tuner]['reccmd'];
 					else
-						$cmd_num = $now_tuner<TUNER_UNIT1 ? PT1_CMD_NUM : $OTHER_TUNERS_CHARA["$now_type"]['reccmd'][$now_tuner-TUNER_UNIT1];
+						$cmd_num = $now_tuner<TUNER_UNIT1 ? PT1_CMD_NUM : $OTHER_TUNERS_CHARA[$now_type][$now_tuner-TUNER_UNIT1]['reccmd'];
 					if( $wave_disc === $now_type )
 						if( $rec_cmds[$cmd_num]['httpS'] )
 							$tuner_stop = FALSE;
@@ -311,9 +311,9 @@ $asf_buf .= "<ENTRY>";
 $asf_buf .= "<TITLE>".$channel.":".$sid.' '.$_GET['name']."</TITLE>";
 $now_type = $type==='CS' ? 'BS' : $type;
 if( $now_type === 'EX' )
-	$cmd_num = $EX_TUNERS_CHARA['reccmd'][$slc_tuner];
+	$cmd_num = $EX_TUNERS_CHARA[$slc_tuner]['reccmd'];
 else
-	$cmd_num = $slc_tuner<TUNER_UNIT1 ? PT1_CMD_NUM : $OTHER_TUNERS_CHARA["$now_type"]['reccmd'][$slc_tuner-TUNER_UNIT1];
+	$cmd_num = $slc_tuner<TUNER_UNIT1 ? PT1_CMD_NUM : $OTHER_TUNERS_CHARA[$now_type][$slc_tuner-TUNER_UNIT1]['reccmd'];
 if( $rec_cmds[$cmd_num]['httpS'] )
 	$asf_buf .= "<REF HREF=\"http://".$_SERVER['SERVER_NAME'].':'.REALVIEW_HTTP_PORT.'/'.$channel."/".$sid."\" />";
 else

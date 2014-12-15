@@ -25,11 +25,11 @@ function rec_start( $cmd ) {
 // 録画開始前EPG更新に定期EPG更新が重ならないようにする。
 function scout_wait()
 {
-	$sql_cmd = "WHERE complete = '0' AND starttime > now() AND starttime < addtime( now(), '00:03:00' )";
+	$sql_cmd = 'WHERE complete=0 AND starttime>now() AND starttime<addtime( now(), "00:03:00" )';
 	while(1){
 		$num = DBRecord::countRecords( RESERVE_TBL, $sql_cmd );
 		if( $num ){
-			$revs = DBRecord::createRecords( RESERVE_TBL, $sql_cmd." ORDER BY starttime DESC" );
+			$revs = DBRecord::createRecords( RESERVE_TBL, $sql_cmd.' ORDER BY starttime DESC' );
 			$sleep_next = toTimestamp( $revs[0]->starttime );
 			sleep( $sleep_next-time() );
 		}else
@@ -60,7 +60,7 @@ function sig_handler()
 
 	// シグナルハンドラを設定
 	declare( ticks = 1 );
-	pcntl_signal( SIGTERM, "sig_handler" );
+	pcntl_signal( SIGTERM, 'sig_handler' );
 
 	$settings = Settings::factory();
 	$type     = $argv[1];	//GR/BS/CS/EX
@@ -69,7 +69,7 @@ function sig_handler()
 	$rec_time = $argv[4];
 	$ch_disk  = $argv[5];
 	$slp_time = isset( $argv[6] ) ? (int)$argv[6] : 0;
-	$cut_sids = isset( $argv[7] ) ? $argv[7] : "";
+	$cut_sids = isset( $argv[7] ) ? $argv[7] : '';
 
 	$shm_nm   = array( 'GR' => SEM_GR_START, 'BS' => SEM_ST_START, 'EX' => SEM_EX_START );
 	$smf_type = $type=='CS' ? 'BS' : $type;
@@ -94,7 +94,7 @@ function sig_handler()
 	}
 	$sid      = $rec_cmds[$cmd_num]['epgTs'] ? ' --sid epg' : '';
 	$falldely = $rec_cmds[$cmd_num]['falldely']>0 ? ' || sleep '.$rec_cmds[$cmd_num]['falldely'] : '';
-	$cmd_ts   = $rec_cmds[$cmd_num]['cmd'].$device.$sid.' '.$value.' '.$rec_time.' '.$temp_ts.' >/dev/null 2>&1'.$falldely;
+	$cmd_ts   = $rec_cmds[$cmd_num]['cmd'].$rec_cmds[$cmd_num]['b25'].$device.$sid.' '.$value.' '.$rec_time.' '.$temp_ts.' >/dev/null 2>&1'.$falldely;
 	$pro      = rec_start( $cmd_ts );
 	if( $pro !== FALSE ){
 		// プライオリティ低に
@@ -146,10 +146,24 @@ function sig_handler()
 					if( sem_acquire( $sem_id ) === TRUE ){
 						//xml抽出
 						$cmd_xml = $settings->epgdump.' '.$dmp_type.' '.$temp_ts.' '.$temp_xml;
-						if( $type!='GR' && $cut_sids!="" )
+						if( $type!=='GR' && $cut_sids!=='' )
 							$cmd_xml .= ' -cut '.$cut_sids;
-						exec( $cmd_xml );
-						@unlink( $temp_ts );
+						exec( $cmd_xml, $output, $ret_var );
+						if( isset($output) ){
+							foreach( $output as $mes )
+								if( $mes !== '' )
+									$put_mes = $mes.'<br>';
+							if( isset($put_mes) )
+								reclog( 'epgdump message::'.$put_mes, EPGREC_WARN );
+							unset( $output );
+						}
+						if( isset($ret_var) ){
+							if( $ret_var !== 0 ){
+								reclog( 'epgdump error::'.$ret_var, EPGREC_WARN );
+							}
+							unset( $ret_var );
+						}else
+							reclog( 'epgdump error::no code', EPGREC_WARN );
 						while( sem_release( $sem_id ) === FALSE )
 							usleep( 100 );
 						break 2;
@@ -169,9 +183,10 @@ function sig_handler()
 					while(1){
 						if( sem_acquire( $sem_id ) === TRUE ){
 							//EPG更新
-							if( storeProgram( $type, $temp_xml ) != -1 )
+							if( storeProgram( $type, $temp_xml ) != -1 ){
+								@unlink( $temp_ts );
 								@unlink( $temp_xml );
-							else
+							}else
 								reclog( $cmd_ts, EPGREC_WARN );
 							while( sem_release( $sem_id ) === FALSE )
 								usleep( 100 );

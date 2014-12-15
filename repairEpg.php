@@ -158,7 +158,7 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 						$sid_opt  = $rec_cmds[$cmd_num]['epgTs'] ? ' --sid epg' : '';
 						$falldely = $rec_cmds[$cmd_num]['falldely']>0 ? ' || sleep '.$rec_cmds[$cmd_num]['falldely'] : '';
 						$temp_ts  = $pre_temp_ts.$slc_tuner.'_'.$pid;
-						$cmdline  = $rec_cmds[$cmd_num]['cmd'].$device.$sid_opt.' '.$value.' '.$rec_tm.' '.$temp_ts.' >/dev/null 2>&1'.$falldely;
+						$cmdline  = $rec_cmds[$cmd_num]['cmd'].$rec_cmds[$cmd_num]['b25'].$device.$sid_opt.' '.$value.' '.$rec_tm.' '.$temp_ts.' >/dev/null 2>&1'.$falldely;
 						exec( $cmdline );
 						//チューナー占有解除
 						while( sem_acquire( $sem_id[$slc_tuner] ) === FALSE )
@@ -173,10 +173,24 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 								$cmdline .= ' -sid '.$sid;
 							while(1){
 								if( sem_acquire( $sem_dump ) === TRUE ){
-									exec( $cmdline );
+									exec( $cmdline, $output, $ret_var );
+									if( isset($output) ){
+										foreach( $output as $mes )
+											if( $mes !== '' )
+												$put_mes = $mes.'<br>';
+										if( isset($put_mes) )
+											reclog( 'epgdump message::'.$put_mes, EPGREC_WARN );
+										unset( $output );
+									}
+									if( isset($ret_var) ){
+										if( $ret_var !== 0 ){
+											reclog( 'epgdump error::'.$ret_var, EPGREC_WARN );
+										}
+										unset( $ret_var );
+									}else
+										reclog( 'epgdump error::no code', EPGREC_WARN );
 									while( sem_release( $sem_dump ) === FALSE )
 										usleep( 100 );
-									@unlink( $temp_ts );
 									break;
 								}
 								usleep(100 * 1000);
@@ -185,9 +199,11 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 								while(1){
 									if( sem_acquire( $sem_store ) === TRUE ){
 										$ch_id = storeProgram( $type, $temp_xml );
-										@unlink( $temp_xml );
-										if( $ch_id !== -1 )
+										if( $ch_id !== -1 ){
+											@unlink( $temp_ts );
+											@unlink( $temp_xml );
 											doKeywordReservation( $type, $shm_id );	// キーワード予約
+										}
 										while( sem_release( $sem_store ) === FALSE )
 											usleep( 100 );
 										if( is_string( $ch_id ) ){
