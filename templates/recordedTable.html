@@ -146,6 +146,7 @@ table#reservation_table tr.ctg_aa, #category_select a.ctg_aa {background-color: 
 #floatBox4Dialog .labelLeft {width:8em;float:left;text-align:right;}
 #floatBox4Dialog .button {padding:0.4em 1em;}
 
+select.autokeys option{white-space:pre;}
 
 -->
 </style>
@@ -166,10 +167,10 @@ table#reservation_table tr.ctg_aa, #category_select a.ctg_aa {background-color: 
 </select>
 </form>
 </td><td style="margin-left: auto;">
-<select onChange="popJump(this)">
+<select class="autokeys" onChange="popJump(this)">
 <option value="#">自動キーワード選択</option>
 {foreach from=$keys item=record}
-  <option value="recordedTable.php?key={$record.id}">{if $record.count}({$record.count}){/if}{$record.name|escape|truncate:150}</option>
+  <option value="recordedTable.php?key={$record.id}"{$record.selected}>{$record.name|escape|truncate:210}</option>
 {/foreach}
 </select>
 </td>

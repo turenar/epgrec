@@ -6,6 +6,32 @@ include_once( INSTALL_PATH . '/Reservation.class.php' );
 include_once( INSTALL_PATH . '/Settings.class.php' );
 include_once( INSTALL_PATH . '/reclib.php' );
 
+
+function view_strlen( $str )
+{
+	$byte_len = strlen( $str );
+	$str_len  = mb_strlen( $str );
+	$mc = (int)(( $byte_len - $str_len ) / 2);
+	$sc = $str_len - $mc;
+	return $mc*2+$sc;
+}
+
+
+function box_pad( $str, $width )
+{
+/*
+	// いいかげんなので保留
+	$str_wd = view_strlen( $str );
+	if( ($width-$str_wd)%2 === 1 )
+		$str .= ' ';
+	if( ($width-$str_wd)/4 > 0 )
+		$str .= str_repeat( '　', ($width-$str_wd)/4 );
+	return $str;
+*/
+	return '['.$str.']';
+}
+
+
 $settings = Settings::factory();
 
 $week_tb = array( '日', '月', '火', '水', '木', '金', '土' );
@@ -187,10 +213,14 @@ try{
 	$cats[0]['name'] = 'すべて';
 	$cats[0]['selected'] = $category_id == 0 ? 'selected' : '';
 	$cats[0]['count']    = 0;
+	$ct_len = 0;
 	foreach( $crecs as $c ){
 		$arr = array();
 		$arr['id']       = $c->id;
 		$arr['name']     = $c->name_jp;
+		$tmp_len = view_strlen( $arr['name'] );
+		if( $ct_len < $tmp_len )
+			$ct_len = $tmp_len;
 		$arr['selected'] = $c->id == $category_id ? 'selected' : '';
 		$arr['count']    = 0;
 		array_push( $cats, $arr );
@@ -207,9 +237,13 @@ try{
 	$keys[0]['name']     = '《キーワードなし》';
 	$keys[0]['selected'] = $key_id===0 ? 'selected' : '';
 	$keys[0]['count']    = 0;
+	$id_len = $sn_len = 0;
 	foreach( $crecs as $c ){
 		$arr = array();
 		$arr['id'] = $keyid_list[] = $c->id;
+		$tmp_len = view_strlen( $arr['id'] );
+		if( $id_len < $tmp_len )
+			$id_len = $tmp_len;
 		if( (int)$c->channel_id ){
 			$chid_key     = array_search( (int)$c->channel_id, $chid_list );
 			$station_name = $chid_key!==FALSE ? $stations[$chid_key]['name'] : '';
@@ -232,10 +266,23 @@ try{
 			}else
 				$station_name = 'ALL';
 		}
-		if( $station_name !== '' )
-			$station_name = '《'.$station_name.'》 ';
-		$arr['name']     = $station_name.$c->keyword;
-		$arr['selected'] = $c->id===$key_id ? 'selected' : '';
+		$arr['station']  = $station_name;
+		$tmp_len = view_strlen( $station_name );
+		if( $sn_len < $tmp_len )
+			$sn_len = $tmp_len;
+		if( $c->keyword !== '' ){
+			$keywds = array();
+			foreach( explode( ' ', trim($c->keyword) ) as $key ){
+				if( strlen( $key )>0 && $key[0]!=='-' ){
+					$keywds[] = $key;
+				}
+			}
+			$arr['name'] = implode( ' ', $keywds );
+		}else
+			$arr['name'] = '';
+		$arr['cat']      = (int)$c->category_id;
+		$arr['subgenre'] = (int)$c->sub_genre;
+		$arr['selected'] = (int)$c->id===$key_id ? ' selected' : '';
 		$arr['count']    = 0;
 		array_push( $keys, $arr );
 	}
@@ -321,7 +368,7 @@ try{
 					// 予約終了化
 					$wrt_set = array();
 					$wrt_set['complete'] = 1;
-					$res_obj->force_update( $r['id'], $wrt_set );
+					$rev_obj->force_update( $r['id'], $wrt_set );
 				}
 			}
 			if( file_exists( INSTALL_PATH.$settings->spool.'/'.$r['path'] ) ){
@@ -370,13 +417,25 @@ try{
 		}
 	}
 
+	if( $key_id === FALSE )
+		$keys[0]['name'] = '('.str_pad( $keys[0]['count'], 4, '0', STR_PAD_LEFT ).') '.$keys[0]['name'];
+	for( $piece=1; $piece<count($keys); $piece++ ){
+		$cat_key  = array_search( $keys[$piece]['cat'], $cat_list );
+		$cat_name = $cat_key===FALSE ? $cats[0]['name'] : $cats[$cat_key+1]['name'].'('.$keys[$piece]['subgenre'].')';
+		$keys[$piece]['name'] = ($key_id===FALSE ? '('.str_pad( $keys[$piece]['count'], 4, '0', STR_PAD_LEFT ).') ' : '')
+								.'ID:'.str_pad( $keys[$piece]['id'], $id_len, '0', STR_PAD_LEFT )
+								.' '.box_pad( $keys[$piece]['station'], $sn_len )
+								.' '.box_pad( $cat_name, $ct_len )
+								.' '.$keys[$piece]['name'];
+	}
+
 	if( $transcode && !TRANS_SCRN_ADJUST ){
 		for( $cnt=0; $cnt<count($TRANSSIZE_SET); $cnt++ )
 			$TRANSSIZE_SET[$cnt]['selected'] = $cnt===TRANSTREAM_SIZE_DEFAULT ? ' selected' : '';
 	}
 
 	$smarty = new Smarty();
-	$smarty->assign('sitetitle','録画済一覧'.($key_id!==FALSE ? ' No.'.$key_id : '') );
+	$smarty->assign('sitetitle','録画済一覧' );
 	$smarty->assign( 'records', $records );
 	$smarty->assign( 'search', $search );
 	$smarty->assign( 'stations', $stations );
