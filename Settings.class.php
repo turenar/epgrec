@@ -19,7 +19,7 @@ class Settings extends SimpleXMLElement {
 			
 			// キーワード自動録画の録画モード
 			if( $obj->exists('autorec_mode') == 0 ) {
-				$obj->autorec_mode = 0;
+				$obj->autorec_mode = 1;
 				$obj->save();
 			}
 			// CSの録画
@@ -67,12 +67,16 @@ class Settings extends SimpleXMLElement {
 			else $xml->thumbs = '/thumbs';
 			
 			if(defined('INSTALL_URL')) $xml->install_url = INSTALL_URL;
-			else $xml->install_url = 'http://localhost/epgrec';
-			
+			else{
+				$part_path = explode( '/', $_SERVER['PHP_SELF'] );
+				array_pop( $part_path );
+				$base_path = implode( '/', $part_path );
+				$xml->install_url = 'http://localhost'.$base_path;
+			}
 			if(defined('BS_TUNERS')) $xml->bs_tuners = BS_TUNERS;
 			else $xml->bs_tuners = 0;
 			
-			if(defined('GR_TUNERS')) $xml->gr_tuners = GR_TUNERS;
+			if(TUNER_UNIT1>0) $xml->gr_tuners = TUNER_UNIT1;
 			else $xml->gr_tuners = 1;
 
 			if(defined('CS_REC_FLG')) $xml->cs_rec_flg = CS_REC_FLG;
@@ -146,7 +150,7 @@ class Settings extends SimpleXMLElement {
 			// 8月14日版以降に追加した設定項目
 			
 			// キーワード自動録画の録画モード
-			$xml->autorec_mode = 0;
+			$xml->autorec_mode = 1;
 			
 			// CS録画
 			$xml->cs_rec_flg = 0;

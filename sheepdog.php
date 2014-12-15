@@ -23,7 +23,7 @@ function sheep_release( $cmd ) {
 function create_sql_time( $tmp_time ) {
 	global	$settings;
 
-	return ' AND endtime > subtime( now(), sec_to_time('.($settings->extra_time+2).') ) AND starttime < addtime( now(), sec_to_time('.$tmp_time.') )';
+	return ' AND endtime>subtime( now(), sec_to_time('.($settings->extra_time+2).') ) AND starttime<addtime( now(), sec_to_time('.$tmp_time.') )';
 }
 
 	$settings      = Settings::factory();
@@ -46,22 +46,25 @@ if( $usable_tuners != 0 ){
 	}
 	$shm_id   = shmop_open_surely();
 	$loop_tim = 10;
-	$sql_cmd  = "WHERE complete = '0' AND type = 'GR'".create_sql_time( $base_time + $settings->rec_switch_time + $settings->former_time + $loop_tim + 2 );
-	$sql_chk  = "WHERE complete = '0' AND type = 'GR'".' AND starttime > now() AND starttime < addtime( now(), sec_to_time('.( $base_time + PADDING_TIME ).') )';
+	$sql_cmd  = 'complete=0 AND type="GR"'.create_sql_time( $base_time + $settings->rec_switch_time + $settings->former_time + $loop_tim + 2 );
+	$sql_chk  = 'complete=0 AND type="GR" AND starttime>now() AND starttime<addtime( now(), sec_to_time('.( $base_time + PADDING_TIME ).') )';
+//	$sql_cmd  = "complete = '0' AND type = 'GR'".create_sql_time( $base_time + $settings->rec_switch_time + $settings->former_time + $loop_tim + 2 );
+//	$sql_chk  = "complete = '0' AND type = 'GR'".' AND starttime > now() AND starttime < addtime( now(), sec_to_time('.( $base_time + PADDING_TIME ).') )';
 	$use_cnt  = 0;
 	$release_cnt = 0;
+	$res_obj = new DBRecord( RESERVE_TBL );
 	while(1){
 		if( $use_cnt < $usable_tuners ){
 			// 録画重複チェック
-			$off_tuners = DBRecord::countRecords( RESERVE_TBL, $sql_cmd );
+			$revs       = $res_obj->fetch_array( null, null, $sql_cmd );
+			$off_tuners = count( $revs );
 			if( $off_tuners+$use_cnt < $tuners ){
-				$revs = DBRecord::createRecords( RESERVE_TBL, $sql_cmd );
 				$lp_st = time();
 				do{
 					//空チューナー降順探索
 					for( $slc_tuner=$tuners-1; $slc_tuner>=0; $slc_tuner-- ){
 						for( $cnt=0; $cnt<$off_tuners; $cnt++ ){
-							if( $revs[$cnt]->tuner == $slc_tuner )
+							if( $revs[$cnt]['tuner'] == $slc_tuner )
 								continue 2;
 						}
 						if( sem_acquire( $sem_id[$slc_tuner] ) === TRUE ){
@@ -79,19 +82,19 @@ if( $usable_tuners != 0 ){
 								while( sem_release( $sem_id[$slc_tuner] ) === FALSE )
 									usleep( 100 );
 
-								if( DBRecord::countRecords( RESERVE_TBL, $sql_chk ) > 0 ){
-									$rr     = DBRecord::createRecords( RESERVE_TBL, $sql_chk );
+								$rr = $res_obj->fetch_array( null, null, $sql_chk );
+								if( count( $rr ) > 0 ){
 									$motion = TRUE;
 									if( $slc_tuner < TUNER_UNIT1 ){
 										foreach( $rr as $rev ){
-											if( $rev->tuner < TUNER_UNIT1 ){
+											if( $rev['tuner'] < TUNER_UNIT1 ){
 												$motion = FALSE;
 												break;
 											}
 										}
 									}else{
 										foreach( $rr as $rev ){
-											if( $rev->tuner >= TUNER_UNIT1 ){
+											if( $rev['tuner'] >= TUNER_UNIT1 ){
 												$motion = FALSE;
 												break;
 											}

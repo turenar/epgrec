@@ -49,6 +49,7 @@ class Reservation {
 		$dirty = 0,				// ダーティフラグ
 		$man_priority = MANUAL_REV_PRIORITY	// 優先度
 	) {
+		global $rec_cmds,$OTHER_TUNERS_CHARA,$EX_TUNERS_CHARA;
 		$settings = Settings::factory();
 		$crec = new DBRecord( CHANNEL_TBL, 'id', $channel_id );
 		// 時間を計算
@@ -68,7 +69,7 @@ class Reservation {
 						if( !$overlap ){
 							$num = DBRecord::countRecords( RESERVE_TBL, 'WHERE program_id='.$program_id );
 							if( $num ){
-								$del_revs = DBRecord::createRecords( RESERVE_TBL, 'WHERE program_id='.$program_id.' AND priority<'.$priority, TRUE );
+								$del_revs = DBRecord::createRecords( RESERVE_TBL, 'WHERE program_id='.$program_id.' AND priority<'.$priority );
 								$num     -= count( $del_revs );
 								if( $num <= 0 ){
 									foreach( $del_revs as $rr )
@@ -222,7 +223,7 @@ class Reservation {
 				$trecs[$cnt]['shortened']     = FALSE;
 				$trecs[$cnt]['autorec']       = $autorec;
 				$trecs[$cnt]['path']          = '';
-				$trecs[$cnt]['mode']          = $mode;
+				$trecs[$cnt]['mode']          = (int)$mode;
 				$trecs[$cnt]['dirty']         = $dirty;
 				$trecs[$cnt]['tuner']         = -1;
 				$trecs[$cnt]['priority']      = $priority;
@@ -677,41 +678,44 @@ LOG_THROW:;
 										}
 									}
 								}
-							}else
-							if( $n_0===0 && $n_lmt>1 && ( ( $smf_type!=='EX' &&
-									( ( USE_RECPT1 && $prev_tuner<TUNER_UNIT1 ) || ( $prev_tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$prev_tuner-TUNER_UNIT1]['cntrl'] ) ) )
-									|| ( $smf_type==='EX' && $EX_TUNERS_CHARA[$prev_tuner]['cntrl'] ) ) ){
-								//録画中
-								if( !$prev_shortened ){
-									if( $prev_end_time > $next_start_time-$ed_tm_sft_chk ){
-										//録画時間短縮指示
-										$ps = search_reccmd( $prev_id );
-										if( $ps !== FALSE ){
-											exec( RECPT1_CTL.' --pid '.$ps->pid.' --extend -'.($ed_tm_sft+$extra_time) );
-											for( $i=0; $i<count($prev_trecs) ; $i++ ){
-												if( $prev_id === (int)$prev_trecs[$i]['id'] ){
-													$wrt_set = array();
-													$wrt_set['endtime']   = toDatetime( $prev_end_time - $ed_tm_sft );
-													$wrt_set['shortened'] = TRUE;
-													$res_obj->force_update( $prev_trecs[$i]['id'], $wrt_set );
-													break;
+							}else{
+								if( $smf_type === 'EX' )
+									$cmd_num = $EX_TUNERS_CHARA[$prev_tuner]['reccmd'];
+								else
+									$cmd_num = $prev_tuner<TUNER_UNIT1 ? PT1_CMD_NUM : $OTHER_TUNERS_CHARA[$smf_type][$prev_tuner-TUNER_UNIT1]['reccmd'];
+								if( $n_0===0 && $n_lmt>1 && $rec_cmds[$cmd_num]['cntrl'] ){
+									//録画中
+									if( !$prev_shortened ){
+										if( $prev_end_time > $next_start_time-$ed_tm_sft_chk ){
+											//録画時間短縮指示
+											$ps = search_reccmd( $prev_id );
+											if( $ps !== FALSE ){
+												exec( RECPT1_CTL.' --pid '.$ps->pid.' --extend -'.($ed_tm_sft+$extra_time) );
+												for( $i=0; $i<count($prev_trecs) ; $i++ ){
+													if( $prev_id === (int)$prev_trecs[$i]['id'] ){
+														$wrt_set = array();
+														$wrt_set['endtime']   = toDatetime( $prev_end_time - $ed_tm_sft );
+														$wrt_set['shortened'] = TRUE;
+														$res_obj->force_update( $prev_trecs[$i]['id'], $wrt_set );
+														break;
+													}
 												}
 											}
 										}
-									}
-								}else{
-									if( $prev_end_time+$ed_tm_sft+$ed_tm_sft_chk <= $next_start_time ){
-										//録画時間延伸指示
-										$ps = search_reccmd( $prev_id );
-										if( $ps !== FALSE ){
-											exec( RECPT1_CTL.' --pid '.$ps->pid.' --extend '.($ed_tm_sft+$extra_time) );
-											for( $i=0; $i<count($prev_trecs) ; $i++ ){
-												if( $prev_id === (int)$prev_trecs[$i]['id'] ){
-													$wrt_set = array();
-													$wrt_set['endtime']   = toDatetime( $prev_end_time + $ed_tm_sft );
-													$wrt_set['shortened'] = FALSE;
-													$res_obj->force_update( $prev_trecs[$i]['id'], $wrt_set );
-													break;
+									}else{
+										if( $prev_end_time+$ed_tm_sft+$ed_tm_sft_chk <= $next_start_time ){
+											//録画時間延伸指示
+											$ps = search_reccmd( $prev_id );
+											if( $ps !== FALSE ){
+												exec( RECPT1_CTL.' --pid '.$ps->pid.' --extend '.($ed_tm_sft+$extra_time) );
+												for( $i=0; $i<count($prev_trecs) ; $i++ ){
+													if( $prev_id === (int)$prev_trecs[$i]['id'] ){
+														$wrt_set = array();
+														$wrt_set['endtime']   = toDatetime( $prev_end_time + $ed_tm_sft );
+														$wrt_set['shortened'] = FALSE;
+														$res_obj->force_update( $prev_trecs[$i]['id'], $wrt_set );
+														break;
+													}
 												}
 											}
 										}
@@ -733,7 +737,7 @@ LOG_THROW:;
 						$category_id,
 						$program_id,
 						$autorec,
-						$mode,
+						(int)$mode,
 						$dirty,
 						0,		// チューナー番号
 						$priority,
@@ -771,10 +775,11 @@ LOG_THROW:;
 		$discontinuity,			// 隣接短縮可否
 		$shortened				// 隣接短縮フラグ
 	) {
-		global $RECORD_MODE;
+		global $RECORD_MODE,$rec_cmds,$OTHER_TUNERS_CHARA,$EX_TUNERS_CHARA;
 		$settings   = Settings::factory();
 		$spool_path = INSTALL_PATH.$settings->spool;
 		$crec_      = new DBRecord( CHANNEL_TBL, 'id', $channel_id );
+		$smf_type   = $crec_->type!=='CS' ? $crec_->type : 'BS';
 
 		//即時録画の指定チューナー確保
 		$epg_time = array( 'GR' => FIRST_REC, 'BS' => 180, 'CS' => 120, 'EX' => 180 );
@@ -804,6 +809,7 @@ LOG_THROW:;
 					if( $smph == 2 ){
 						// リアルタイム視聴停止
 						$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
+						unlink( REALVIEW_PID );
 						posix_kill( $real_view, 9 );		// 録画コマンド停止
 						shmop_write_surely( $shm_id, $shm_name, 0 );
 						shmop_write_surely( $shm_id, SEM_REALVIEW, 0 );		// リアルタイム視聴tunerNo clear
@@ -812,7 +818,7 @@ LOG_THROW:;
 					}else
 						if( $smph == 1 ){
 							// EPG受信停止
-							$rec_trace = 'TUNER='.$tuner.' MODE=0 OUTPUT='.$settings->temp_data.'_'.$crec_->type;
+							$rec_trace = $settings->temp_data.'_'.$smf_type.$tuner;
 							$ps_output = shell_exec( PS_CMD );
 							$rarr      = explode( "\n", $ps_output );
 							for( $cc=0; $cc<count($rarr); $cc++ ){
@@ -1122,7 +1128,7 @@ LOG_THROW:;
 
 			// ファイル名長制限+ファイル名重複解消
 			$fl_len     = strlen( $filename );
-			$fl_len_lmt = 255 - strlen( $RECORD_MODE["$mode"]['suffix'] );
+			$fl_len_lmt = 255 - strlen( $RECORD_MODE[$mode]['suffix'] );
 			// サムネール
 			if( (boolean)$settings->use_thumbs ){
 				$gen_thumbnail = defined( 'GEN_THUMBNAIL' ) ? GEN_THUMBNAIL : INSTALL_PATH.'/gen-thumbnail.sh';
@@ -1144,8 +1150,8 @@ LOG_THROW:;
 				$files = array();
 			$file_cnt = 0;
 			$tmp_name = $filename;
-			$sql_que  = 'WHERE path LIKE \''.DBRecord::sql_escape($add_dir.$tmp_name.$RECORD_MODE["$mode"]['suffix']).'\'';
-			while( in_array( $tmp_name.$RECORD_MODE["$mode"]['suffix'], $files ) || DBRecord::countRecords( RESERVE_TBL, $sql_que )!==0 ){
+			$sql_que  = 'WHERE path LIKE \''.DBRecord::sql_escape($add_dir.$tmp_name.$RECORD_MODE[$mode]['suffix']).'\'';
+			while( in_array( $tmp_name.$RECORD_MODE[$mode]['suffix'], $files ) || DBRecord::countRecords( RESERVE_TBL, $sql_que )!==0 ){
 				$file_cnt++;
 				$len_dec = strlen( (string)$file_cnt );
 				if( $fl_len > $fl_len_lmt-$len_dec ){
@@ -1153,9 +1159,9 @@ LOG_THROW:;
 					$fl_len   = strlen( $filename );
 				}
 				$tmp_name = $filename.$file_cnt;
-				$sql_que  = 'WHERE path LIKE \''.DBRecord::sql_escape($add_dir.$tmp_name.$RECORD_MODE["$mode"]['suffix']).'\'';
+				$sql_que  = 'WHERE path LIKE \''.DBRecord::sql_escape($add_dir.$tmp_name.$RECORD_MODE[$mode]['suffix']).'\'';
 			}
-			$filename  = $tmp_name.$RECORD_MODE["$mode"]['suffix'];
+			$filename  = $tmp_name.$RECORD_MODE[$mode]['suffix'];
 			$thumbname = $filename.'.jpg';
 
 			// ファイル名生成終了
@@ -1212,15 +1218,35 @@ LOG_THROW:;
 				reclog( 'atの実行に失敗した模様', EPGREC_ERROR);
 				throw new Exception('AT実行エラー');
 			}
-			fwrite($pipes[0], 'echo $$ >/tmp/tuner_'.$rrec->type.$tuner."\n" );		//SHのPID
+			fwrite($pipes[0], 'echo $$ >/tmp/tuner_'.$rrec->type.$tuner."\n" );		//ATジョブのPID
 			if( $sleep_time ){
 				if( $program_id && $sleep_time > $settings->rec_switch_time )
-					fwrite($pipes[0], "echo 'temp' > ".$spool_path.$add_dir.'/tmp & sync & '.INSTALL_PATH.'/scoutEpg.php '.$rrec->id." &\n" );		//HDD spin-up + 単発EPG更新
+					fwrite($pipes[0], "echo 'temp' > ".$spool_path.'/'.$add_dir.'/tmp & sync & '.INSTALL_PATH.'/scoutEpg.php '.$rrec->id." &\n" );		//HDD spin-up + 単発EPG更新
 				else
-					fwrite($pipes[0], "echo 'temp' > ".$spool_path.$add_dir."/tmp & sync &\n" );		//HDD spin-up
+					fwrite($pipes[0], "echo 'temp' > ".$spool_path.'/'.$add_dir."/tmp & sync &\n" );		//HDD spin-up
 				fwrite($pipes[0], $settings->sleep.' '.$sleep_time."\n" );
 			}
-			fwrite($pipes[0], DO_RECORD.' '.$rrec->id."\n" );		//$rrec->id追加は録画キャンセルのためのおまじない
+
+			if( !USE_DORECORD ){
+				if( $smf_type === 'EX' ){
+					$cmd_num = $EX_TUNERS_CHARA[$tuner]['reccmd'];
+					$device  = $EX_TUNERS_CHARA[$tuner]['device']!=='' ? ' '.trim($EX_TUNERS_CHARA[$tuner]['device']) : '';
+				}else{
+					if( $tuner < TUNER_UNIT1 ){
+						$cmd_num = PT1_CMD_NUM;
+						$device  = '';
+					}else{
+						$cmd_num = $OTHER_TUNERS_CHARA[$smf_type][$tuner-TUNER_UNIT1]['reccmd'];
+						$device  = $OTHER_TUNERS_CHARA[$smf_type][$tuner-TUNER_UNIT1]['device']!=='' ? ' '.trim($OTHER_TUNERS_CHARA[$smf_type][$tuner-TUNER_UNIT1]['device']) : '';
+					}
+				}
+				$slc_cmd  = $rec_cmds[$cmd_num];
+				$sid      = $mode==0 ? '' : ( $slc_cmd['sidEXT']!=='' ? ' --sid '.$slc_cmd['sidEXT'].','.$crec_->sid : ' --sid '.$crec_->sid );
+				$falldely = $slc_cmd['falldely']>0 ? ' || sleep '.$slc_cmd['falldely'] : '';
+				$cmd_ts   = $slc_cmd['cmd'].$slc_cmd['b25'].$device.$sid.' '.$crec_->channel.' '.$duration.' \''.$add_dir.$filename.'\' >/dev/null 2>&1'.$falldely;
+				fwrite($pipes[0], $cmd_ts."\n" );
+			}else
+				fwrite($pipes[0], DO_RECORD.' '.$rrec->id."\n" );		//$rrec->id追加は録画キャンセルのためのおまじない
 			fwrite($pipes[0], COMPLETE_CMD.' '.$rrec->id."\n" );
 			if( $settings->use_thumbs == 1 ) {
 				fwrite($pipes[0], $gen_thumbnail."\n" );
@@ -1274,7 +1300,8 @@ LOG_THROW:;
 	}
 
 	// 取り消し
-	public static function cancel( $reserve_id = 0, $program_id = 0 ) {
+	public static function cancel( $reserve_id = 0, $program_id = 0, $db_clean = FALSE ) {
+		global $rec_cmds,$OTHER_TUNERS_CHARA,$EX_TUNERS_CHARA;
 		$settings = Settings::factory();
 		$rec = null;
 		try {
@@ -1301,7 +1328,7 @@ LOG_THROW:;
 				$rec_ed = toTimestamp($rec['endtime']);
 				$now_tm = time();
 				if( $rec_at-2 <= $now_tm ){
-					if( $rec_st-2 <= $now_tm ){
+					if( !$db_clean && $rec_st-2<=$now_tm ){
 						// 実行中の予約解除
 						if( $now_tm <= $rec_ed ){
 							if( $rec_st >= $now_tm )
@@ -1311,12 +1338,15 @@ LOG_THROW:;
 							if( $ps !== FALSE ){
 								$wrt_set['autorec'] = ( $rec['autorec'] + 1 ) * -1;
 								$rev_obj->force_update( $rec['id'], $wrt_set );
+								$prev_tuner = $rec['tuner'];
 								$smf_type = $rec['type']==='CS' ? 'BS' : $rec['type'];
-								if( ( $smf_type!=='EX' &&
-										( ( USE_RECPT1 && $rec['tuner']<TUNER_UNIT1 ) || ( $rec['tuner']>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$prev_tuner-TUNER_UNIT1]['cntrl'] ) ) )
-										|| ( $smf_type==='EX' && $EX_TUNERS_CHARA[$prev_tuner]['cntrl'] ) ){
+								if( $smf_type === 'EX' )
+									$cmd_num = $EX_TUNERS_CHARA[$prev_tuner]['reccmd'];
+								else
+									$cmd_num = $prev_tuner<TUNER_UNIT1 ? PT1_CMD_NUM : $OTHER_TUNERS_CHARA[$smf_type][$prev_tuner-TUNER_UNIT1]['reccmd'];
+								if( $rec_cmds[$cmd_num]['cntrl'] ){
 									// recpt1ctlで停止
-									exec( RECPT1_CTL.' --pid '.$ps->pid.' --time 10 >/dev/null' );
+									exec( RECPT1_CTL.' --pid '.$ps->pid.' --time 10 >/dev/null 2>&1' );
 								}else{
 									//コントローラの無いチューナへの汎用処理
 									posix_kill( $ps->pid, 15 );		//録画停止
@@ -1332,69 +1362,14 @@ LOG_THROW:;
 						}
 						//DB残留 DB削除へ
 					}else{
-						if( $rec_at >= $now_tm )
+						//sleep待機中の予約解除or録画停止を伴うDB削除
+						if( !$db_clean && $rec_at>=$now_tm )
 							sleep(3);
-						//sleep待機中の予約解除
-						$sleep_ppid  = (int)trim( file_get_contents( '/tmp/tuner_'.$rec['type'].$rec['tuner'] ) );
-						$ps_output   = shell_exec( PS_CMD );
-						$rarr        = explode( "\n", $ps_output );
-						$scout_cmd   = INSTALL_PATH.'/scoutEpg.php '.$rec['id'];
-						$my_pid      = posix_getpid();
-						$sleep_pid   = 0;
-						$scout_pid   = 0;
-						$dorec_pid   = 0;
-						$dorecsh_pid = 0;
-						$recepg_pid  = 0;
-						$stop_stk    = 0;
-						for( $cc=0; $cc<count($rarr); $cc++ ){
-							if( $sleep_pid == 0 ){
-								if( strpos( $rarr[$cc], 'sleep ' ) !== FALSE ){
-									$ps = ps_tok( $rarr[$cc] );
-									if( (int)$ps->ppid == $sleep_ppid ){
-										posix_kill( $sleep_ppid, 15 );		//親プロセス(AT?)停止
-										$sleep_pid = (int)$ps->pid;
-										posix_kill( $sleep_pid, 15 );		//(sleep)停止
-										$stop_stk++;
-										continue;
-									}
-								}
-							}
-							if( $scout_pid == 0 ){
-								if( strpos( $rarr[$cc], $scout_cmd ) !== FALSE ){
-									$ps = ps_tok( $rarr[$cc] );
-									$scout_pid = (int)$ps->pid;
-									$temp_ts   = $settings->temp_data.'_'.$rec['type'].'_'.$scout_pid;
-									$stop_stk++;
-								}
-							}else
-							if( $dorec_pid == 0 ){
-								if( strpos( $rarr[$cc], $temp_ts.' '.DO_RECORD ) !== FALSE ){
-									$ps = ps_tok( $rarr[$cc] );
-									if( (int)$ps->ppid == $scout_pid ){
-										if( $scout_pid != $my_pid )			//自殺防止
-											posix_kill( $scout_pid, 15 );		//scoutEpg.php停止
-										$dorec_pid = (int)$ps->pid;
-									}
-								}
-							}else
-							if( $dorecsh_pid == 0 ){
-								if( strpos( $rarr[$cc], 'sh '.DO_RECORD ) !== FALSE ){
-									$ps = ps_tok( $rarr[$cc] );
-									if( (int)$ps->ppid == $dorec_pid ){
-										posix_kill( $dorec_pid, 15 );		//do_record.sh停止
-										$dorecsh_pid = (int)$ps->pid;
-									}
-								}
-							}else
-							if( $recepg_pid==0 && strpos( $rarr[$cc], $temp_ts )!==FALSE ){
-								$ps = ps_tok( $rarr[$cc] );
-								if( (int)$ps->ppid == $dorecsh_pid ){
-									posix_kill( $dorecsh_pid, 15 );		//do_record.sh停止
-									$recepg_pid = (int)$ps->pid;
-									posix_kill( $recepg_pid, 15 );		//EPG録画停止
-								}
-							}
-						}
+						$atjob_pid = (int)trim( file_get_contents( '/tmp/tuner_'.$rec['type'].$rec['tuner'] ) );
+						$ps_output = shell_exec( PS_CMD );
+						$rarr      = explode( "\n", $ps_output );
+						$my_pid    = $db_clean ? 0 : posix_getpid();
+						$stop_stk  = killtree( $rarr, $atjob_pid, FALSE, $my_pid );
 						if( $stop_stk ){
 							reclog( '[予約ID:'.$rec['id'].' 削除] '.$rec['channel_disc'].'(T'.$rec['tuner'].'-'.$rec['channel'].') '.$rec['starttime'].' 『'.$rec['title'].'』' );
 							$rev_obj->force_delete( $rec['id'] );

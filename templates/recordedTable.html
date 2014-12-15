@@ -11,6 +11,7 @@
 <script type="text/javascript" src="js/jquery-1.3.2.min.js"></script>
 <script type="text/javascript" src="js/jquery-ui-1.7.2.custom.min.js"></script>
 <link rel="stylesheet" href="start/jquery-ui-1.7.2.custom.css" type="text/css">
+<script type="text/javascript" src="js/transcode.js"></script>
 <script type="text/javascript">
 <!--
 	var PRG = {
@@ -31,7 +32,7 @@
 			}
 			$('#floatBox4Dialog').dialog('close');
 			
-			$.get(INISet.prgCancelURL, { reserve_id: id, delete_file: df } ,function(data){
+			$.get(INISet.prgCancelURL, { reserve_id: id, delete_file: df, db_clean: 1 } ,function(data){
 				
 				if(data.match(/^error/i)){
 					alert(data);
@@ -152,17 +153,27 @@ table#reservation_table tr.ctg_aa, #category_select a.ctg_aa {background-color: 
 
 </head>
 
-<body>
+<body{if $TRANSCODE_STREAM} onLoad="initScreensize(0,{$records|@count},{$TRANS_SCRN_ADJUST})"{/if}>
 
-<h2><form>{$sitetitle}
+<h2><table width="100%"><tr>
+<td style="margin-right: auto;">
+<form>{$sitetitle}
 <select onChange="popJump(this)">
 <option value="#">メニュー</option>
 {foreach from=$menu_list item=record}
-<option value="{$record.url}">{$record.name}</option>
+  <option value="{$record.url}">{$record.name}</option>
 {/foreach}
 </select>
-</form></h2>
-
+</form>
+</td><td style="margin-left: auto;">
+<select onChange="popJump(this)">
+<option value="#">自動キーワード選択</option>
+{foreach from=$keys item=record}
+  <option value="recordedTable.php?key={$record.id}">{if $record.count}({$record.count}){/if}{$record.name|escape|truncate:150}</option>
+{/foreach}
+</select>
+</td>
+</tr></table></h2>
 
 <div>
 <fieldset>
@@ -170,7 +181,7 @@ table#reservation_table tr.ctg_aa, #category_select a.ctg_aa {background-color: 
 <form method="post" action="recordedTable.php" >
 <input type="hidden" name="do_search" value="1">
 検索語句<input type="text" name="search" value="{$search|escape}" class="example1" title="ワイルドカードは'%'・半角スペースは'_'です。 NOT検索は語彙冒頭に'-'を付加してください。"><br>
-局<select name="station">
+放送局<select name="station">
   {foreach from=$stations item=st}
     <option value="{$st.id}" {$st.selected}>{$st.name}{if $st.count}({$st.count}){/if}</option>
   {/foreach}
@@ -203,8 +214,17 @@ table#reservation_table tr.ctg_aa, #category_select a.ctg_aa {background-color: 
   <th>№</th>
   <th>録画日時</th>
   <th>録画時間</th>
-  <th>局名</th>
-   <th>モード<br>(視聴)</th>
+  <th>放送局</th>
+   <th>録画モード<br>(視聴)
+{if $TRANSCODE_STREAM}
+<br>
+ <select name="trans_size" id="trans_size" title="視聴解像度" onChange="chgScreensize(0,{$records|@count},this.selectedIndex)">
+  {foreach from=$transsize_set name=lp item=size_set}
+   <option value="{$smarty.foreach.lp.index}"{$size_set.selected}>{$size_set.width}x{$size_set.height}</option>
+  {/foreach}
+ </select>
+{/if}
+   </th>
   {if $use_thumbs == 1}<th>サムネール</th>{/if}
   <th>タイトル</th>
   <th>概要</th>
@@ -219,7 +239,7 @@ table#reservation_table tr.ctg_aa, #category_select a.ctg_aa {background-color: 
   <td style="white-space: nowrap;">{$rec.starttime}</td>
   <td style="white-space: nowrap;">{$rec.duration}</td>
   <td>{$rec.station_name}</td>
-  <td>{$rec.view_set}</td>
+  <td style="white-space: pre;">{$rec.view_set}</td>
   {if $use_thumbs == 1}<td><a href="{$rec.asf}">{$rec.thumb}</a></td>{/if}
   <td style="text-align: left;"><a id="tid_{$rec.id}">{$rec.title}</a></td>
   <td style="text-align: left;"><a id="did_{$rec.id}">{$rec.description}</a></td>

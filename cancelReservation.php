@@ -11,34 +11,47 @@ $settings = Settings::factory();
 
 if( isset($_GET['reserve_id']) ){
 	$reserve_id = $_GET['reserve_id'];
+	$db_clean   = isset($_GET['db_clean']) ? (boolean)$_GET['db_clean'] : FALSE;
 	try{
-		$rec = new DBRecord( RESERVE_TBL, 'id', $reserve_id );
-		$program_id = $rec->program_id;
+		$rev_obj    = new DBRecord( RESERVE_TBL );
+		$rec        = $rev_obj->fetch_array( 'id', $reserve_id );
+		$program_id = $rec[0]['program_id'];
+
 		try{
-			$ret_code   = Reservation::cancel( $reserve_id, $program_id );
+			$ret_code = Reservation::cancel( $reserve_id, $program_id, $db_clean );
 		}
 		catch( Exception $e ){
 			exit( 'Error' . $e->getMessage() );
 		}
 
-		// サムネイル削除
-		if( file_exists(INSTALL_PATH.$settings->thumbs.'/'.end(explode( '/', $rec->path )).'.jpg') )
-			@unlink( INSTALL_PATH.$settings->thumbs.'/'.end(explode( '/', $rec->path )).'.jpg' );
-		if( isset( $_GET['delete_file'] ) ){
-			if( $_GET['delete_file'] == 1 ){
-				$trans_obj = new DBRecord( TRANSCODE_TBL );
-				// 変換中ジョブ対策は気が向いたら
-				$del_trans = $trans_obj->fetch_array( 'rec_id', $reserve_id );
-				foreach( $del_trans as $del_file ){
-					@unlink($del_file['path']);
-					$trans_obj->force_delete( $del_file['id'] );
+		if( isset( $_GET['delete_file'] ) && (int)$_GET['delete_file']==1 ){
+			$trans_obj = new DBRecord( TRANSCODE_TBL );
+			$del_trans = $trans_obj->fetch_array( null, null, 'rec_id='.$reserve_id.' ORDER BY status' );
+			foreach( $del_trans as $del_file ){
+				switch( $del_file['status'] ){
+					case 1:		// 処理中(0は処理済)
+						$ps_output = shell_exec( PS_CMD );
+						$rarr      = explode( "\n", $ps_output );
+						killtree( $rarr, (int)$del_file['pid'] );
+						sleep(1);
+						break;
+					case 2:		// 正常終了
+					case 3:		// 異常終了
+						if( file_exists( $del_file['path'] ) )
+							@unlink( $del_file['path'] );
+						break;
 				}
-				// ファイルを削除
-				if( file_exists( INSTALL_PATH.$settings->spool.'/'.$rec->path ) ){
-					@unlink(INSTALL_PATH.$settings->spool.'/'.$rec->path);
-				}
+				$trans_obj->force_delete( $del_file['id'] );
 			}
+			// ファイルを削除
+			$reced = INSTALL_PATH.$settings->spool.'/'.$rec[0]['path'];
+			if( file_exists( $reced ) )
+				@unlink( $reced );
 		}
+		// サムネイル削除
+		$thumbs = INSTALL_PATH.$settings->thumbs.'/'.end(explode( '/', $rec[0]['path'] )).'.jpg';
+		if( file_exists( $thumbs ) )
+			@unlink( $thumbs );
 	}
 	catch( Exception $e ){
 		exit( 'Error' . $e->getMessage() );

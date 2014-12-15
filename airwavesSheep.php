@@ -2,7 +2,7 @@
 <?php
   $script_path = dirname( __FILE__ );
   chdir( $script_path );
-  include_once( $script_path . '/config.php');
+  include( $script_path . '/config.php');
   include_once( INSTALL_PATH . '/DBRecord.class.php' );
   include_once( INSTALL_PATH . '/Settings.class.php' );
   include_once( INSTALL_PATH . '/Reservation.class.php' );
@@ -73,17 +73,29 @@ function sig_handler()
 
 	$shm_nm   = array( 'GR' => SEM_GR_START, 'BS' => SEM_ST_START, 'EX' => SEM_EX_START );
 	$smf_type = $type=='CS' ? 'BS' : $type;
-	$dmp_type = $type=='GR' ? $ch_disk : '/'.($type=='EX' ? 'CS' : $type);
+	$dmp_type = $type=='GR' ? $ch_disk : '/'.$type;								// 無改造でepgdumpのプレミアム対応が出来ればこのまま
+//	$dmp_type = $type=='GR' ? $ch_disk : '/'.($type==='EX' ? 'CS' : $type);
 	$temp_xml = $settings->temp_xml.'_'.$type.$value;
-	$temp_ts  = $settings->temp_data.'_'.$type.$value;
+	$temp_ts  = $settings->temp_data.'_'.$smf_type.$tuner.$type.$value;
 
 	//EPG受信
 	sleep( $settings->rec_switch_time+1 );
-	if( ( $type!=='EX' && ( ( $tuner<TUNER_UNIT1 && RECPT1_EPG_PATCH ) || ( $tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$tuner-TUNER_UNIT1]['epgTs'] ) ) ) ||
-		( $type==='EX' && $EX_TUNERS_CHARA[$tuner]['epgTs'] ) )
-		$cmd_ts = 'SID=epg ';
-	$cmd_ts .= 'CHANNEL='.$value.' DURATION='.$rec_time.' TYPE='.$type.' TUNER_UNIT='.TUNER_UNIT1.' TUNER='.$tuner.' MODE=0 OUTPUT='.$temp_ts.' '.DO_RECORD . ' >/dev/null 2>&1';
-	$pro    = rec_start( $cmd_ts );
+	if( $type === 'EX' ){
+		$cmd_num = $EX_TUNERS_CHARA[$tuner]['reccmd'];
+		$device  = $EX_TUNERS_CHARA[$tuner]['device']!=='' ? ' '.trim($EX_TUNERS_CHARA[$tuner]['device']) : '';
+	}else{
+		if( $tuner < TUNER_UNIT1 ){
+			$cmd_num = PT1_CMD_NUM;
+			$device  = '';
+		}else{
+			$cmd_num = $OTHER_TUNERS_CHARA[$smf_type][$tuner-TUNER_UNIT1]['reccmd'];
+			$device  = $OTHER_TUNERS_CHARA[$smf_type][$tuner-TUNER_UNIT1]['device']!=='' ? ' '.trim($OTHER_TUNERS_CHARA[$smf_type][$tuner-TUNER_UNIT1]['device']) : '';
+		}
+	}
+	$sid      = $rec_cmds[$cmd_num]['epgTs'] ? ' --sid epg' : '';
+	$falldely = $rec_cmds[$cmd_num]['falldely']>0 ? ' || sleep '.$rec_cmds[$cmd_num]['falldely'] : '';
+	$cmd_ts   = $rec_cmds[$cmd_num]['cmd'].$device.$sid.' '.$value.' '.$rec_time.' '.$temp_ts.' >/dev/null 2>&1'.$falldely;
+	$pro      = rec_start( $cmd_ts );
 	if( $pro !== FALSE ){
 		// プライオリティ低に
 		pcntl_setpriority(20);
@@ -95,7 +107,6 @@ function sig_handler()
 		while(1){
 			$st = proc_get_status( $pro );
 			if( $st['running'] == FALSE ){
-				proc_close( $pro );
 				break;
 			}else
 				if( $wait_cnt < $start_wt )
@@ -106,28 +117,13 @@ function sig_handler()
 						$wait_tm = 1;
 					}else{
 						//タイムアウト
-						$ps_output = shell_exec( PS_CMD );
-						$rarr = explode( "\n", $ps_output );
-						for( $do_cnt=0; $do_cnt<count($rarr); $do_cnt++ ){
-							if( strpos( $rarr[$do_cnt], DO_RECORD ) !== FALSE ){
-								$ps = ps_tok( $rarr[$do_cnt] );
-								if( $ps->ppid == $st['pid'] ){
-									$do_pid = $ps->pid;
-									for( $cc=0; $cc<count($rarr); $cc++ ){
-										$ps = ps_tok( $rarr[$cc] );
-										if( $ps->ppid == $do_pid ){
-											posix_kill( $ps->pid, 9 );		//録画コマンド停止
-											break 2;
-										}
-									}
-								}
-							}
-						}
+						proc_terminate( $pro, 9 );
 						reclog( 'EPG受信失敗:録画コマンドがスタックしてる可能性があります', EPGREC_WARN );
 						break;
 					}
 			$wait_cnt++;
 		}
+		proc_close( $pro );
 	}else
 		reclog( 'EPG受信失敗:録画コマンドに異常がある可能性があります', EPGREC_WARN );
 
@@ -191,7 +187,7 @@ function sig_handler()
 	}else{
 		reclog( 'EPG受信失敗:TSファイル"'.$temp_ts.'"がありません(放送間帯でないなら問題ありません)', EPGREC_WARN );
 		reclog( $cmd_ts, EPGREC_WARN );
-		if( $tuner < TUNER_UNIT1 )
+		if( $type!=='EX' && $tuner<TUNER_UNIT1 )
 			shmop_write_surely( $shm_id, SEM_REBOOT, 1 );
 	}
 	shmop_close( $shm_id );

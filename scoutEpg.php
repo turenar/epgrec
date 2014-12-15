@@ -12,18 +12,6 @@
 
 	$settings = Settings::factory();
 
-function search_getepg()
-{
-	$ps_output = shell_exec( PS_CMD.' 2>/dev/null' );
-	$rarr = explode( "\n", $ps_output );
-	$catch_cmd = INSTALL_PATH.'/getepg.php';
-	for( $cc=0; $cc<count($rarr); $cc++ ){
-		if( strpos( $rarr[$cc], $catch_cmd ) !== FALSE )
-			return TRUE;
-	}
-	return FALSE;
-}
-
 function sig_handler()
 {
 	global	$shm_name,$temp_xml,$temp_ts;
@@ -80,29 +68,29 @@ function sig_handler()
 	$ch_disc  = $type==='GR' ? strtok( $rev->channel_disc, '_' ) : '/'.$type;
 	$rec_tm   = FIRST_REC;
 	$pid      = posix_getpid();
-	$temp_xml = $settings->temp_xml.$type.'_'.$pid;
-	$temp_ts  = $settings->temp_data.'_'.$type.'_'.$pid;
-
 	if( $type === 'GR' ){
 		$smf_type = 'GR';
-		$sql_type = 'type=\'GR\'';
+		$sql_type = 'type="GR"';
 		$smf_key  = SEM_GR_START;
 		$tuners   = (int)$settings->gr_tuners;
 	}else{
 		if( $type === 'EX' ){
 			$smf_type = 'EX';
-			$sql_type = 'type=\'EX\'';
+			$sql_type = 'type="EX"';
 			$smf_key  = SEM_EX_START;
 			$tuners   = EXTRA_TUNERS;
 		}else{
 			$smf_type = 'BS';
-			$sql_type = '(type=\'BS\' OR type=\'CS\')';
+			$sql_type = '(type="BS" OR type="CS")';
 			$smf_key  = SEM_ST_START;
 			$tuners   = (int)$settings->bs_tuners;
 		}
 		strtok( $rev->channel_disc, '_' );
 		$sid = strtok( '_' );
 	}
+	$temp_xml    = $settings->temp_xml.$type.'_'.$pid;
+	$pre_temp_ts = $settings->temp_data.'_'.$smf_type;
+
 	for( $sem_cnt=0; $sem_cnt<$tuners; $sem_cnt++ ){
 		$sem_id[$sem_cnt] = sem_get_surely( $sem_cnt+$smf_key );
 		if( $sem_id[$sem_cnt] === FALSE )
@@ -135,7 +123,7 @@ function sig_handler()
 			}
 		}
 	}
-if( search_getepg() === FALSE ){
+	$res_obj = new DBRecord( RESERVE_TBL );
 	while( time() < $lmt_tm ){
 		while(1){
 			$epg_tm  = $rec_tm + $settings->rec_switch_time;
@@ -152,14 +140,14 @@ if( search_getepg() === FALSE ){
 				}
 			break;
 		}
-		$sql_cmd    = 'WHERE complete=0 AND '.$sql_type.' AND endtime>subtime( now(), sec_to_time('.($settings->extra_time+2).') ) AND starttime<addtime( now(), sec_to_time('.$epg_tm.') )';
-		$off_tuners = DBRecord::countRecords( RESERVE_TBL, $sql_cmd );
+		$sql_cmd    = 'complete=0 AND '.$sql_type.' AND endtime>subtime( now(), sec_to_time('.($settings->extra_time+2).') ) AND starttime<addtime( now(), sec_to_time('.$epg_tm.') )';
+		$revs       = $res_obj->fetch_array( null, null, $sql_cmd );
+		$off_tuners = count( $revs );
 		if( $off_tuners < $tuners ){
 			//空チューナー降順探索
-			$revs = DBRecord::createRecords( RESERVE_TBL, $sql_cmd );
 			for( $slc_tuner=$tuners-1; $slc_tuner>=0; $slc_tuner-- ){
 				for( $cnt=0; $cnt<$off_tuners; $cnt++ ){
-					if( $revs[$cnt]->tuner == $slc_tuner )
+					if( (int)$revs[$cnt]['tuner'] === $slc_tuner )
 						continue 2;
 				}
 				if( sem_acquire( $sem_id[$slc_tuner] ) === TRUE ){
@@ -177,12 +165,22 @@ if( search_getepg() === FALSE ){
 						while( sem_release( $sem_id[$slc_tuner] ) === FALSE )
 							usleep( 100 );
 						sleep( (int)$settings->rec_switch_time );
-						if( ( $type!=='EX' && ( ( $slc_tuner<TUNER_UNIT1 && RECPT1_EPG_PATCH ) || ( $slc_tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$slc_tuner-TUNER_UNIT1]['epgTs'] ) ) )
-							|| ( $type==='EX' && $EX_TUNERS_CHARA[$slc_tuner]['epgTs'] ) )
-							$cmdline = 'SID=epg ';
-						else
-							$cmdline = '';
-						$cmdline .= 'CHANNEL='.$value.' DURATION='.$rec_tm.' TYPE='.$type.' TUNER_UNIT='.TUNER_UNIT1.' TUNER='.$slc_tuner.' MODE=0 OUTPUT='.$temp_ts.' '.DO_RECORD.' >/dev/null 2>&1';
+						if( $type === 'EX' ){
+							$cmd_num = $EX_TUNERS_CHARA[$slc_tuner]['reccmd'];
+							$device  = $EX_TUNERS_CHARA[$slc_tuner]['device']!=='' ? ' '.trim($EX_TUNERS_CHARA[$slc_tuner]['device']) : '';
+						}else{
+							if( $slc_tuner < TUNER_UNIT1 ){
+								$cmd_num = PT1_CMD_NUM;
+								$device  = '';
+							}else{
+								$cmd_num = $OTHER_TUNERS_CHARA[$smf_type][$slc_tuner-TUNER_UNIT1]['reccmd'];
+								$device  = $OTHER_TUNERS_CHARA[$smf_type][$slc_tuner-TUNER_UNIT1]['device']!=='' ? ' '.trim($OTHER_TUNERS_CHARA[$smf_type][$slc_tuner-TUNER_UNIT1]['device']) : '';
+							}
+						}
+						$sid_opt  = $rec_cmds[$cmd_num]['epgTs'] ? ' --sid epg' : '';
+						$falldely = $rec_cmds[$cmd_num]['falldely']>0 ? ' || sleep '.$rec_cmds[$cmd_num]['falldely'] : '';
+						$temp_ts  = $pre_temp_ts.$slc_tuner.'_'.$pid;
+						$cmdline  = $rec_cmds[$cmd_num]['cmd'].$device.$sid_opt.' '.$value.' '.$rec_tm.' '.$temp_ts.' >/dev/null 2>&1'.$falldely;
 						exec( $cmdline );
 						//チューナー占有解除
 						while( sem_acquire( $sem_id[$slc_tuner] ) === FALSE )
@@ -261,7 +259,6 @@ if( search_getepg() === FALSE ){
 		}
 		sleep(1);
 	}
-}
 	shmop_close( $shm_id );
 	exit();
 ?>

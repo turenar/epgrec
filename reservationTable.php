@@ -50,13 +50,15 @@ try{
 	$ch_name      = array();
 	foreach( $rvs as $key => $r ){
 		$arr = array();
-		$end_time = toTimestamp($r['endtime']);
-		if( $end_time < time() ){
+		$end_time_chk = $end_time = toTimestamp($r['endtime']);
+		if( !(boolean)$r['shortened'] )
+			$end_time_chk += $settings->extra_time + 5;	// 誤判定防止のため多目にした方が良いかな
+		if( $end_time_chk < time() ){
 			switch( at_clean( $r, $settings ) ){
 				case 0:
 					// 予約終了化(録画済一覧に終了状態を出すようにしたいね)
 					$wrt_set['complete'] = 1;
-					$rev_obj->force_update( $r['id'], $wrt_set );
+					$res_obj->force_update( $r['id'], $wrt_set );
 					continue;
 				case 1:	// トランスコード中
 					$arr['status'] = 1;

@@ -212,7 +212,7 @@ class DBRecord {
 	}
 
 	// DBRecordオブジェクトを返すstaticなメソッド
-	static function createRecords( $table, $options = '', $ret_false=FALSE ){
+	static function createRecords( $table, $options = '', $ret_false=TRUE ){
 		$retval = array();
 		$arr    = array();
 		try{
@@ -222,11 +222,13 @@ class DBRecord {
 		}catch( Exception $e ){
 			throw $e;
 		}
-		if( $result===FALSE && !$ret_false )
-			throw new exception( 'レコードが存在しません' );
-		while( $row = mysql_fetch_array($result, MYSQL_ASSOC) ){
-			array_push( $retval, new self( $table, 'id', $row['id'], $row ) );
-		}
+		if( $result === FALSE ){
+			if( !$ret_false )
+				throw new exception( 'レコードが存在しません' );
+		}else
+			while( $row = mysql_fetch_array($result, MYSQL_ASSOC) ){
+				array_push( $retval, new self( $table, 'id', $row['id'], $row ) );
+			}
 		return $retval;
 	}
 

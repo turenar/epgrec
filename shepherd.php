@@ -82,19 +82,21 @@ function exit_shephewrd(){
 */
 
 	// 残留AT削除
-	$res_obj = new DBRecord( RESERVE_TBL );
-	$rvs     = $res_obj->fetch_array( null, null, 'complete=0 AND endtime<now()' );
-	foreach( $rvs as $r ){
-		switch( at_clean( $r, $settings ) ){
-			case 0:
-				// 予約終了化
-				$wrt_set['complete'] = 1;
-				$rev_obj->force_update( $r['id'], $wrt_set );
-				continue;
-			case 1:	// トランスコード中
-				continue;
-			case 2:	// 別ユーザーでAT登録
-				break;
+	if( !USE_DORECORD ){
+		$res_obj = new DBRecord( RESERVE_TBL );
+		$rvs     = $res_obj->fetch_array( null, null, 'complete=0 AND endtime<subtime(now(),'.sprintf( '"00:00:%02d"', (int)$settings->extra_time+3 ).')' );
+		foreach( $rvs as $r ){
+			switch( at_clean( $r, $settings ) ){
+				case 0:
+					// 予約終了化
+					$wrt_set['complete'] = 1;
+					$rev_obj->force_update( $r['id'], $wrt_set );
+					continue;
+				case 1:	// トランスコード中
+					continue;
+				case 2:	// 別ユーザーでAT登録
+					break;
+			}
 		}
 	}
 
@@ -147,7 +149,7 @@ function exit_shephewrd(){
 //			$bs_tim = array( 0, 550, 430, 430 );	// XML取り込み直列
 		}
 	}
-	if( RECPT1_EPG_PATCH && TUNER_UNIT1>0 ){
+	if( $rec_cmds[PT1_CMD_NUM]['epgTs'] && TUNER_UNIT1>0 ){
 		$gr_pt1 = $GR_tuners<TUNER_UNIT1? $GR_tuners : TUNER_UNIT1;
 		$bs_pt1 = $BS_tuners<TUNER_UNIT1? $BS_tuners : TUNER_UNIT1;
 	}else{
@@ -155,11 +157,11 @@ function exit_shephewrd(){
 		$bs_pt1 = 0;
 	}
 	for( $tuner=0; $tuner<$GR_tuners-TUNER_UNIT1; $tuner++ ){
-		if( $OTHER_TUNERS_CHARA['GR'][$tuner]['epgTs'] )
+		if( $rec_cmds[$OTHER_TUNERS_CHARA['GR']['reccmd'][$tuner]]['epgTs'] )
 			$gr_pt1++;
 	}
 	for( $tuner=0; $tuner<$BS_tuners-TUNER_UNIT1; $tuner++ ){
-		if( $OTHER_TUNERS_CHARA['BS'][$tuner]['epgTs'] )
+		if( $rec_cmds[$OTHER_TUNERS_CHARA['BS']['reccmd'][$tuner]]['epgTs'] )
 			$bs_pt1++;
 	}
 	$gr_oth = $GR_tuners - $gr_pt1;
@@ -456,9 +458,9 @@ ST_ESP:
 			$search_core = time();
 			while(1){
 				// 5分以内に予約がなければリブート(変更する場合は3分より大きくすること)
-				$sql_cmd = "WHERE complete = '0' AND endtime > '".toDatetime($search_core)."' AND starttime < '".toDatetime($search_core+5*60)."'";
-				$num = DBRecord::countRecords( RESERVE_TBL, $sql_cmd );
-				if( $num == 0 ){
+				$sql_cmd = 'complete=0 AND endtime>"'.toDatetime($search_core).'" AND starttime<"'.toDatetime($search_core+5*60).'" ORDER BY endtime DESC';
+				$revs    = $res_obj->fetch_array( null, null, $sql_cmd );
+				if( count( $revs ) == 0 ){
 					$sleep_tm     = $search_core - time();
 					if( $sleep_tm < 0 )
 						$sleep_tm = 0;
@@ -468,8 +470,7 @@ ST_ESP:
 					system( REBOOT_CMD );
 					break;
 				}else{
-					$revs = DBRecord::createRecords( RESERVE_TBL, $sql_cmd.' ORDER BY endtime DESC' );
-					$search_core = toTimestamp( $revs[0]->endtime );
+					$search_core = toTimestamp( $revs[0]['endtime'] );
 					if( $search_core-$shepherd_st >= (2*60-5)*60 )
 						break;
 				}
