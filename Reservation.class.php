@@ -1108,8 +1108,8 @@ LOG_THROW:;
 									$find_ps = file_get_contents( 'http://cal.syoboi.jp/find?sd=0&r=0&v=0&kw='.urlencode($search_nm) );		// エンコードは変わるかも
 									if( $find_ps !== FALSE ){
 										if( strpos( $find_ps, 'href="/tid/' ) !== FALSE ){
-											list( $dust_trim, $dust ) = explode( '外部サイトの検索結果', $find_ps );
-											$tl_list = explode( 'href="/tid/', $dust_trim );
+											$dust_trim = explode( '外部サイトの検索結果', $find_ps );
+											$tl_list   = explode( 'href="/tid/', $dust_trim[0] );
 											for( $loop=1; $loop<count($tl_list); $loop++ ){
 												if( strpos( $tl_list[$loop], '">'.$search_nm.'</a>' ) !== FALSE ){
 													list( $tid, ) = explode( '">', $tl_list[$loop] );

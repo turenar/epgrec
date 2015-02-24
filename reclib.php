@@ -20,6 +20,8 @@ define( 'SEM_EPGSTORE', (SEM_REALVIEW+2) );				// 63:   EPGのDB展開
 define( 'SEM_REBOOT',   (SEM_REALVIEW+3) );				// 64:   リブート・フラグ
 define( 'SEM_TRANSCODE',(SEM_REALVIEW+4) );				// 65:   トランスコードマネージャ起動確認
 define( 'SEM_PW_REDUCE',(SEM_REALVIEW+5) );				// 66:   間欠運用管理資源
+define( 'SEM_EPGDUMPF', (SEM_REALVIEW+6) );				// 62:   epgdump(強制)
+define( 'SEM_EPGSTOREF',(SEM_REALVIEW+7) );				// 63:   EPGのDB展開(強制)
 define( 'SEM_KW_START', (SEM_REALVIEW+10) );			// 71-80:キーワード予約排他処理用(キーワードID)
 define( 'SEM_MAX',      (SEM_KW_START+SEM_KW_MAX-1) );	// 
 define( 'SHM_ID',      255 );							// 共用メモリー
@@ -145,8 +147,9 @@ function search_reccmd( $rec_id ){
 		}
 		$slc_cmd = $rec_cmds[$cmd_num];
 		if( $prev_recs[0]['mode'] !== '0' ){
-			list( , $pr_sid ) = explode( '_', $prev_recs[0]['channel_disc'] );
-			$sid = $slc_cmd['sidEXT']!=='' ? ' --sid '.$slc_cmd['sidEXT'].','.$pr_sid : ' --sid '.$pr_sid;
+			$ch_para = new DBRecord( CHANNEL_TBL, 'id', $prev_recs[0]['channel_id'] );
+			$pr_sid  = $ch_para->sid;
+			$sid     = $slc_cmd['sidEXT']!=='' ? ' --sid '.$slc_cmd['sidEXT'].','.$pr_sid : ' --sid '.$pr_sid;
 		}else
 			$sid = '';
 		$catch_cmd  = $slc_cmd['cmd'].$slc_cmd['b25'].( $device!=='' ? $device : $sid.' '.$prev_recs[0]['channel'].' ' );	// $deviceが長いと途切れる可能性があるので
@@ -622,13 +625,6 @@ function at_clean( $r, $settings, $resv_cancel=FALSE )
 		return 1;
 }
 
-function storage_free_space( $path )
-{
-	$piece = explode( '/', $path );
-	array_pop( $piece );
-	return disk_free_space( implode( '/', $piece ) );
-}
-
 function link_menu_create( $mode = 'none' )
 {
 	global $settings,$NET_AREA,$SELECTED_CHANNEL_MAP;
@@ -683,6 +679,13 @@ function link_menu_create( $mode = 'none' )
 	return $MENU_LIST;
 }
 
+function storage_free_space( $path )
+{
+	$piece = explode( '/', $path );
+	array_pop( $piece );
+	return disk_free_space( implode( '/', $piece ) );
+}
+
 function rate_time( $minute )
 {
 	$minute /= TS_STREAM_RATE;
@@ -727,4 +730,41 @@ function spool_freesize(){
 	}else
 		return '';
 }
+
+// return	0:成功 1:実行失敗 2:タイムアウト
+function exe_start( $cmd, $wait_lp, $start_wt=0 ){
+	$descspec = array(
+					0 => array( 'file','/dev/null','r' ),
+					1 => array( 'file','/dev/null','w' ),
+					2 => array( 'file','/dev/null','w' ),
+	);
+	$pro = proc_open( $cmd, $descspec, $pipes );
+	if( is_resource( $pro ) ){
+		$wait_lp += $start_wt;
+		$wait_cnt = 0;
+		while(1){
+			$st = proc_get_status( $pro );
+			if( $st['running'] == FALSE ){
+				if( $st['exitcode'] !== 0 )
+					reclog( 'command error['.$st['exitcode'].']<br>'.$cmd, EPGREC_WARN );
+				break;
+			}else
+				if( $wait_cnt < $wait_lp )
+					sleep( 1 );
+				else{
+					//タイムアウト
+					proc_terminate( $pro, 9 );
+					reclog( 'コマンドがスタックしてる可能性があります<br>'.$cmd, EPGREC_WARN );
+					return 2;
+				}
+			$wait_cnt++;
+		}
+		proc_close( $pro );
+		return 0;
+	}else{
+		reclog( 'コマンドに異常がある可能性があります<br>'.$cmd, EPGREC_WARN );
+		return 1;
+	}
+}
+
 ?>

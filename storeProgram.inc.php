@@ -1289,7 +1289,7 @@ NEXT_SUB:;
 					$genre_chg = FALSE;
 				if( strcmp( $rec['description'] , $desc ) != 0 ){
 					$wrt_set['description'] = $desc;
-					$desc_chg               = TURE;
+					$desc_chg               = TRUE;
 				}
 				if( (int)($rec['genre2']) !== $genre2 ){
 					$wrt_set['genre2'] = $genre2;
@@ -1459,18 +1459,21 @@ NEXT_SUB:;
 			if( $type==='GR' || !$skip_ch ){
 				$disc = $type==='GR' ? strtok( $channel_disc, '_' ) : $channel_disc;
 				if( array_key_exists( "$disc", $map ) && $map["$disc"]!='NC' ){
-					$resq      = INSTALL_PATH.'/repairEpg.php '.$channel_id;
 					$ps_output = shell_exec( PS_CMD );
-					if( strpos( $ps_output, $resq ) === FALSE ){
-						reclog( '番組構成修正スクリプト起動 '.$resq.'['.$type.':'.$map["$disc"].':'.$channel_rec->sid.']', EPGREC_DEBUG );
-						$st_tm = toTimestamp( $event['starttime'] );
-						$ed_tm = toTimestamp( $event['endtime'] );
-						// 番組延伸対策
-						if( $st_tm > $ed_tm )
-							$ed_tm = $st_tm + 60;
-						@exec( $resq.' '.$st_tm.' '.$ed_tm.' >/dev/null 2>&1 &' );
-					}else
-						return (string)toTimestamp( $event['starttime'] );
+					$resq      = INSTALL_PATH.'/repairEpg.php ';
+					$chd       = DBRecord::createRecords( CHANNEL_TBL, 'WHERE channel_disc LIKE "'.$disc.'%" ORDER BY sid ASC' );
+					foreach( $chd as $chh ){
+						if( strpos( $ps_output, $resq.$chh->id ) !== FALSE )
+							return (string)toTimestamp( $event['starttime'] );
+					}
+					$resq .= $channel_id;
+					reclog( '番組構成修正スクリプト起動 '.$resq.'['.$type.':'.$map["$disc"].':'.$channel_rec->sid.']', EPGREC_DEBUG );
+					$st_tm = toTimestamp( $event['starttime'] );
+					$ed_tm = toTimestamp( $event['endtime'] );
+					// 番組延伸対策
+					if( $st_tm > $ed_tm )
+						$ed_tm = $st_tm + 60;
+					@exec( $resq.' '.$st_tm.' '.$ed_tm.' >/dev/null 2>&1 &' );
 				}
 			}
 		}

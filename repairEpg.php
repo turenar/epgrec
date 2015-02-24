@@ -130,14 +130,14 @@ function sig_handler()
 				if( sem_acquire( $sem_id[$slc_tuner] ) === TRUE ){
 					$shm_name = $smf_key + $slc_tuner;
 					$smph     = shmop_read_surely( $shm_id, $shm_name );
-					if( $smph==2 && $tuners-$off_tuners==1 ){
+					if( $smph===2 && $tuners-$off_tuners===1 ){
 						// リアルタイム視聴停止
 						$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
 						posix_kill( $real_view, 9 );		// 録画コマンド停止
 						$smph = 0;
 						shmop_write_surely( $shm_id, SEM_REALVIEW, 0 );		// リアルタイム視聴tunerNo clear
 					}
-					if( $smph == 0 ){
+					if( $smph === 0 ){
 						shmop_write_surely( $shm_id, $shm_name, 1 );
 						while( sem_release( $sem_id[$slc_tuner] ) === FALSE )
 							usleep( 100 );
@@ -159,7 +159,7 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 						$falldely = $rec_cmds[$cmd_num]['falldely']>0 ? ' || sleep '.$rec_cmds[$cmd_num]['falldely'] : '';
 						$temp_ts  = $pre_temp_ts.$slc_tuner.'_'.$pid;
 						$cmdline  = $rec_cmds[$cmd_num]['cmd'].$rec_cmds[$cmd_num]['b25'].$device.$sid_opt.' '.$value.' '.$rec_tm.' '.$temp_ts.' >/dev/null 2>&1'.$falldely;
-						exec( $cmdline );
+						exe_start( $cmdline, $rec_tm, 6 );
 						//チューナー占有解除
 						while( sem_acquire( $sem_id[$slc_tuner] ) === FALSE )
 							usleep( 100 );
@@ -173,22 +173,7 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 								$cmdline .= ' -sid '.$sid;
 							while(1){
 								if( sem_acquire( $sem_dump ) === TRUE ){
-									exec( $cmdline, $output, $ret_var );
-									if( isset($output) ){
-										foreach( $output as $mes )
-											if( $mes !== '' )
-												$put_mes = $mes.'<br>';
-										if( isset($put_mes) )
-											reclog( 'epgdump message::'.$put_mes, EPGREC_WARN );
-										unset( $output );
-									}
-									if( isset($ret_var) ){
-										if( $ret_var !== 0 ){
-											reclog( 'epgdump error::'.$ret_var, EPGREC_WARN );
-										}
-										unset( $ret_var );
-									}else
-										reclog( 'epgdump error::no code', EPGREC_WARN );
+									exe_start( $cmdline, $rec_tm );
 									while( sem_release( $sem_dump ) === FALSE )
 										usleep( 100 );
 									@unlink( $temp_ts );

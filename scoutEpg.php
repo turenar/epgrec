@@ -55,6 +55,7 @@ function sig_handler()
 		}
 		$rev    = new DBRecord( CHANNEL_TBL, 'channel_disc', $disc );
 		$lmt_tm = time() + ( $mode==1 ? FIRST_REC : SHORT_REC ) + $settings->rec_switch_time + $settings->former_time + 2;
+		$my_revid = '';
 	}else{
 		$rev    = new DBRecord( RESERVE_TBL, 'id', $argv[1] );
 		if( time() <= toTimestamp( $rev->starttime ) )
@@ -62,6 +63,7 @@ function sig_handler()
 		else{
 			$lmt_tm = time();
 		}
+		$my_revid = 'id!='.$rev->id.' and ';
 	}
 	$type     = $rev->type;		//GR/BS/CS
 	$value    = $rev->channel;
@@ -100,26 +102,34 @@ function sig_handler()
 	$sem_dump = sem_get_surely( SEM_EPGDUMP );
 	if( $sem_dump === FALSE )
 		exit;
+	$sem_dump_f = sem_get_surely( SEM_EPGDUMPF );
+	if( $sem_dump_f === FALSE )
+		exit;
 	$sem_store = sem_get_surely( SEM_EPGSTORE );
 	if( $sem_store === FALSE )
 		exit;
+	$sem_store_f = sem_get_surely( SEM_EPGSTOREF );
+	if( $sem_store_f === FALSE )
+		exit;
 	if( !isset( $disc ) ){
 		// リアルタイム視聴チューナー事前開放
-		$slc_tuner = $rev->tuner;		// 録画に使用するチューナー
-		while(1){
-			if( sem_acquire( $sem_id[$slc_tuner] ) === TRUE ){
-				$shm_name = $smf_key + $slc_tuner;
-				$smph     = shmop_read_surely( $shm_id, $shm_name );
-				if( $smph == 2 ){
-					// リアルタイム視聴停止
-					$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
-					posix_kill( $real_view, 9 );		// 録画コマンド停止
-					shmop_write_surely( $shm_id, $shm_name, 0 );		// リアルタイム視聴停止
+		$slc_tuner = (int)$rev->tuner;		// 録画に使用するチューナー
+		$shm_name  = $smf_key + $slc_tuner;
+		if( shmop_read_surely( $shm_id, SEM_REALVIEW ) === $shm_name ){
+			while(1){
+				if( sem_acquire( $sem_id[$slc_tuner] ) === TRUE ){
+					$smph = shmop_read_surely( $shm_id, $shm_name );
+					if( $smph === 2 ){
+						// リアルタイム視聴停止
+						$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
+						posix_kill( $real_view, 9 );		// 録画コマンド停止
+						shmop_write_surely( $shm_id, $shm_name, 0 );		// リアルタイム視聴停止
+					}
 					shmop_write_surely( $shm_id, SEM_REALVIEW, 0 );		// リアルタイム視聴tunerNo clear
+					while( sem_release( $sem_id[$slc_tuner] ) === FALSE )
+						usleep( 100 );
+					break;
 				}
-				while( sem_release( $sem_id[$slc_tuner] ) === FALSE )
-					usleep( 100 );
-				break;
 			}
 		}
 	}
@@ -140,7 +150,7 @@ function sig_handler()
 				}
 			break;
 		}
-		$sql_cmd    = 'complete=0 AND '.$sql_type.' AND endtime>subtime( now(), sec_to_time('.($settings->extra_time+2).') ) AND starttime<addtime( now(), sec_to_time('.$epg_tm.') )';
+		$sql_cmd    = $my_revid.'complete=0 AND '.$sql_type.' AND endtime>subtime( now(), sec_to_time('.($settings->extra_time+2).') ) AND starttime<addtime( now(), sec_to_time('.$epg_tm.') )';
 		$revs       = $res_obj->fetch_array( null, null, $sql_cmd );
 		$off_tuners = count( $revs );
 		if( $off_tuners < $tuners ){
@@ -153,14 +163,14 @@ function sig_handler()
 				if( sem_acquire( $sem_id[$slc_tuner] ) === TRUE ){
 					$shm_name = $smf_key + $slc_tuner;
 					$smph     = shmop_read_surely( $shm_id, $shm_name );
-					if( $smph==2 && $tuners-$off_tuners==1 ){
+					if( $smph===2 && $tuners-$off_tuners===1 ){
 						// リアルタイム視聴停止
 						$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
 						posix_kill( $real_view, 9 );		// 録画コマンド停止
 						$smph = 0;
 						shmop_write_surely( $shm_id, SEM_REALVIEW, 0 );		// リアルタイム視聴tunerNo clear
 					}
-					if( $smph == 0 ){
+					if( $smph === 0 ){
 						shmop_write_surely( $shm_id, $shm_name, 1 );
 						while( sem_release( $sem_id[$slc_tuner] ) === FALSE )
 							usleep( 100 );
@@ -181,7 +191,7 @@ function sig_handler()
 						$falldely = $rec_cmds[$cmd_num]['falldely']>0 ? ' || sleep '.$rec_cmds[$cmd_num]['falldely'] : '';
 						$temp_ts  = $pre_temp_ts.$slc_tuner.'_'.$pid;
 						$cmdline  = $rec_cmds[$cmd_num]['cmd'].$rec_cmds[$cmd_num]['b25'].$device.$sid_opt.' '.$value.' '.$rec_tm.' '.$temp_ts.' >/dev/null 2>&1'.$falldely;
-						exec( $cmdline );
+						exe_start( $cmdline, $rec_tm, 6 );
 						//チューナー占有解除
 						while( sem_acquire( $sem_id[$slc_tuner] ) === FALSE )
 							usleep( 100 );
@@ -195,25 +205,16 @@ function sig_handler()
 								$cmdline .= ' -pf';
 							if( $type !== 'GR' )
 								$cmdline .= ' -sid '.$sid;
+							$sem_ret = FALSE;
 							while(1){
-								if( sem_acquire( $sem_dump ) === TRUE ){
-									exec( $cmdline, $output, $ret_var );
-									if( isset($output) ){
-										foreach( $output as $mes )
-											if( $mes !== '' )
-												$put_mes = $mes.'<br>';
-										if( isset($put_mes) )
-											reclog( 'epgdump message::'.$put_mes, EPGREC_WARN );
-										unset( $output );
-									}
-									if( isset($ret_var) ){
-										if( $ret_var !== 0 ){
-											reclog( 'epgdump error::'.$ret_var, EPGREC_WARN );
-										}
-										unset( $ret_var );
-									}else
-										reclog( 'epgdump error::no code', EPGREC_WARN );
-									while( sem_release( $sem_dump ) === FALSE )
+								if( sem_acquire( $sem_dump ) === TRUE )
+									$sem_ret = $sem_dump;
+								else
+									if( sem_acquire( $sem_dump_f ) === TRUE )
+										$sem_ret = $sem_dump_f;
+								if( $sem_ret !== FALSE ){
+									exe_start( $cmdline, $rec_tm );
+									while( sem_release( $sem_ret ) === FALSE )
 										usleep( 100 );
 									@unlink( $temp_ts );
 									break;
@@ -221,13 +222,19 @@ function sig_handler()
 								usleep(100 * 1000);
 							}
 							if( file_exists( $temp_xml ) ){
+								$sem_ret = FALSE;
 								while(1){
-									if( sem_acquire( $sem_store ) === TRUE ){
+									if( sem_acquire( $sem_store ) === TRUE )
+										$sem_ret = $sem_store;
+									else
+										if( sem_acquire( $sem_store_f ) === TRUE )
+											$sem_ret = $sem_store_f;
+									if( $sem_ret !== FALSE ){
 										$ch_id = storeProgram( $type, $temp_xml );
 										@unlink( $temp_xml );
 										if( $ch_id !== -1 ){
 											doKeywordReservation( $type, $shm_id );	// キーワード予約
-											while( sem_release( $sem_store ) === FALSE )
+											while( sem_release( $sem_ret ) === FALSE )
 												usleep( 100 );
 											if( posix_getppid() == 1 )		//親死亡=予約取り消し
 												break 3;
@@ -251,7 +258,7 @@ function sig_handler()
 											// $info = array();
 											// pcntl_sigtimedwait( array(SIGTERM), $info, $sleep_tm<$wait_lp ?  $sleep_tm : $wait_lp );
 										}else
-											while( sem_release( $sem_store ) === FALSE )
+											while( sem_release( $sem_ret ) === FALSE )
 												usleep( 100 );
 										continue 3;
 									}

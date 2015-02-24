@@ -10,18 +10,6 @@
 	include_once( INSTALL_PATH . '/reclib.php' );
 	include_once( INSTALL_PATH . '/recLog.inc.php' );
 
-function rec_start( $cmd ) {
-	$descspec = array(
-					0 => array( 'file','/dev/null','r' ),
-					1 => array( 'file','/dev/null','w' ),
-					2 => array( 'file','/dev/null','w' ),
-	);
-	$pro = proc_open( $cmd, $descspec, $pipes );
-	if( is_resource( $pro ) )
-		return $pro;
-	return false;
-}
-
 // 録画開始前EPG更新に定期EPG更新が重ならないようにする。
 function scout_wait()
 {
@@ -95,37 +83,9 @@ function sig_handler()
 	$sid      = $rec_cmds[$cmd_num]['epgTs'] ? ' --sid epg' : '';
 	$falldely = $rec_cmds[$cmd_num]['falldely']>0 ? ' || sleep '.$rec_cmds[$cmd_num]['falldely'] : '';
 	$cmd_ts   = $rec_cmds[$cmd_num]['cmd'].$rec_cmds[$cmd_num]['b25'].$device.$sid.' '.$value.' '.$rec_time.' '.$temp_ts.' >/dev/null 2>&1'.$falldely;
-	$pro      = rec_start( $cmd_ts );
-	if( $pro !== FALSE ){
-		// プライオリティ低に
-		pcntl_setpriority(20);
-		$start_wt = 6;					//チューナーの差をこれで吸収
-		$wait_lp  = (int)$rec_time;
-		$wait_tm  = $wait_lp - $start_wt;
-		$wait_lp += $start_wt;
-		$wait_cnt = 0;
-		while(1){
-			$st = proc_get_status( $pro );
-			if( $st['running'] == FALSE ){
-				break;
-			}else
-				if( $wait_cnt < $start_wt )
-					sleep( 1 );
-				else
-					if( $wait_cnt < $wait_lp ){
-						sleep( $wait_tm );
-						$wait_tm = 1;
-					}else{
-						//タイムアウト
-						proc_terminate( $pro, 9 );
-						reclog( 'EPG受信失敗:録画コマンドがスタックしてる可能性があります', EPGREC_WARN );
-						break;
-					}
-			$wait_cnt++;
-		}
-		proc_close( $pro );
-	}else
-		reclog( 'EPG受信失敗:録画コマンドに異常がある可能性があります', EPGREC_WARN );
+	// プライオリティ低に
+	pcntl_setpriority(20);
+	exe_start( $cmd_ts, (int)$rec_time, 6 );
 
 	//チューナー占有解除
 	$shm_id   = shmop_open_surely();
@@ -148,23 +108,11 @@ function sig_handler()
 						$cmd_xml = $settings->epgdump.' '.$dmp_type.' '.$temp_ts.' '.$temp_xml;
 						if( $type!=='GR' && $cut_sids!=='' )
 							$cmd_xml .= ' -cut '.$cut_sids;
-						exec( $cmd_xml, $output, $ret_var );
-						if( isset($output) ){
-							foreach( $output as $mes )
-								if( $mes !== '' )
-									$put_mes = $mes.'<br>';
-							if( isset($put_mes) )
-								reclog( 'epgdump message::'.$put_mes, EPGREC_WARN );
-							unset( $output );
-						}
-						if( isset($ret_var) ){
-							if( $ret_var !== 0 ){
-								reclog( 'epgdump error::'.$ret_var, EPGREC_WARN );
-							}
-							unset( $ret_var );
+						if( exe_start( $cmd_xml, 5*60 ) === 2 ){
+							$new_name = $temp_ts.'.'.toDatetime(time());
+							rename( $temp_ts, $new_name );
 						}else
-							reclog( 'epgdump error::no code', EPGREC_WARN );
-						@unlink( $temp_ts );
+							@unlink( $temp_ts );
 						while( sem_release( $sem_id ) === FALSE )
 							usleep( 100 );
 						break 2;
@@ -200,8 +148,7 @@ function sig_handler()
 		}else
 			reclog( 'EPG受信失敗:xmlファイル"'.$temp_xml.'"がありません(放送間帯でないなら問題ありません)', EPGREC_WARN );
 	}else{
-		reclog( 'EPG受信失敗:TSファイル"'.$temp_ts.'"がありません(放送間帯でないなら問題ありません)', EPGREC_WARN );
-		reclog( $cmd_ts, EPGREC_WARN );
+		reclog( 'EPG受信失敗:TSファイル"'.$temp_ts.'"がありません(放送間帯でないなら問題ありません)<br>'.$cmd_ts, EPGREC_WARN );
 		if( $type!=='EX' && $tuner<TUNER_UNIT1 ){
 			$smph = shmop_read_surely( $shm_id, SEM_REBOOT );
 			if( $smph == 0 )
