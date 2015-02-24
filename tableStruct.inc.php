@@ -24,10 +24,10 @@ define( "RESERVE_STRUCT",
 	"mode integer not null default '0',".							// 録画モード
 	"tuner integer not null default '0',".							// チューナー番号
 	"priority integer not null default '10',".						// 優先度
-	"overlap boolean not null default '1',".							// ダーティフラグ
+	"overlap boolean not null default '1',".						// 多重予約許可フラグ
 	"dirty boolean not null default '0',".							// ダーティフラグ
 	"discontinuity boolean not null default '0',".					// 隣接録画禁止フラグ 禁止なら1
-	"index reserve_chid_idx (channel_id,complete,starttime),".							// インデックス
+	"index reserve_chid_idx (channel_id,complete,starttime),".		// インデックス
 	"index reserve_pid_idx (program_id,complete,starttime),".
 	"index reserve_pri_idx (program_id,priority),".
 	"index reserve_type_idx (type,complete,starttime),".
@@ -61,6 +61,8 @@ define( "PROGRAM_STRUCT",
 	"program_disc varchar(128) not null default 'none',".	 		// 識別用hash
 	"autorec boolean not null default '1',".						// 自動録画有効無効
 	"key_id integer not null default '0',".							// 自動予約禁止フラグをたてた自動キーワードID
+	"split_time integer not null default '0',".						// 分割予約基準時間(秒)
+	"rec_ban_parts integer not null default '0',".					// 自動予約・分割予約禁止フラグ
 	"index program_chid_idx (channel_id,eid),".						// インデックス
 	"index program_chdisc_idx (channel_disc),".
 	"index program_st_idx (channel_id,starttime),".
@@ -116,9 +118,11 @@ define( "KEYWORD_STRUCT",
 	"first_genre boolean not null default '1',".					// 1
 	"priority integer not null default '10',".						// 優先度
 	"overlap boolean not null default '1',".						// 重複予約許可フラグ
+	"split_time integer not null default '0',".						// 分割予約基準時間(秒)
 	"sft_start integer not null default '0',".						// 録画開始時刻シフト量(秒)
 	"sft_end integer not null default '0',".						// 録画終了時刻シフト量(秒)
 	"discontinuity boolean not null default '0',".					// 隣接録画禁止フラグ 禁止なら1
+	"duration_chg boolean not null default '0',".					// 録画終了時刻シフト量を番組放送時間に切り替えるフラグ
 	"directory varchar(256) default null,".							// 保存ディレクトリ
 	"filename_format varchar(256) default null,".					// 録画ファイル名の形式
 	"criterion_dura integer not null default '0',".					// 収録時間変動警告の基準時間

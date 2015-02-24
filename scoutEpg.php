@@ -195,7 +195,6 @@ function sig_handler()
 								$cmdline .= ' -pf';
 							if( $type !== 'GR' )
 								$cmdline .= ' -sid '.$sid;
-//file_put_contents( '/tmp/debug.txt', $cmdline."\n\n", FILE_APPEND );
 							while(1){
 								if( sem_acquire( $sem_dump ) === TRUE ){
 									exec( $cmdline, $output, $ret_var );
@@ -216,6 +215,7 @@ function sig_handler()
 										reclog( 'epgdump error::no code', EPGREC_WARN );
 									while( sem_release( $sem_dump ) === FALSE )
 										usleep( 100 );
+									@unlink( $temp_ts );
 									break;
 								}
 								usleep(100 * 1000);
@@ -224,9 +224,8 @@ function sig_handler()
 								while(1){
 									if( sem_acquire( $sem_store ) === TRUE ){
 										$ch_id = storeProgram( $type, $temp_xml );
+										@unlink( $temp_xml );
 										if( $ch_id !== -1 ){
-											@unlink( $temp_ts );
-											@unlink( $temp_xml );
 											doKeywordReservation( $type, $shm_id );	// キーワード予約
 											while( sem_release( $sem_store ) === FALSE )
 												usleep( 100 );

@@ -12,6 +12,8 @@
 <script type="text/javascript" src="js/jquery-1.3.2.min.js"></script>
 <script type="text/javascript" src="js/jquery-ui-1.7.2.custom.min.js"></script>
 <link rel="stylesheet" href="start/jquery-ui-1.7.2.custom.css" type="text/css">
+<link rel="stylesheet" href="start/layout.css" type="text/css">
+<script type="text/javascript" src="js/common.js"></script>
 <script type="text/javascript" src="js/mdabasic.js"></script>
 <script type="text/javascript" src="js/genre.js"></script>
 <script type="text/javascript" src="js/transcode.js"></script>
@@ -38,7 +40,10 @@
 		var ftmin = $('#float_titles').position().top;
 		tvtimes2scrl();
 		$(window).scroll(function () {
-			$('#tvtimes').css('left', parseInt($(document ).scrollLeft())); 
+			var newLeft = parseInt($(document ).scrollLeft());
+			$('#tvtimes').css( 'left', newLeft );
+			$('#' + nowBar.defaultID).css( 'left', newLeft );
+			$('#' + nowBar.defaultID).width($('#float_titles').width()-newLeft);
 			var newTop = parseInt($(document ).scrollTop());
 			if(newTop < ftmin) {newTop = ftmin;}
 			$('#float_titles').css('top', newTop);
@@ -72,11 +77,12 @@
 				'<div class="prg_duration" style="clear: left"><span class=" labelLeft">録画時間：</span><span class="bold">' + parseInt(duration / 60) +'</span>分' + ((duration % 60)>0?'<span class="bold">' + parseInt(duration % 60) + '</span>秒':'') +
 				'</div>';
 			if ($(this).hasClass('prg_rec' + tuner) ){
-				str += '<div><span class="labelLeft">自動予約禁止：</span><input type="checkbox" name="autorec" id="id_autorec" value="1"></div></div>';
-				str += '<div style="margin:2em 0 1em 0;text-align:center;"><a href="javascript:PRG.cancel(' + prgID + ')" id="id_cancel" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">予約キャンセル</a><a>  </a><a href="' + TG.children('.prg_keyword').html() + '" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">番組検索</a></div>';
+				str += '<div><span class="labelLeft">自動予約禁止：</span><input type="checkbox" name="autorec" id="id_autorec" value="1"></div>';
+				str += '<div style="margin:1em 0 0.5em 0;text-align:center;"><a href="javascript:PRG.cancel(' + prgID + ')" id="id_cancel" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">予約キャンセル</a></div></div><div style="margin:2em 0 1em 0;text-align:right;">';
 			} else {
-				str += '</div><div style="margin:2em 0 1em 0;text-align:center;"><a href="javascript:PRG.rec(' + prgID + ')" id="id_rec" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">簡易予約</a>　<a href="javascript:PRG.customform(' + prgID + ')" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">予約カスタマイズ</a><a>  </a><a href="javascript:PRG.toggleautorec(' + prgID + ')" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">自動予約' + (autorec ? '禁止':'許可') + '</a><a>  </a><a href="' + TG.children('.prg_keyword').html() + '" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">番組検索</a></div>';
+				str += '</div><div style="margin:2em 0 1em 0;text-align:center;"><a href="javascript:PRG.rec(' + prgID + ')" id="id_rec" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">簡易予約</a>　<a href="javascript:PRG.customform(' + prgID + ')" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">予約カスタマイズ</a>　';
 			}
+			str += '<a href="javascript:PRG.toggleautorec(' + prgID + ')" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">自動予約' + (autorec ? '禁止':'許可') + '</a><a>  </a><a href="' + TG.children('.prg_keyword').html() + '" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">番組検索</a></div>';
 			$('#floatBox4Dialog').html(str);
 			$('#floatBox4Dialog').dialog('open', 'center');
 		};
@@ -90,10 +96,14 @@
 				var duration = parseInt(TG.children('.prg_duration').html());
 				var genre = parseInt(TG.children('.prg_genre').html());
 				var sub_genre = parseInt(TG.children('.prg_sub_genre').html());
+				var prioritys = TG.children('.prg_subtitle').children('div').children('a').html();
+				prioritys = prioritys ? ' 優先度:' + prioritys.slice(2, -1) : '';
 				var endTime = new Date(startTime.getTime() + duration * 1000);
 				var str = '<div class="prg_title">' + TG.children('.prg_title').html() + '</div>' +
-					'<div class="prg_desc"><span class="prg_sub">' + TG.children('.prg_channel').html() + '：' + MDA.Days.time4Disp(startTime) + '～' + MDA.Days.time4DispH(endTime) + ' ' + genres_view( genre, sub_genre ) + ' </span><br>' + TG.children('.prg_desc').html() + '</div>';
-				$('#prg_info').html('<div class="prg_dummy">' + str + '</div>').show();
+					'<div class="prg_desc"><span class="prg_sub">' + TG.children('.prg_channel').html() + '：' + MDA.Days.time4Disp(startTime) + '～' + MDA.Days.time4DispH(endTime) + ' ' + genres_view( genre, sub_genre ) + prioritys + ' </span><br>' + TG.children('.prg_desc').html() + '</div>';
+				var new_heigth = $('#float_titles').height();
+
+				$('#prg_info').css( { 'height': new_heigth } ).html('<div class="prg_dummy">' + str + '</div>').show();
 				$(this).click(aClick);
 			},
 			function(){
@@ -274,9 +284,9 @@
 			});
 		},
 		toggleautorec:function(id){
-			$.get('toggleAutorec.php', { program_id: id }, function() {
-				var TG = $('#prgID_' + id).children('.prg_dummy');
-				var autorec = parseInt(TG.children('.prg_autorec').html());
+			var TG = $('#prgID_' + id).children('.prg_dummy');
+			var autorec = parseInt(TG.children('.prg_autorec').html());
+			$.get('toggleAutorec.php', { program_id: id, bef_auto: autorec }, function() {
 				if( autorec ){
 					autorec = '0';
 					$('#prgID_' + id).addClass('freeze');
@@ -379,9 +389,9 @@
 		},
 		F_Skip: 1,
 		chSkipShow:function() {
-			$('#float_titles').width(INISet.num_all_ch * INISet.ch_width + 80);
+			$('#float_titles').width(INISet.num_all_ch * INISet.ch_width + 60);
 			$('#tv_chs').width(INISet.num_all_ch * INISet.ch_width );
-			$('#tvtimes2').css( { left: INISet.num_all_ch * INISet.ch_width  + 40 } ).show();
+			$('#tvtimes2').css( { left: INISet.num_all_ch * INISet.ch_width  + 30 } ).show();
 			tvtimes_scroll();
 			$('#ch_title_bar div.ch_title_skip').show();
 			$('#tv_chs div.ch_set_skip').show();
@@ -390,9 +400,9 @@
 		chSkipHide:function() {
 			$('#ch_title_bar div.ch_title_skip').hide();
 			$('#tv_chs div.ch_set_skip').hide();
-			$('#float_titles').width( INISet.num_ch * INISet.ch_width + 80 );
+			$('#float_titles').width( INISet.num_ch * INISet.ch_width + 60 );
 			$('#tv_chs').width( INISet.num_ch * INISet.ch_width );
-			$('#tvtimes2').css( { left: INISet.num_ch * INISet.ch_width  + 40 }).show();
+			$('#tvtimes2').css( { left: INISet.num_ch * INISet.ch_width  + 30 }).show();
 			var vObj = document.compatMode == 'CSS1Compat' ? document.documentElement : document.body;
 			scrollTo( 0, vObj.scrollTop );
 			tvtimes_scroll();
@@ -454,7 +464,7 @@
 		endTime:null,
 		INI:function(){
 			if (INISet.tableStartTime && INISet.tableStartTime && INISet.dotMin) {
-				$('#tvtable').append('<div id="' + this.defaultID + '" style="display:none">now</div>');
+				$('#tvtable').append('<div id="' + this.defaultID + '" style="display:none"><div style="background-color:red; height:2px; width:100%;overflow:hidden;">now</div><div style="height:12px;"><div style="width:20px;height:12px; float:left;">　</div><div style="height:12px;"><a style="font-size:12px;height:12px;color:white;background-color:red;">minutes</a></div></div></div>');
 				this.startTime = new Date(INISet.tableStartTime);
 				this.endTime = new Date(INISet.tableEndTime);
 				$('#' + this.defaultID).width($('#float_titles').width());
@@ -464,11 +474,14 @@
 		ch:function(){
 			var now = new Date();
 			if(this.startTime){
+				var timeline = $('#' + this.defaultID);
 				if((now >= this.startTime) && (this.endTime >= now)){
 //					console.log((now - this.startTime) / 60000);
-					$('#' + this.defaultID).css({top:(now - this.startTime) / 60000 * INISet.dotMin}).show()
+					timeline.css({top:(now - this.startTime) / 60000 * INISet.dotMin}).show().children('div').children('div').children('a').html(('00'+now.getMinutes()).substr(-2));
+					var min_width = timeline.children('div').children('div').children('a').width();
+					timeline.children('div').children('div:first').width($('#tvtimes').width()-min_width);
 				} else {
-					$('#' + this.defaultID).hide()
+					timeline.hide()
 				}
 			}
 		}
@@ -523,7 +536,12 @@
 			MDA.Cookie.del(this.CN);
 		}
 	};
-	
+
+	function timebar_start(){
+		nowBar.ch();
+		setInterval( "nowBar.ch()", 60*1000 );
+	}
+
 	$(document).ready(function () {
 		MDA.Cookie.CookieName = 'tvProgmas_';
 		CTG.toggle();
@@ -540,46 +558,40 @@
 //		PRG.toggle();
 
 		nowBar.INI();
+		var now = new Date();
+		setTimeout( "timebar_start()", (60*1000)-now%(60*1000) );
 		CTG.INI();
 		MDA.SCR.INI();	// 番組表の位置保存
 	});
-
-	function popJump(selOBJ)
-	{
-		n = selOBJ.selectedIndex;
-		location.href = selOBJ.options[n].value;
-	}
-
 </script>
 
 <style type="text/css">
 <!--
-body {padding:0;margin:0;font-size:10pt;}
-a {text-decoration:none;}
-
-.bold {font-weight:bold;}
-.small {font-size:75%;}
+body {padding:0;}
 
 h2 {padding: 4px}
 
 #float_titles {position:absolute;background-image: url(imgs/trancBG50.png);}
 
-#float_titles div.set.ctg_sel {background-color:#BBB;color:#3CF}
+#float_titles div.set.ctg_sel {background-color:#BBB;color:#3CF;}
 #float_titles .ctg_sel  a{color:#111;}
 
 #float_titles div.set {float:left;background-color:#444;padding:4px;margin:4px;}
+#float_titles div.set_box {float:left;background-color:#444;padding:1px 4px;margin:1px 4px;}
 #float_titles span.title {float:left;color:#ACF;}
 #float_titles ul {float:left;padding:0;margin:0;}
 #float_titles ul li {float:left;list-style:none;margin:0 0 0 4px;}
 #float_titles li a{padding:1px 4px;background-color:#555;color:#FFF;}
 #float_titles li.selected a{background-color:#48B;}
 #float_titles li a:hover{background-color:#28D;}
+#float_titles { z-index:100}
+#float_titles div.ch_title {width:{/literal}{$ch_set_width}{literal}px;float:left;color:#FFF;font-weight:bold;text-align:center}
+#float_titles div.ch_title div.title{padding:8px 0px;margin:0 6px 0 4px;background-image: url(imgs/trancBG50.png);}
 
-#float_titles, #tvtable {}
 #tvtable {line-height:1.2em;width:100%;position:relative;}
 #tvtimes,#tvtimes2 {position:absolute;	background-image: url(imgs/trancBG70.png);}
-#tvtimes,#tvtimes2, .tvtimeDM {width:40px;text-align:center;}
-#tv_chs,#ch_title_bar {padding-left:40px;padding-right:40px;}
+#tvtimes,#tvtimes2, .tvtimeDM {width:30px;text-align:center;}
+#tv_chs,#ch_title_bar {padding-left:30px;padding-right:30px;}
 .tvtime {
 	height:{/literal}{$height_per_hour}{literal}px;
 	color:#EEE;
@@ -601,6 +613,7 @@ h2 {padding: 4px}
 #tvtable div.ch_title {padding:8px 0px;background-color:#333;color:#DDD;font-weight:bold;text-align:center}
 .ch_title_skip { display: none;}
 .ch_skip_color { color: red;}
+.ch_ctrl {margin:2px;}
 
 .ch_disc {display :none;}
 .ch_skip {display :none;}
@@ -615,6 +628,7 @@ h2 {padding: 4px}
 	background-image: url(imgs/prg_bg2.png);
 	background-repeat: repeat-x;
 	background-position: left bottom;
+	border-radius: 0.6em 0.6em 0.3em 0.3em;
 	-moz-border-radius: 0.6em 0.6em 0.3em 0.3em;
 	-webkit-border-radius: 0.6em;
 	-webkit-border-bottom-right-radius: 0.3em;
@@ -628,30 +642,10 @@ h2 {padding: 4px}
 
 #tvtable div.prg_start,#tvtable div.prg_duration,#tvtable div.prg_channel ,#tvtable div.prg_id, #tvtable div.prg_tuner, #tvtable div.prg_autorec, #tvtable div.prg_genre, #tvtable div.prg_sub_genre, #tvtable div.prg_keyword {display: none;}
 
-#tvtable div.ctg_news, #category_select a.ctg_news {background-color: #FFFFD8;}
-#tvtable div.ctg_etc, #category_select a.ctg_etc {background-color: #FFFFFF;}
-#tvtable div.ctg_information, #category_select a.ctg_information {background-color: #F2D8FF;}
-#tvtable div.ctg_sports, #category_select a.ctg_sports {background-color: #D8FFFF;}
-#tvtable div.ctg_cinema, #category_select a.ctg_cinema {background-color: #FFD8D8;}
-#tvtable div.ctg_music, #category_select a.ctg_music {background-color: #D8D8FF;}
-#tvtable div.ctg_drama, #category_select a.ctg_drama {background-color: #D8FFD8;}
-#tvtable div.ctg_anime, #category_select a.ctg_anime {background-color: #FFE4C8;}
-#tvtable div.ctg_variety, #category_select a.ctg_variety {background-color: #FFD2EB;}
-#tvtable div.ctg_documentary, #category_select a.ctg_documentary {background-color: #FFFFFF;}
-#tvtable div.ctg_stage, #category_select a.ctg_stage {background-color: #FFFFFF;}
-#tvtable div.ctg_hobby, #category_select a.ctg_hobby {background-color: #FFFFFF;}
-#tvtable div.ctg_welfare, #category_select a.ctg_welfare {background-color: #FFFFFF;}
-#tvtable div.ctg_expand, #category_select a.ctg_expand {background-color: #FFFFFF;}
-#tvtable div.ctg_10, #category_select a.ctg_10 {background-color: #E4F4F4;}
-#tvtable div.ctg-hide, #category_select a.ctg-hide {background-color: #F8F8F8;color:#888;}
+#tvtable div.ctg-hide,            #category_select a.ctg-hide        {background-color: #F8F8F8; color:#888;}
 #tvtable div.ctg-hide .prg_title, #category_select a.ctg-hide .prg_title{color:#666;}
 #tvtable div.freeze {background-color: #AAAAAA;}
-/* #tvtable div.prg_rec  {background-color: #F55;color:#FEE} */
-#tvtable div.prg_rec0  {border: solid 5px red;}
-#tvtable div.prg_rec1  {border: solid 5px green;}
-#tvtable div.prg_rec2  {border: solid 5px blue;}
-#tvtable div.prg_rec3  {border: solid 5px yellow;}
-/* #tvtable div.prg_rec .prg_title .prg_title {color:white;} */
+
 #tvtable div.prg_hover .prg_title {color:white;}
 #tvtable .prg_now {font-weight:bold;text-shadow:0 0 3px rgba(255,255,255,0.4);box-shadow:inset 0 0 0 3px rgba(255,255,255,0.8);}
 #tvtable .prg_now .prg_desc{color:#000;}
@@ -663,9 +657,6 @@ h2 {padding: 4px}
 	text-shadow:0 0 8px rgba(0,0,0,0.7);
 }
 
-#float_titles { z-index:100}
-#float_titles div.ch_title {width:{/literal}{$ch_set_width}{literal}px;float:left;color:#FFF;font-weight:bold;text-align:center}
-#float_titles div.ch_title div.title{padding:8px 0px;margin:0 6px 0 4px;background-image: url(imgs/trancBG50.png);}
 #ch_title_bar .ch_title:hover .single_switch{display:block;}
 #ch_title_bar .single_switch{display:none;background:transparent;}
 #ch_title_bar .single_switch a {
@@ -674,14 +665,14 @@ h2 {padding: 4px}
 	background:#BBB;color:#000;
 	border-radius:6px;
 }
-#ch_title_bar .single_switch a:hover {
-	text-decoration:underline;background:#FFF}
+#ch_title_bar .single_switch a:hover {text-decoration:underline;background:#FFF}
+#ch_title_bar .single_ch a {color:#EEE;}
 #ch_title_bar .single_ch .dw {font-size:80%;}
-#ch_title_bar.nextDay .ch_title:first-child { display:none; }
-#jump-day .dw, #ch_title_bar .single_ch .dw {color:#DDD;}
+#ch_title_bar .nextDay .ch_title:first-child { display:none; }
+
+#jump-day .dw,   #ch_title_bar .single_ch .dw      {color:#DDD;}
 #jump-day .dw_0, #ch_title_bar .single_ch .dw.dw_0 {color:#F80;}
 #jump-day .dw_6, #ch_title_bar .single_ch .dw.dw_6 {color:#8AF;}
-#ch_title_bar .single_ch a{color:#EEE;}
 
 #float_follows {position:absolute;}
 #prg_info {
@@ -692,18 +683,14 @@ h2 {padding: 4px}
 	background-color:#246;
 	color:#BDF;
 	height:80px;
+	z-index:100;
 }
 #prg_info div.prg_dummy{margin:4px 20px;}
 #prg_info div.prg_title {font-weight:bold;font-size:120%;color:#FFF;}
 #prg_info span.prg_sub  {color:#FFF;}
 
-#tableNowBas {position:absolute;background:red;width:100%;top:190px;height:2px;overflow:hidden;}
+#tableNowBas {position:absolute;height:14px;line-height:100%;width:100%;top:190px;overflow:hidden;}
 
-
-#floatBox4Dialog .prg_title{font-size:120%;font-weight:bold;padding:0.4em 0;text-align:center;}
-#floatBox4Dialog .prg_rec_cfg{background:#EEE;padding:1em 2em;margin:0.4em 0;}
-#floatBox4Dialog .labelLeft {width:8em;float:left;text-align:right;}
-#floatBox4Dialog .button {padding:0.4em 1em;}
 #floatBox4Dialog > form > div {clear:left;}
 
 #channelDialog .prg_title{font-size:120%;font-weight:bold;padding:0.4em 0;text-align:center;}
@@ -720,25 +707,34 @@ h2 {padding: 4px}
 
 </head>
 
-<body{if $TRANSCODE_STREAM} onLoad="initScreensize({if $single_ch}1{else}0{/if},INISet.num_all_ch,{$TRANS_SCRN_ADJUST})"{/if}>
+<body>
+{if $TRANSCODE_STREAM}
+ <script type="text/javascript">{literal}
+ $(window).ready(function () {
+	initScreensize({/literal}{if $single_ch}1{else}0{/if}{literal},INISet.num_all_ch,{/literal}{$TRANS_SCRN_ADJUST}{literal});
+ });
+ {/literal}</script>
+{/if}
 
-<h2>{$sitetitle}</h2>
-
-<div id="float_titles" style="width: {math equation="x + 80" x=$chs_width }px;height:120px;">
+<div id="float_titles" style="width: {math equation="x + 60" x=$chs_width }px;height:150px;">
 <div id="float_follows">
+
+ <div class="set" style="background-color:white; font-size:150%; font-weight:bold; float:none; margin:0;">
+{$sitetitle}
+</div>
 
 <div class="set ctg_sel" id="category_select">
  <span class="title"><a href="javascript:CTG.toggle()">強調表示</a></span>
 
  <ul>
    {foreach from=$cats item=cat}
-   <li><a href="javascript:CTG.select('{$cat.name_en}');" class="ctg_{$cat.name_en}">{$cat.name_jp}</a></li>
+   <li><a href="javascript:CTG.select('{$cat.id}');" class="ctg_{$cat.id}">{$cat.name_jp}</a></li>
    {/foreach}
   </ul>
 </div>
 
 <div id="time_selects">
- <div class="set" id="jump-broadcast" >
+ <div class="set{if $type.chs!=null}_box{/if}" id="jump-broadcast" >
  <span class="title">放送波選択</span>
   <ul>
    {foreach from=$types name=loop item=type }
@@ -796,7 +792,7 @@ h2 {padding: 4px}
 
  <br style="clear:left;">
 
- <div class="set">
+ <div class="set_box">
  <form>
  <select onChange="popJump(this)">
  <option value="#">メニュー</option>
@@ -829,23 +825,26 @@ h2 {padding: 4px}
  </div>
 
 {if $REALVIEW == 1}
-  <div class="set">
-    <span class="title">視聴</span>
-    {if $single_ch}
-      <ul><li><a style="color:white;" href="{$realview_cmd}?ch={$single_ch}&sid={$single_ch_sid}&type={$single_ch_disc}&name={$single_ch_name}">開始</a></li></ul>
-    {/if}
-    {if $TRANSCODE_STREAM}
+  <div class="set_box">
+    <span class="title" style="padding:5px 2px;">視聴</span>
+    <ul>
+      <li>
       {if $single_ch}
-        <ul><li><a style="color:white;" href="{$realview_cmd}?ch={$single_ch}&sid={$single_ch_sid}&type={$single_ch_disc}&name={$single_ch_name}&trans=ON" id="trans_url_s">▼</a></li></ul>
+        <a style="color:white;" href="{$realview_cmd}?ch={$single_ch}&sid={$single_ch_sid}&type={$single_ch_disc}&name={$single_ch_name}">開始</a>
       {/if}
-      <ul><li><a style="color:white;">解像度</a>
-      <select name="trans_size" id="trans_size" onChange="chgScreensize({if $single_ch}1{else}0{/if},INISet.num_all_ch,this.selectedIndex)">
-      {foreach from=$transsize_set name=lp item=size_set}
-        <option value="{$smarty.foreach.lp.index}"{$size_set.selected}>{$size_set.width}x{$size_set.height}</option>
-      {/foreach}
-      </select></li></ul>
-    {/if}
-    <ul><li><a style="color:white;" href="{$realview_cmd}?ch=-">停止</a></li></ul>
+      {if $TRANSCODE_STREAM}
+        {if $single_ch}
+          <a style="color:white;" href="{$realview_cmd}?ch={$single_ch}&sid={$single_ch_sid}&type={$single_ch_disc}&name={$single_ch_name}&trans=ON" id="trans_url_s">▼</a>
+        {/if}
+        <a style="color:white;">解像度</a>
+        <select name="trans_size" id="trans_size" onChange="chgScreensize({if $single_ch}1{else}0{/if},INISet.num_all_ch,this.selectedIndex)">
+          {foreach from=$transsize_set name=lp item=size_set}
+            <option value="{$smarty.foreach.lp.index}"{$size_set.selected}>{$size_set.width}x{$size_set.height}</option>
+          {/foreach}
+        </select>
+      {/if}
+      <a style="color:white;" href="{$realview_cmd}?ch=-">停止</a></li>
+    </ul>
   </div>
 {/if}
 
@@ -868,8 +867,11 @@ h2 {padding: 4px}
     <div class="ch_skip">{$program.skip}</div>
     <div class="ch_sid">{$program.sid}</div>
     <div class="ch_name">{$program.station_name}</div>
-    <div id="ch_title_str_{$program.ch_hash}" {if $program.skip == 1 }class="ch_skip_color" {/if} style="cursor: pointer;" onClick="javascript:PRG.chdialog('{$program.ch_hash}')" >{$program.station_name}</div></div>
+    <div id="ch_title_str_{$program.ch_hash}" {if $program.skip == 1 }class="ch_skip_color" {/if} style="cursor: pointer;" onClick="javascript:PRG.chdialog('{$program.ch_hash}')" >{$program.station_name}</div>
+   </div>
+   <div class="ch_ctrl">
     <a style="color:white;" href="index.php?ch={$program.channel_disc}">単局</a>{if $REALVIEW == 1}　<a style="color:white;" href="{$realview_cmd}?ch={$program.channel}&sid={$program.sid}&type={$program.channel_disc}&name={$program.station_name}">視聴</a>{if $TRANSCODE_STREAM}<a style="color:white;" href="{$realview_cmd}?ch={$program.channel}&sid={$program.sid}&type={$program.channel_disc}&name={$program.station_name}&trans=ON" id="trans_url_{$smarty.foreach.loop.index}">▼</a>{/if}{/if}
+   </div>
   </div>
   {/if}
   {/foreach}
@@ -879,7 +881,7 @@ h2 {padding: 4px}
 <div id="prg_info"><div class="dummy">&nbsp;</div></div>
 </div>
 
-<div id="float_titles_dummy" style="width:{math equation="x + 80" x=$chs_width}px;height:120px;">&nbsp;</div>
+<div id="float_titles_dummy" style="width:{math equation="x + 60" x=$chs_width}px;height:150px;">&nbsp;</div>
 
 
 <div id="tvtable">
@@ -888,9 +890,9 @@ h2 {padding: 4px}
 <div id="tvtimes">
   {foreach from=$tvtimes name=loop item=time}
     {if $smarty.foreach.loop.iteration == 1 }
-      <div class="tvtime tm_{$time}"><a style="color:white;" href="{$pre8link}">-8<br></a><a style="color:white;" href="{$prelink}">▲<br></a>{$time.hour}</div>
+      <div class="tvtime tm_{$time}" style="text-align:left;"><a style="color:white;" href="{$pre8link}">-8<br></a><a style="color:white;" href="{$prelink}">▲<br></a>{$time.hour}</div>
     {else}
-      <div class="tvtime tm_{$time}"><a style="color:white;" href="{$time.link}">{$time.hour}</a></div>
+      <div class="tvtime tm_{$time}" style="text-align:left;"><a style="color:white;" href="{$time.link}">{$time.hour}</a></div>
     {/if}
   {/foreach}
 </div>
@@ -903,8 +905,11 @@ h2 {padding: 4px}
       <div {if $item.id}id="prgID_{$item.id}"{/if} class="prg {if ! $item.id}prg_none {/if} ctg_{$item.category_name}{if $item.rec gt 0 } prg_rec{$item.tuner}{/if}{if ! $item.autorec} freeze{/if}" style="height:{if $item.rec gt 0 }{if $item.height-10 gt 0}{$item.height-10}{else}0{/if}{else}{$item.height}{/if}px;">
         <div class="prg_dummy">
           <div class="prg_title">{$item.title|escape}</div>
-          <div class="prg_subtitle">{$item.starttime}</div>
-          <div class="prg_desc">{$item.description|escape}</div>
+          <div class="prg_subtitle">
+            <div style="text-align:left; float:left;">{$item.starttime}</div>
+            <div style="text-align:right;">{if $item.prios}<a style="color:white; background-color:blue; padding:1px 2px;">{$item.prios}</a>{/if}</div>
+          </div>
+          <div class="prg_desc" style="clear:left;">{$item.description|escape}</div>
           <div class="prg_channel">{$item.channel}</div>
           <div class="prg_start">{$item.prg_start}</div>
           <div class="prg_duration">{$item.duration}</div>
@@ -922,7 +927,7 @@ h2 {padding: 4px}
    {/foreach}
  </div>
 
- <div id="tvtimes2" style="top : 0px; left: {math equation="x + 40" x=$chs_width}px" >
+ <div id="tvtimes2" style="top : 0px; left: {math equation="x + 30" x=$chs_width}px" >
   {foreach from=$tvtimes name=loop item=time}
     {if $smarty.foreach.loop.iteration == 1 }
       <div class="tvtime"><a style="color:white;" href="{$pre8link}">-8<br></a><a style="color:white;" href="{$prelink}">▲<br></a>{$time.hour}</div>
@@ -937,6 +942,7 @@ h2 {padding: 4px}
 
 <div id="floatBox4Dialog">jQuery UI Dialog</div>
 <div id="channelDialog">jQuery UI Dialog</div>
+<div id="pagetop"><img src="imgs/b_pagetop.png" alt="TOP"></div>
 
 {literal}
 <script type="text/javascript">

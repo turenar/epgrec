@@ -8,12 +8,6 @@ include_once( INSTALL_PATH . '/Settings.class.php' );
 $week_tb = array( '日', '月', '火', '水', '木', '金', '土' );
 
 
-function rate_time( $minute )
-{
-	$minute /= TS_STREAM_RATE;
-	return sprintf( '%dh%02dm', $minute/60, $minute%60 );
-}
-
 $page      = 1;
 $full_mode = FALSE;
 
@@ -48,6 +42,7 @@ try{
 	$settings     = Settings::factory();
 	$reservations = array();
 	$ch_name      = array();
+	$ch_disc      = array();
 	foreach( $rvs as $key => $r ){
 		$arr = array();
 		$end_time_chk = $end_time = toTimestamp($r['endtime']);
@@ -87,14 +82,15 @@ try{
 			if( !isset( $ch_name[$r['channel_id']] ) ){
 				$ch                        = new DBRecord( CHANNEL_TBL, 'id', $r['channel_id'] );
 				$ch_name[$r['channel_id']] = $ch->name;
+				$ch_disc[$r['channel_id']] = $ch->channel_disc;
 			}
-			$arr['channel_name'] = $ch_name[$r['channel_id']];
 			$start_time          = toTimestamp($r['starttime']);
 			$arr['date']         = date( 'm/d(', $start_time ).$week_tb[date( 'w', $start_time )].')';
 			$arr['starttime']    = date( 'H:i:s-', $start_time );
 			$arr['endtime']      = !$r['shortened'] ? date( 'H:i:s', $end_time ) : '<font color="#0000ff">'.date( 'H:i:s', $end_time ).'</font>';
 			$arr['duration']     = date( 'H:i:s', $end_time-$start_time-9*60*60 );
 			$arr['prg_top']      = date( 'YmdH', $start_time-60*60*1 );
+			$arr['channel_name'] = '<a href="index.php?ch='.$ch_disc[$r['channel_id']].'&time='.$arr['prg_top'].'" title="単局EPG番組表へジャンプ">'.$ch_name[$r['channel_id']].'</a>';
 			$arr['mode']         = $RECORD_MODE[$r['mode']]['name'];
 			$arr['title']        = $r['title'];
 			$arr['description']  = $r['description'];
@@ -105,71 +101,11 @@ try{
 		}
 	}
 
-	$spool_path  = INSTALL_PATH.$settings->spool;
-	$spool_disks = array();
-	if( !defined( 'KATAUNA' ) ){
-		// ストレージ空き容量取得
-		$ts_stream_rate = TS_STREAM_RATE;
-		// 全ストレージ空き容量取得
-		$root_mega = $free_mega = (int)( disk_free_space( $spool_path ) / ( 1024 * 1024 ) );
-		// スプール･ルート･ストレージの空き容量保存
-		$stat  = stat( $spool_path );
-		$dvnum = (int)$stat['dev'];
-		$spool_disks = array();
-		$arr = array();
-		$arr['dev']   = $dvnum;
-		$arr['dname'] = get_device_name( $dvnum );
-		$arr['path']  = $settings->spool;
-//		$arr['link']  = 'spool root';
-		$arr['size']  = number_format( $root_mega/1024, 1 );
-		$arr['time']  = rate_time( $root_mega );
-		array_push( $spool_disks, $arr );
-		$devs = array( $dvnum );
-		// スプール･ルート上にある全ストレージの空き容量取得
-		$files = scandir( $spool_path );
-		if( $files !== FALSE ){
-			array_splice( $files, 0, 2 );
-			foreach( $files as $entry ){
-				$entry_path = $spool_path.'/'.$entry;
-				if( is_link( $entry_path ) && is_dir( $entry_path ) ){
-					$stat  = stat( $entry_path );
-					$dvnum = (int)$stat['dev'];
-					if( !in_array( $dvnum, $devs ) ){
-						$entry_mega   = (int)( disk_free_space( $entry_path ) / ( 1024 * 1024 ) );
-						$free_mega   += $entry_mega;
-						$arr = array();
-						$arr['dev']   = $dvnum;
-						$arr['dname'] = get_device_name( $dvnum );
-						$arr['path']  = $settings->spool.'/'.$entry;
-//						$arr['link']  = readlink( $entry_path );
-						$arr['size']  = number_format( $entry_mega/1024, 1 );
-						$arr['time']  = rate_time( $entry_mega );
-						array_push( $spool_disks, $arr );
-						array_push( $devs, array( $dvnum ) );
-					}
-				}
-			}
-		}
-	}else{
-		$free_mega      = 0;
-		$ts_stream_rate = 0;
-		$arr = array();
-		$arr['dev']     = 0;
-		$arr['dname']   = 'unknown';
-		$arr['path']    = $spool_path;
-//		$arr['link']    = 'spool root';
-		$arr['size']    = number_format( $free_mega/1024, 1 );
-		$arr['time']    = rate_time( $free_mega );
-		array_push( $spool_disks, $arr );
-	}
-
 
 	$smarty = new Smarty();
 	$smarty->assign( 'sitetitle','録画予約一覧');
 	$smarty->assign( 'reservations', $reservations );
-	$smarty->assign( 'free_size', number_format( $free_mega/1024, 1 ) );
-	$smarty->assign( 'free_time', rate_time( $free_mega ) );
-	$smarty->assign( 'ts_rate', $ts_stream_rate );
+	$smarty->assign( 'spool_freesize', spool_freesize() );
 	$smarty->assign( 'pager', $full_mode ? '' : make_pager( 'reservationTable.php', $separate_records, $res_cnt, $page ) );
 	$smarty->assign( 'menu_list', link_menu_create() );
 	$smarty->display('reservationTable.html');

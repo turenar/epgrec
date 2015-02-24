@@ -56,6 +56,7 @@ try{
 
 	$autorec    = (int)$rrec->autorec;
 	$program_id = (int)$rrec->program_id;
+	$get_time   = time();
 	if( $autorec>=0 && $program_id>0 && storage_free_space( $ts_path ) ){
 		// PID付き手動予約も制限付きで対応
 		$prg = new DBRecord( PROGRAM_TBL, 'id', $program_id );
@@ -69,7 +70,43 @@ try{
 			$starttime   = $rrec->starttime;
 			$endtime     = $rrec->shortened ? toDatetime(toTimestamp($rrec->endtime)+(int)$settings->former_time+(int)$settings->rec_switch_time) : $rrec->endtime;
 		}
-		if( $restart_lmt<toTimestamp( $rrec->endtime ) && time()<$restart_lmt ){
+		if( $restart_lmt < toTimestamp( $rrec->endtime ) ){
+			if( $restart_lmt <= $get_time ){
+				// PT2が不安定な場合、リブートする
+				$shm_id = shmop_open_surely();
+				while(1){
+					if( PT1_REBOOT && $rrec->type!=='EX' && $rrec->tuner<TUNER_UNIT1 && $get_time<$restart_lmt+REC_RETRY_LIMIT ){
+						$smph = shmop_read_surely( $shm_id, SEM_REBOOT );
+						switch( $smph ){
+							case 1:
+								break;
+							case 2:
+								// shepherd.phpによるリブートを抑制
+								shmop_write_surely( $shm_id, SEM_REBOOT, 3 );
+								$smph = 3;
+							default:
+								$res_obj = new DBRecord( RESERVE_TBL );
+								// 5分以内に予約がなければリブート(変更する場合は3分より大きくすること)
+								$sql_cmd = 'complete=0 AND id!='.$reserve_id.' AND endtime>"'.toDatetime($get_time).'" AND starttime<"'.toDatetime($get_time+5*60).'" ORDER BY endtime DESC';
+								$revs    = $res_obj->fetch_array( null, null, $sql_cmd );
+								if( count( $revs ) == 0 ){
+									reclog( REBOOT_COMMENT.'now', EPGREC_WARN );
+									system( REBOOT_CMD );
+									shmop_write_surely( $shm_id, SEM_REBOOT, 0 );
+									shmop_close( $shm_id );
+									break 2;
+								}else{
+									if( $smph == 3 )
+										// shepherd.phpにリブート権を委譲
+										shmop_write_surely( $shm_id, SEM_REBOOT, 2 );
+								}
+								break;
+						}
+					}
+					shmop_close( $shm_id );
+					goto PUT_LOG;
+				}
+			}
 			// 録画開始に失敗 再予約
 			$pre_id        = $rrec->id;
 			$channel_id    = $rrec->channel_id;
@@ -119,9 +156,9 @@ try{
 			exit();
 		}
 	}
+PUT_LOG:
 	if( file_exists( $ts_path ) ){
 		// PT1のログを取得
-		$get_time = time();
 		usleep(10 * 1000);
 		$be_time  = (int)(($get_time-1)/10) * 10;
 		$set_time = (int)(($get_time+1)/10) * 10;
@@ -137,13 +174,13 @@ try{
 		if( $autorec < 0 )
 			$autorec = $autorec * -1 - 1;
 		if( $autorec )
-			$rev_id  = '<input type="button" value="録画済(ID:'.$autorec.')" onClick="location.href=\'recordedTable.php?key='.$autorec.'\'"> '.htmlspecialchars($rev_id);
+			$rev_id  = '<input type="button" value="録画済(ID:'.$autorec.')" onClick="location.href=\'recordedTable.php?key='.$autorec.'\'" style="padding:0;"> '.htmlspecialchars($rev_id);
 		// 不具合が出る場合は、以下を入れ替えること
 //		if( (int)trim(exec("stat -c %s '".$ts_path."'")) )
 		if( filesize( $ts_path ) )
 		{
 			// 予約完了
-			if( time() >= toTimestamp($rrec->endtime) ){
+			if( $get_time >= toTimestamp($rrec->endtime) ){
 				reclog( $rev_id.' 録画完了] '.$rev_ds.$syslog );
 				$rec_success = TRUE;
 			}else{

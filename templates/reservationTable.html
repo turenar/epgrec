@@ -11,6 +11,7 @@
 <script type="text/javascript" src="js/jquery-1.3.2.min.js"></script>
 <script type="text/javascript" src="js/jquery-ui-1.7.2.custom.min.js"></script>
 <link rel="stylesheet" href="start/jquery-ui-1.7.2.custom.css" type="text/css">
+<script type="text/javascript" src="js/common.js"></script>
 <script type="text/javascript">
 	var PRG = {
 
@@ -81,81 +82,31 @@
 		DG.dialog({title:'予約編集',width:600});
 		DG.dialog('close');
 	});
-
-	function popJump(selOBJ)
-	{
-		n = selOBJ.selectedIndex;
-		location.href = selOBJ.options[n].value;
-	}
 </script>
+
+<link rel="stylesheet" href="start/layout.css" type="text/css">
 <style type="text/css">
 <!--
-body {padding:4px;margin:0;font-size:10pt;}
-a {text-decoration:none;}
-.bold {font-weight:bold;}
-.small {font-size:75%;}
-
 input.example1 { width: 80%; }
 
-
 textarea {
-width: 450px;
-height: 5em;
+    width: 450px;
+    height: 5em;
 }
+
+/*
+a.bold {font-weight:bold;}
+a.small {font-size:75%;}
+*/
 
 table#reservation_table {
-    border: 1px #BBB solid;
-    border-collapse: separate;
     border-spacing: 1px;
+    border-collapse: separate;
 }
 
-table#reservation_table th {
-    padding: 5px;
-    border: #E3E3E3 solid;
-    border-width: 0 0 1px 1px;
-    background: #BBB;
-    font-weight: bold;
-    line-height: 120%;
-    text-align: center;
-}
 table#reservation_table tr {
     border: 1px #BBB solid;
-/*    border-spacing: 5px; */
 }
-table#reservation_table td {
-    padding: 5px;
-    border: 1px #BBB solid;
-    border-width: 0 0 1px 1px;
-}
-
-table#reservation_table tr.ctg_1,  #category_select a.ctg_1  {background-color: #FFFFD8;}	/* NEWS */
-table#reservation_table tr.ctg_2,  #category_select a.ctg_2  {background-color: #D8FFFF;}	/* SPORTS */
-table#reservation_table tr.ctg_3,  #category_select a.ctg_3  {background-color: #F2D8FF;}	/* INFORMATION */
-table#reservation_table tr.ctg_4,  #category_select a.ctg_4  {background-color: #D8FFD8;}	/* DRAMA */
-table#reservation_table tr.ctg_5,  #category_select a.ctg_5  {background-color: #D8D8FF;}	/* MUSIC */
-table#reservation_table tr.ctg_6,  #category_select a.ctg_6  {background-color: #FFD2EB;}	/* VARIETY */
-table#reservation_table tr.ctg_7,  #category_select a.ctg_7  {background-color: #FFD8D8;}	/* CINEMA */
-table#reservation_table tr.ctg_8,  #category_select a.ctg_8  {background-color: #FFE4C8;}	/* ANIME */
-table#reservation_table tr.ctg_9,  #category_select a.ctg_9  {background-color: #FFFFFF;}	/* DOCUMENTARY */
-table#reservation_table tr.ctg_10, #category_select a.ctg_10 {background-color: #FFFFFF;}	/* STAGE */
-table#reservation_table tr.ctg_11, #category_select a.ctg_11 {background-color: #FFFFFF;}	/* HOBBY */
-table#reservation_table tr.ctg_12, #category_select a.ctg_12 {background-color: #FFFFFF;}	/* WELFARE */
-table#reservation_table tr.ctg_13, #category_select a.ctg_13 {background-color: #FFFFFF;}	/* RESERVE1 */
-table#reservation_table tr.ctg_14, #category_select a.ctg_14 {background-color: #FFFFFF;}	/* RESERVE2 */
-table#reservation_table tr.ctg_15, #category_select a.ctg_15 {background-color: #FFFFFF;}	/* EXPAND */
-table#reservation_table tr.ctg_16, #category_select a.ctg_16 {background-color: #FFFFFF;}	/* ETC */
-table#reservation_table tr.ctg_aa, #category_select a.ctg_aa {background-color: #E4F4F4;}	/*  */
-
-table#reservation_table td.tuner0 {border: solid thick red; border-collapse: separate;}
-table#reservation_table td.tuner1 {border: solid thick green; border-collapse: separate;}
-table#reservation_table td.tuner2 {border: solid thick blue; border-collapse: separate;}
-table#reservation_table td.tuner3 {border: solid thick yellow; border-collapse: separate;}
-
-#floatBox4Dialog .prg_title{font-size:120%;font-weight:bold;padding:0.4em 0;text-align:center;}
-#floatBox4Dialog .prg_rec_cfg{background:#EEE;padding:1em 2em;margin:0.4em 0;}
-#floatBox4Dialog .labelLeft {width:8em;float:left;text-align:right;}
-#floatBox4Dialog .button {padding:0.4em 1em;}
-
 
 -->
 </style>
@@ -165,38 +116,43 @@ table#reservation_table td.tuner3 {border: solid thick yellow; border-collapse: 
 
 <body>
 
-<h2><form>{$sitetitle}
+<div id="naver">
+<form style="text-align:left; float:left; font-size:150%; font-weight:bold;">
+{$sitetitle}
 <select onChange="popJump(this)">
 <option value="#">メニュー</option>
 {foreach from=$menu_list item=record}
 <option value="{$record.url}">{$record.name}</option>
 {/foreach}
 </select>
-</form></h2>
+</form>
+{if $spool_freesize}<div style="text-align:right; margin-top:0.7em; margin-right:0.5em">録画ストレージ残容量 {$spool_freesize}</div>{/if}
+</div>
 
-{if $ts_rate }<div><div style="text-align: right;">録画ストレージ残容量 {$free_size}GB  およそ{$free_time}分({$ts_rate}MB/min)</div></div>{/if}
+<div id="nav_margin" style="margin-top:30px;">
 {if $pager != ''}{$pager}{/if}
+</div>
 
 {if count($reservations)}
 <table id="reservation_table">
  <tr>
   <th>ID</th>
-  <th style="font-size: 80%;">TUNER<br>種別</th>
-  <th>局名</th>
-  <th>日付</th>
-  <th>開始-終了<br>(録画時間)</th>
-  <th>録画<br>MODE</th>
+  <th class="type" style="white-space:pre;">放送<br>種別</th>
+  <th class="station">放送局</th>
+  <th class="rec_date">日付</th>
+  <th class="rec_start_end">開始-終了<br>(録画時間)</th>
+  <th class="rec_mode" style="white-space: pre;">録画<br>モード</th>
   <th>タイトル</th>
   <th>内容</th>
-  <th style="font-size: 80%;"><a href="keywordTable.php">自動ID</a></th>
-  <th>編集</th>
-  <th>削除</th>
+  <th class="sell_button" style="white-space: pre;">自動<br>ID</th>
+  <th class="sell_button">編集</th>
+  <th class="sell_button">削除</th>
  </tr>
 
 {foreach from=$reservations item=reserve}
  <tr id="resid_{$reserve.id}" class="ctg_{$reserve.cat}">
   <td style="text-align: center;"><a {if $reserve.keyword != ""}href="{$reserve.keyword}" title="この番組を条件にして番組検索にジャンプ"{/if}>{$reserve.id}</a></td>
-  <td class="tuner{$reserve.tuner}" style="text-align: center;{if $reserve.type != "GR"}background-color: #FF6000;{/if}">{$reserve.type}{$reserve.tuner}</td>
+  <td class="tuner{$reserve.tuner}" style="border-collapse:separate; text-align:center;{if $reserve.type != "GR"} background-color:#FF6000;{/if}">{$reserve.type}{$reserve.tuner}</td>
   <td id="chid_{$reserve.id}" style="text-align: center;">{$reserve.channel_name}</td>
   <td style="text-align: center;white-space: nowrap;"><a href="index.php?type={$reserve.type}&length=8&time={$reserve.prg_top}" title="EPG番組表へジャンプ">{$reserve.date}</a></td>
   <td id="stid_{$reserve.id}" style="text-align: center;">{$reserve.starttime}{$reserve.endtime}<br>({$reserve.duration})</td>
@@ -204,8 +160,8 @@ table#reservation_table td.tuner3 {border: solid thick yellow; border-collapse: 
   <td id="tid_{$reserve.id}">{$reserve.title|escape}</td>
   <td id="did_{$reserve.id}">{$reserve.description|escape}</td>
   <td style="text-align: right;">{if $reserve.autorec != "□"}<a href="programTable.php?keyword_id={$reserve.autorec}" title="自動キーワード編集にジャンプ">{/if}{$reserve.autorec}</a></td>
-  <td style="padding: 0;"><input type="button" value="編集" onClick="javascript:PRG.editdialog('{$reserve.id}')"></td>
-  <td style="padding: 0;"><input type="button" value="削除" onClick="javascript:PRG.cancelform('{$reserve.id}')"></td>
+  <td style="padding: 0;"><input type="button" value="編集" onClick="javascript:PRG.editdialog('{$reserve.id}')" style="padding:0;"></td>
+  <td style="padding: 0;"><input type="button" value="削除" onClick="javascript:PRG.cancelform('{$reserve.id}')" style="padding:0;"></td>
  </tr>
 {/foreach}
 </table>
@@ -215,6 +171,7 @@ table#reservation_table td.tuner3 {border: solid thick yellow; border-collapse: 
 {/if}
 
 <div id="floatBox4Dialog">jQuery UI Dialog</div>
+<div id="pagetop" style="right:140px;"><img src="imgs/b_pagetop.png" alt="TOP"></div>
 
 
 {literal}

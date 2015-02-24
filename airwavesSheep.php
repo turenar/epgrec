@@ -164,6 +164,7 @@ function sig_handler()
 							unset( $ret_var );
 						}else
 							reclog( 'epgdump error::no code', EPGREC_WARN );
+						@unlink( $temp_ts );
 						while( sem_release( $sem_id ) === FALSE )
 							usleep( 100 );
 						break 2;
@@ -183,10 +184,9 @@ function sig_handler()
 					while(1){
 						if( sem_acquire( $sem_id ) === TRUE ){
 							//EPG更新
-							if( storeProgram( $type, $temp_xml ) != -1 ){
-								@unlink( $temp_ts );
+							if( storeProgram( $type, $temp_xml ) != -1 )
 								@unlink( $temp_xml );
-							}else
+							else
 								reclog( $cmd_ts, EPGREC_WARN );
 							while( sem_release( $sem_id ) === FALSE )
 								usleep( 100 );
@@ -202,8 +202,11 @@ function sig_handler()
 	}else{
 		reclog( 'EPG受信失敗:TSファイル"'.$temp_ts.'"がありません(放送間帯でないなら問題ありません)', EPGREC_WARN );
 		reclog( $cmd_ts, EPGREC_WARN );
-		if( $type!=='EX' && $tuner<TUNER_UNIT1 )
-			shmop_write_surely( $shm_id, SEM_REBOOT, 1 );
+		if( $type!=='EX' && $tuner<TUNER_UNIT1 ){
+			$smph = shmop_read_surely( $shm_id, SEM_REBOOT );
+			if( $smph == 0 )
+				shmop_write_surely( $shm_id, SEM_REBOOT, 1 );
+		}
 	}
 	shmop_close( $shm_id );
 	exit();

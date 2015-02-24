@@ -191,6 +191,7 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 										reclog( 'epgdump error::no code', EPGREC_WARN );
 									while( sem_release( $sem_dump ) === FALSE )
 										usleep( 100 );
+									@unlink( $temp_ts );
 									break;
 								}
 								usleep(100 * 1000);
@@ -199,11 +200,9 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 								while(1){
 									if( sem_acquire( $sem_store ) === TRUE ){
 										$ch_id = storeProgram( $type, $temp_xml );
-										if( $ch_id !== -1 ){
-											@unlink( $temp_ts );
-											@unlink( $temp_xml );
+										@unlink( $temp_xml );
+										if( $ch_id !== -1 )
 											doKeywordReservation( $type, $shm_id );	// キーワード予約
-										}
 										while( sem_release( $sem_store ) === FALSE )
 											usleep( 100 );
 										if( is_string( $ch_id ) ){

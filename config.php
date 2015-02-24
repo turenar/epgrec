@@ -218,6 +218,8 @@ define( 'CS_OTH_EPG_SIZE', (int)(170*2*1024*1024) );	// CS EPG TSファイルサ
 define( 'GR_XML_SIZE', (int)(300*1024) );	// GR EPG XMLファイルサイズ
 define( 'BS_XML_SIZE', (int)(4*1024*1024) );	// BS EPG XMLファイルサイズ
 define( 'TS_STREAM_RATE', 110 );					// １分あたりのTSサイズ(MB・ストレージ残り時間計算用)
+define( 'DATA_UNIT_RADIX_BINARY', FALSE );			// 基数を1000から1024にする場合にTRUE
+define( 'VIEW_DISK_FREE_SIZE', TRUE );				// ヘッダーの録画ストレージ残り残量表示
 
 // PT1_REBOOTをTRUEにする場合は、root権限で visudoコマンドを実行して
 // www-data ALL = (ALL) NOPASSWD: /sbin/shutdown
@@ -270,11 +272,21 @@ if( check_ch_map( 'gr_channel.php', isset( $GR_CHANNEL_MAP ) ) ){
 	include_once( INSTALL_PATH.'/settings/gr_channel.php' );
 }
 
+// 選別チャンネルテーブル
+if( check_ch_map( 'selected_channel.php', TRUE ) ){
+	include( INSTALL_PATH.'/settings/selected_channel.php' );
+	if( !count($SELECTED_CHANNEL_MAP) )
+		unset($SELECTED_CHANNEL_MAP);
+}
+
 // トランスコード設定
 if( file_exists( INSTALL_PATH.'/settings/trans_config.php' ) ){
 	include_once( INSTALL_PATH.'/settings/trans_config.php' );
 
 	$RECORD_MODE = array_merge( $RECORD_MODE, $TRANS_MODE );
+}else{
+	define( 'TRANSCODE_STREAM', FALSE );
+	$TRANSSIZE_SET = array();
 }
 
 
@@ -351,8 +363,9 @@ function check_ch_map( $ch_file, $gr_safe=FALSE )
 	$inc_file = INSTALL_PATH.'/settings/'.$ch_file;
 	if( file_exists( $inc_file ) ){
 		if( filesize( $inc_file ) > 0 ){
-			$rd_data = file_get_contents( $inc_file );
-			$search  = '$'.strtoupper( substr( $ch_file, 0, 2 ) ).'_CHANNEL_MAP';
+			$rd_data       = file_get_contents( $inc_file );
+			list( $type, ) = explode( '_', $ch_file );
+			$search        = '$'.strtoupper( $type ).'_CHANNEL_MAP';
 			if( strpos( $rd_data, $search )!==FALSE && strpos( $rd_data, ");\n?>" )!==FALSE ){
 				if( substr_count( $rd_data, ';' ) == 1 ){
 					return TRUE;

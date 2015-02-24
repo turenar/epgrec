@@ -631,7 +631,7 @@ function storage_free_space( $path )
 
 function link_menu_create( $mode = 'none' )
 {
-	global $settings,$NET_AREA;
+	global $settings,$NET_AREA,$SELECTED_CHANNEL_MAP;
 
 	include( INSTALL_PATH . '/settings/menu_list.php' );
 
@@ -646,6 +646,8 @@ function link_menu_create( $mode = 'none' )
 		}
 		if( EXTRA_TUNERS )
 			$link_add[] = array( 'name' => EXTRA_NAME.'番組表', 'url' => 'index.php?type=EX' );
+		if( isset($SELECTED_CHANNEL_MAP) )
+			$link_add[] = array( 'name' => '選別番組表', 'url' => 'index.php?type=SELECT' );
 		$MENU_LIST = array_merge( $link_add, $MENU_LIST );
 	}
 	// 間欠運用
@@ -679,5 +681,50 @@ function link_menu_create( $mode = 'none' )
 		$MENU_LIST[] = array( 'url' => 'epgwakealarm.php?mode='.$power_cmd, 'name' => $power_stat );
 	}
 	return $MENU_LIST;
+}
+
+function rate_time( $minute )
+{
+	$minute /= TS_STREAM_RATE;
+	return sprintf( '%dh%02dm', $minute/60, $minute%60 );
+}
+
+function spool_freesize(){
+	global $settings;
+
+	if( VIEW_DISK_FREE_SIZE ){
+		if( DATA_UNIT_RADIX_BINARY ){
+			$unit_radix = 1024;
+			$byte_unit  = 'iB';
+		}else{
+			$unit_radix = 1000;
+			$byte_unit  = 'B';
+		}
+		$spool_path = INSTALL_PATH.$settings->spool;
+		// スプール･ルート･ストレージの空き容量保存
+		$root_mega = $free_mega = (int)( disk_free_space( $spool_path ) / ( $unit_radix * $unit_radix ) );
+		$stat  = stat( $spool_path );
+		$dvnum = (int)$stat['dev'];
+		$devs  = array( $dvnum );
+		// スプール･ルート上にある全ストレージの空き容量取得
+		$files = scandir( $spool_path );
+		if( $files !== FALSE ){
+			array_splice( $files, 0, 2 );
+			foreach( $files as $entry ){
+				$entry_path = $spool_path.'/'.$entry;
+				if( is_link( $entry_path ) && is_dir( $entry_path ) ){
+					$stat  = stat( $entry_path );
+					$dvnum = (int)$stat['dev'];
+					if( !in_array( $dvnum, $devs ) ){
+						$entry_mega   = (int)( disk_free_space( $entry_path ) / ( $unit_radix * $unit_radix ) );
+						$free_mega   += $entry_mega;
+						array_push( $devs, array( $dvnum ) );
+					}
+				}
+			}
+		}
+		return '<a style=" font-size:120%;font-weight: bold;">'.number_format( $free_mega/$unit_radix, 1 ).'G'.$byte_unit.'</a>('.rate_time( $free_mega ).')';
+	}else
+		return '';
 }
 ?>

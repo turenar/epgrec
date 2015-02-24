@@ -93,6 +93,7 @@ $smarty->assign( 'logs',       $logs );
 $smarty->assign( 'log_levels', $log_levels );
 $smarty->assign( 'pager',      $pager );
 $smarty->assign( 'menu_list',  link_menu_create() );
+$smarty->assign( 'spool_freesize', spool_freesize() );
 
 $smarty->display( 'logTable.html' );
 ?>

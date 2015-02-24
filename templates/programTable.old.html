@@ -17,32 +17,10 @@
 <script type="text/javascript" src="js/genre.js"></script>
 <script type="text/javascript">
 	var PRG = {
-		tgl_autorec:function(no,p_id){
-			var resid     = $('#resid_' + no);
-			var autorec_f = parseInt(resid.children('.autorec').html());
-			$.get('toggleAutorec.php', { program_id: p_id, bef_auto: autorec_f }, function() {
-				var minar = 1;
-				if( autorec_f ){
-					resid.children('.autoid').children('input').val('許可');
-					do{
-						resid.addClass('freeze');
-						resid.children('.autorec').html('0');
-						resid = $('#resid_' + no + '_' + minar++);
-					}while( resid.is('*') );
-				}else{
-					resid.children('.autoid').children('input').val('禁止');
-					do{
-						resid.removeClass('freeze');
-						resid.children('.autorec').html('1');
-						resid = $('#resid_' + no + '_' + minar++);
-					}while( resid.is('*') );
-				}
-			});
-		},
-		tgl_button:function(no,p_id){
-			var r_id = parseInt($('#resid_' + no).children('.rev_id').html());
+		tgl_button:function(p_id,my){
+			var r_id = parseInt($('#resid_' + p_id).children('.rev_id').html());
 			if( r_id > 0 ){
-				var autorec_f = $('#resid_' + no).children('.autorec').html();
+				var autorec_f = $('#resid_' + p_id).children('.autorec').html();
 
 				$.get('cancelReservationForm.php', { reserve_id: r_id, autorec: autorec_f }, function(data) {
 					var recv = data.match(/error/i);
@@ -50,7 +28,7 @@
 						alert(data);
 					}else{
 						var str = data;
-						str += '<div style="margin:2em 0 1em 0;text-align:center;"><a href="javascript:PRG.cancelrec(\'' + no + '\')" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">予約キャンセル</a></div>';
+						str += '<div style="margin:2em 0 1em 0;text-align:center;"><a href="javascript:PRG.cancelrec(' + p_id + ')" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">予約キャンセル</a></div>';
 						$('#floatBox4Dialog').html(str);
 						$('#floatBox4Dialog').dialog('open', 'center');
 					}
@@ -63,24 +41,24 @@
 					}else{
 						var pt     = data.split( ':' );
 						var p_id   = parseInt(pt[0]);
-//						var tuner  = parseInt(pt[1]);
+//						var tuner  = pt[1];
 						var r_id   = parseInt(pt[2]);
 //						var reload = parseInt(pt[3]);
 //						if( reload ){
 //							location.reload();
 //						}else{
 							if( p_id ) {
-								$('#resid_' + no).removeClass('freeze');
-								$('#resid_' + no).addClass('prg_rec_oth');
-								$('#resid_' + no).children('.rev_id').html(r_id);
-								$('#resid_' + no).children('.tgl_btn').children('input').val('削除');
+								$('#resid_' + p_id).removeClass('freeze');
+								$('#resid_' + p_id).addClass('prg_rec_oth');
+								$('#resid_' + p_id).children('.rev_id').html(r_id);
+								$('#resid_' + p_id).children('.tgl_btn').children('input').val('削除');
 							}
 //						}
 					}
 				});
 			}
 		},
-		cancelrec:function(no) {
+		cancelrec:function(p_id) {
 			var id_reserve_id = $('#id_reserve_id').val();
 			var tmp_disc = $('#id_autorec').attr('checked');
 			var id_autorec = tmp_disc ? 1 : 0;
@@ -94,21 +72,13 @@
 					$('#floatBox4Dialog').dialog('close');
 					alert(data);
 				}else{
-					var pt   = no.split( '_' );
-					var p_id = parseInt(pt[0]);
 					var excl = parseInt($('#resid_' + p_id).children('.excl').html()) - 1;
 					$('#resid_' + p_id).children('.excl').html(excl);
-					if( no != p_id ){
-						$('#resid_' + no).removeClass('resvd_on');
-						$('#resid_' + no).hide();
-					}else
-						if( excl <= 0 ){
-							$('#resid_' + no).children('.rev_id').html('0');
-							$('#resid_' + no).children('.tgl_btn').children('input').val('録画');
-						}
 					if( excl <= 0 ){
 						$('#resid_' + p_id).removeClass('prg_rec');
 						$('#resid_' + p_id).removeClass('prg_rec_oth');
+						$('#resid_' + p_id).children('.rev_id').html('0');
+						$('#resid_' + p_id).children('.tgl_btn').children('input').val('録画');
 					}
 					if( id_autorec ){
 						$('#resid_' + p_id).addClass('freeze');
@@ -121,7 +91,7 @@
 				}
 			});
 		},
-		customform:function(no,pro_id,key_id) {
+		customform:function(pro_id,key_id) {
 			$('#floatBox4Dialog').dialog('close');
 			$.get('reservationform.php', { program_id: pro_id, keyword_id: key_id }, function(data) {
 				if(data.match(/^error/i)){
@@ -129,13 +99,13 @@
 				}
 				else {
 					var str = data;
-					str += '<div style="margin:2em 0 1em 0;text-align:center;"><a href="javascript:PRG.customrec(\'' + no + '\')" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">予約する</a></div>';
+					str += '<div style="margin:2em 0 1em 0;text-align:center;"><a href="javascript:PRG.customrec()" class="ui-state-default ui-corner-all ui-dialog-buttonpane button">予約する</a></div>';
 					$('#floatBox4Dialog').html(str);
 					$('#floatBox4Dialog').dialog('open', 'center');
 				}
 			});
 		},
-		customrec:function(no) {
+		customrec:function() {
 			var id_syear = $('#id_syear').val();
 			var id_smonth = $('#id_smonth').val();
 			var id_sday = $('#id_sday').val();
@@ -198,9 +168,9 @@
 //						location.reload();
 //					}else{
 						if( p_id ) {
-							$('#resid_' + no).removeClass('freeze');
-							$('#resid_' + no).addClass('prg_rec_oth');
-							$('#resid_' + no).children('.rev_id').html(r_id);
+							$('#resid_' + p_id).removeClass('freeze');
+							$('#resid_' + p_id).addClass('prg_rec_oth');
+							$('#resid_' + p_id).children('.rev_id').html(r_id);
 						}
 						$('#floatBox4Dialog').dialog('close');
 //					}
@@ -227,6 +197,12 @@
 			});
 		}
 	}
+	
+	$(document).ready(function () {
+		var DG = $('#floatBox4Dialog');
+		DG.dialog({title:'録画予約',width:600});
+		DG.dialog('close');
+	});
 
 	function change_subGenre(genre)
 	{
@@ -282,206 +258,22 @@
 		}
 	}
 
-	var $mode;
-
-	function write_cookie(){
-		var expire = new Date();
-		expire.setTime( expire.getTime() + 365 * 24 * 3600 * 1000 );
-		document.cookie = 'programTable_mode=' + $mode + '; expires=' + expire.toUTCString();		// cookie書き込み
-	}
-
-	function init_mode(){
-		var cookieName = 'programTable_mode=';
-		var allcookies = document.cookie;
-		var position   = allcookies.indexOf( cookieName );
-
-		if( position != -1 ){
-			// cookie読み込み
-			var startIndex = position + cookieName.length;
-			var endIndex   = allcookies.indexOf( ';', startIndex );
-
-			if( endIndex == -1 )
-				endIndex = allcookies.length;
-			$mode = parseInt( decodeURIComponent( allcookies.substring( startIndex, endIndex ) ) );
-		}else
-			$mode = 1;		// 無難なクリックモード
-		$('#programTable_mode').val($mode);
-		mode_chage();
-	}
-
-	function mode_chage(){
-		var new_mode = parseInt($('#programTable_mode').val());
-		if( new_mode == 0 ){
-			$('.resvd').removeClass('resvd_lock');
-			$('.resvd_child').addClass('resvd_on');
-			$('.resvd_child').removeClass('resvd_child');
-		}else{
-			if( $mode == 0 ){
-				$('.resvd_on').addClass('resvd_child');
-				$('.resvd_on').removeClass('resvd_on');
-			}else
-			if( $mode == 2 )
-				$('.resvd').removeClass('resvd_lock');
-		}
-		$mode = new_mode;
-		write_cookie();
-	}
-
-	function rev_open(my){
-		var idname  = '#' + my.attr('id') + '_';
-		var minar   = 1;
-		var childid = idname + minar;
-		while( $(childid).is('*') ){
-			if( $(childid).hasClass('resvd_child') ){
-				$(childid).removeClass('resvd_child');
-				$(childid).addClass('resvd_on');
-			}
-			childid = idname + ++minar;
-		}
-	}
-
-	function rev_close(my){
-		var idname  = '#' + my.attr('id') + '_';
-		var minar   = 1;
-		var childid = idname + minar;
-		while( $(childid).is('*') ){
-			if( $(childid).hasClass('resvd_on') ){
-				$(childid).addClass('resvd_child');
-				$(childid).removeClass('resvd_on');
-			}
-			childid = idname + ++minar;
-		}
-	}
-
-	$(function(){
-		$('.resvd').click(
-			function (event) {
-				if( $mode == 0 )
-					return;
-				else{
-					var target = $(event.target);
-					if( target.is('a') )	// link
-						return;
-					if( target.is('input') )	// button
-						return;
-					if( $mode == 1 ){
-						var idname  = '#' + $(this).attr('id') + '_';
-						var minar   = 1;
-						var childid = idname + minar;
-						if( $(childid).is('*') ){
-							if( $(childid).hasClass('resvd_on') ){
-								do{
-									$(childid).addClass('resvd_child');
-									$(childid).removeClass('resvd_on');
-									childid = idname + ++minar;
-								}while( $(childid).is('*') );
-							}else{
-								do{
-									$(childid).removeClass('resvd_child');
-									$(childid).addClass('resvd_on');
-									childid = idname + ++minar;
-								}while( $(childid).is('*') );
-							}
-						}
-					}else
-					if( $mode == 2 ){
-						if( $(this).hasClass('resvd_lock') ){
-							$(this).removeClass('resvd_lock');
-							rev_close($(this));
-						}else{
-							$(this).addClass('resvd_lock');
-						}
-					}
-				}
-			}
-		);
-
-		$('tr[id]').mouseover(
-			function (event) {
-				if( $mode == 2 ){
-					// 前のTR要素取得
-					var preTarget = $(event.relatedTarget);
-					if( !preTarget.is('th') ){
-						if( !preTarget.is('tr') )
-							preTarget = preTarget.parents('tr');
-
-						// 前TR要素の予約非表示
-						if( preTarget.is('tr') ){
-							var pre_id     = preTarget.attr('id');
-							if( typeof pre_id !== 'undefined' ){
-								var pt        = pre_id.split('_');
-								var preParent = $('#resid_' + pt[1]);
-								var pt        = $(this).attr('id').split('_');
-								var this_id = $('#resid_' + pt[1]).attr('id');
-								if( this_id === preParent.attr('id') ){
-									return;
-								}else
-									if( preTarget.hasClass('resvd') ){
-										if( !preTarget.hasClass('resvd_lock') )
-											rev_close(preTarget);
-									}else{
-										if( preTarget.hasClass('resvd_on') ){
-											if( !preParent.hasClass('resvd_lock') && preParent.children('.excl').html()==='1' )
-												rev_close(preParent);
-										}
-									}
-							}
-						}
-					}
-
-					// 現TR要素の予約表示
-					if( $(this).hasClass('resvd') && !$(this).hasClass('resvd_lock') )
-						rev_open($(this));
-				}
-			}
-		);
-
-		$('tr[id]').mouseout(
-			function (event) {
-				if( $mode == 2 ){
-					var preTarget = $(event.relatedTarget);
-					if( !preTarget.is('th') ){
-						if( !preTarget.is('tr') )
-							preTarget = preTarget.parents('tr');
-						if( preTarget.is('tr') )
-							return;
-					}
-					var pt        = $(this).attr('id').split('_');
-					var preParent = $('#resid_' + pt[1]);
-					if( preParent.hasClass('resvd') ){
-						if( !preParent.hasClass('resvd_lock') )
-							rev_close(preParent);
-					}
-				}
-			}
-		);
-	});
-
-	$(document).ready(function () {
-		var DG = $('#floatBox4Dialog');
-		DG.dialog({title:'録画予約',width:600});
-		DG.dialog('close');
-		init_mode();
+	$(window).ready(function () {
 		change_subGenre({/literal}{$k_category}{literal});
 		selected_subGenre({/literal}{$k_category},{$k_sub_genre}{literal});
 	});
-
 </script>
 
 <style type="text/css">
 <!--
 input.example1 { width: 100%; }
 
-table#reservation_table {
-    border-collapse: separate;
-}
-
 table#reservation_table td {
     text-align: center;
 }
 
 table#reservation_table td.rev_id, table#reservation_table td.autorec, table#reservation_table td.excl {display: none;}
-table#reservation_table tr.resvd_child {display: none;}
+
 -->
 </style>
 {/literal}
@@ -491,7 +283,7 @@ table#reservation_table tr.resvd_child {display: none;}
 <body>
 
 <div id="naver">
-<form style="text-align:left; float:left; font-size:150%; font-weight:bold;">
+<form style="text-align:left; float:left; display:inline; font-size:150%; font-weight:bold;">
 {$sitetitle}{if $keyword_id}<a href="recordedTable.php?key={$keyword_id}" title="自動キーワードIDで絞り込んで録画済一覧にジャンプ">▼</a>{/if}
 <select onChange="popJump(this)">
 <option value="#">メニュー</option>
@@ -500,15 +292,7 @@ table#reservation_table tr.resvd_child {display: none;}
 {/foreach}
 </select>
 </form>
-<form style="text-align:right; float:left;">
-<b> 操作モード</b>
-<select id="programTable_mode" onChange="mode_chage()">
-<option value="0">full open</option>
-<option value="1">click mode</option>
-<option value="2">hover mode</option>
-</select>
-</form>
-{if $spool_freesize}<div id="debug" style="text-align:right; margin-right:0.5em; margin-top:0.7em;">録画ストレージ残容量 {$spool_freesize}</div>{/if}
+{if $spool_freesize}<div style="text-align:right; margin-right:0.5em; margin-top:0.7em;">録画ストレージ残容量 {$spool_freesize}</div>{/if}
 </div>
 
 <div id="nav_margin" style="margin-top:30px;">
@@ -568,7 +352,7 @@ table#reservation_table tr.resvd_child {display: none;}
   {/foreach}
 )
 　<input type="submit" value="絞り込む">
-　({$prg_cnt}件ヒット)
+　({$programs|@count}件ヒット)
 </form>
 </fieldset>
 </div>
@@ -577,7 +361,7 @@ table#reservation_table tr.resvd_child {display: none;}
 {if count($programs)}
 <table id="reservation_table">
  <tr>
-  <th style="width:2em;">№</th>
+  <th>№</th>
   <th class="type" style="white-space:pre;">放送<br>種別</th>
   <th class="station">放送局</th>
   <th class="rec_date">日付</th>
@@ -585,20 +369,22 @@ table#reservation_table tr.resvd_child {display: none;}
   <th>タイトル</th>
   <th>概要</th>
   <th class="sell_button" style="white-space: pre;">自動<br>ID</th>
-  <th colspan="2" style="padding:0;">録画</th>
+  <th class="sell_button">簡易<br>録画</th>
+  <th class="sell_button">詳細<br>録画</th>
  </tr>
-{foreach from=$programs item=program}
- <tr id="resid_{$program.no}" class="ctg_{$program.cat}{if $program.rec && !$program.rev_id}{if $program.key_id==$keyword_id} prg_rec{else} prg_rec_oth{/if}{/if}{if !$program.autorec} freeze{/if}{if $program.resvd} {$program.resvd}{/if}">
-  <td>{if $program.keyword != ""}<a href="{$program.keyword}" title="この番組を条件にして番組検索にジャンプ">{$program.no}</a>{/if}</td>
-  <td {if $program.rev_id}class="tuner{$program.rec-1}"{/if}>{$program.type}{if $program.rev_id}{$program.rec-1}{/if}</td>
+
+{foreach from=$programs name=loop item=program}
+ <tr id="resid_{$program.id}" class="ctg_{$program.cat}{if $program.rec > 0}{if $program.key_id == $keyword_id} prg_rec{else} prg_rec_oth{/if}{/if}{if ! $program.autorec} freeze{/if}">
+  <td><a {if $program.keyword != ""}href="{$program.keyword}" title="この番組を条件にして番組検索にジャンプ"{/if}>{$smarty.foreach.loop.iteration}</a></td>
+  <td>{$program.type}</td>
   <td>{$program.station_name}</td>
   <td><a href="index.php?type={$program.type}&length=8&time={$program.prg_top}" title="EPG番組表へジャンプ">{$program.date}</a></td>
   <td>{$program.starttime}{$program.endtime}<br>({$program.duration})</td>
   <td style="text-align: left;">{$program.title|escape}</td>
   <td style="text-align: left;">{$program.description|escape}</td>
-  <td class="autoid" style="padding: 1px 0;">{if $program.excl}{if $program.excl>1}*{/if}{if !$program.key_id}□{else}<a href="programTable.php?keyword_id={$program.key_id}" title="自動キーワード編集にジャンプ">{$program.key_id}</a>{/if}{/if}{if !$program.rev_id}<br><input type="button" value={if $program.autorec}"禁止"{else}"許可"{/if} onClick="javascript:PRG.tgl_autorec('{$program.no}','{$program.id}')" style="padding:0;">{/if}</td>
-  <td class="sell_button tgl_btn" style="padding: 0;"><input type="button" value={if $program.rev_id}"削除"{else}"簡易"{/if} onClick="javascript:PRG.tgl_button('{$program.no}','{$program.id}')" style="padding:0;"></td>
-  <td class="sell_button" style="padding: 1px 0;">{if !$program.key_id || !$program.rev_id}<input type="button" value="詳細" onClick="javascript:PRG.customform('{$program.no}','{$program.id}','0')" style="padding:0;">{if $keyword_id}<br>{/if}{/if}{if $program.key_id || $keyword_id}<input type="button" value="補整" onClick="javascript:PRG.customform('{$program.no}','{$program.id}','{if $program.key_id}{$program.key_id}{else}{$keyword_id}{/if}')" title="自動予約設定が反映されます" style="padding:0;">{/if}</td>
+  <td style="text-align: right;">{if $program.excl }*{/if}{if !$program.key_id }□{else}<a href="programTable.php?keyword_id={$program.key_id}" title="自動キーワード編集にジャンプ">{$program.key_id}</a>{/if}</td>
+  <td style="padding: 0;" class="tgl_btn"><input type="button" value={if $program.rev_id}"削除"{else}"録画"{/if} onClick="javascript:PRG.tgl_button('{$program.id}')" style="padding:0;"></td>
+  <td style="padding: 1px 0;"><input type="button" value="詳細" onClick="javascript:PRG.customform('{$program.id}','0')" style="padding:0;"><br><input type="button" value="補整" onClick="javascript:PRG.customform('{$program.id}','{if $keyword_id}{$keyword_id}{else}{$program.key_id}{/if}')" title="自動予約設定が反映されます" style="padding:0;"></td>
   <td class="rev_id">{$program.rev_id}</td>
   <td class="autorec">{$program.autorec}</td>
   <td class="excl">{$program.excl}</td>
@@ -608,10 +394,10 @@ table#reservation_table tr.resvd_child {display: none;}
 {else}
   該当する番組はありません
 {/if}
-{if $prg_cnt >= 300}<div>表示最大300件まで</div>{/if}
+{if count($programs) >= 300}<div>表示最大300件まで</div>{/if}
 {if $do_keyword}
 {if $k_category != 15 || $k_sub_genre>=0x3f }
-{if $do_keyword || $prg_cnt < 300}
+{if $do_keyword || (count($programs) < 300)}
 <div>
 <fieldset>
 <legend><b>検索条件</b></legend>
@@ -625,7 +411,7 @@ table#reservation_table tr.resvd_child {display: none;}
   <b>サブジャンル:</b><script type="text/javascript">sub_genre_view({$k_category}, {$k_sub_genre});</script>
   <b>　曜日:</b>{if $weekofday == 0x7f}なし{else}{$wds_name}{/if}
   <b>　時間帯:</b>{if $prgtime == 24}なし{else}{$prgtime}時から{$period}時間{/if}
-  <b>　件数:</b>{$prg_cnt}<br>
+  <b>　件数:</b>{$programs|@count}<br>
 </fieldset>
 <form method="post" action="keywordTable.php">
 <fieldset>

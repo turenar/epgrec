@@ -56,12 +56,6 @@ function get_channels( $type )
 	return array( $ext_pac, $cer_pac );
 }
 
-function rate_time( $minute )
-{
-	$minute /= TS_STREAM_RATE;
-	return sprintf( '%dh%02dm', $minute/60, $minute%60 );
-}
-
 	// 廃止チャンネル管理
 	$ext_chs = array();
 	$cer_chs = array();
@@ -91,9 +85,16 @@ function rate_time( $minute )
 	$ts_stream_rate = TS_STREAM_RATE;
 	$spool_path = INSTALL_PATH.$settings->spool;
 	$files = scandir( $spool_path );
+	if( DATA_UNIT_RADIX_BINARY ){
+		$unit_radix = 1024;
+		$byte_unit  = 'iB';
+	}else{
+		$unit_radix = 1000;
+		$byte_unit  = 'B';
+	}
 	if( $files !== FALSE ){
 		// 全ストレージ空き容量仮取得
-		$root_mega = $free_mega = (int)( disk_free_space( $spool_path ) / ( 1024 * 1024 ) );
+		$root_mega = $free_mega = (int)( disk_free_space( $spool_path ) / ( $unit_radix * $unit_radix ) );
 		// スプール･ルート･ストレージの空き容量保存
 		$stat  = stat( $spool_path );
 		$dvnum = (int)$stat['dev'];
@@ -110,7 +111,7 @@ function rate_time( $minute )
 		$arr['perm']  = sprintf("0%o", $stat['mode'] );
 		$arr['wrtbl'] = ( $stat['uid']===posix_getuid() && ($stat['mode']&0300)===0300 ) || ( posix_getgid()===$stat['gid'] && ($stat['mode']&0030)===0030 ) || ($stat['mode']&0003)===0003 ? '1' :'0';
 //		$arr['link']  = 'spool root';
-		$arr['size']  = number_format( $root_mega/1024, 1 );
+		$arr['size']  = number_format( $root_mega/$unit_radix, 1 );
 		$arr['time']  = rate_time( $root_mega );
 		array_push( $spool_disks, $arr );
 		$devs = array( $dvnum );
@@ -123,7 +124,7 @@ function rate_time( $minute )
 				$stat  = stat( $entry_path );
 				$dvnum = (int)$stat['dev'];
 				if( !in_array( $dvnum, $devs ) ){
-					$entry_mega   = (int)( disk_free_space( $entry_path ) / ( 1024 * 1024 ) );
+					$entry_mega   = (int)( disk_free_space( $entry_path ) / ( $unit_radix * $unit_radix ) );
 					$free_mega   += $entry_mega;
 					$arr = array();
 					$arr['dev']   = $dvnum;
@@ -137,7 +138,7 @@ function rate_time( $minute )
 					$arr['perm']  = sprintf("0%o", $stat['mode'] );
 					$arr['wrtbl'] = ( $stat['uid']===posix_getuid() && ($stat['mode']&0300)===0300 ) || ( posix_getgid()===$stat['gid'] && ($stat['mode']&0030)===0030 ) || ($stat['mode']&0003)===0003 ? '1' :'0';
 //					$arr['link']  = readlink( $entry_path );
-					$arr['size']  = number_format( $entry_mega/1024, 1 );
+					$arr['size']  = number_format( $entry_mega/$unit_radix, 1 );
 					$arr['time']  = rate_time( $entry_mega );
 					array_push( $spool_disks, $arr );
 					array_push( $devs, array( $dvnum ) );
@@ -174,9 +175,10 @@ function rate_time( $minute )
 
 	$smarty = new Smarty();
 	$smarty->assign( 'menu_list',   link_menu_create() );
-	$smarty->assign( 'free_size',   number_format( $free_mega/1024, 1 ) );
+	$smarty->assign( 'free_size',   number_format( $free_mega/$unit_radix, 1 ) );
 	$smarty->assign( 'free_time',   rate_time( $free_mega ) );
 	$smarty->assign( 'ts_rate',     $ts_stream_rate );
+	$smarty->assign( 'byte_unit',   $byte_unit );
 	$smarty->assign( 'spool_disks', $spool_disks );
 	$smarty->assign( 'ext_chs',     $ext_chs );
 	$smarty->assign( 'cer_chs',     $cer_chs );

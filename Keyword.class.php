@@ -288,8 +288,9 @@ class Keyword extends DBRecord {
 			// 一気に録画予約
 			foreach( $precs as $rec ){
 				try {
-					if( $rec->autorec && ( $wave_type==='*' || $rec->type===$wave_type || ( $wave_type==='BS' && $rec->type==='CS' ) || ( $wave_type==='CS' && $rec->type==='BS' ) ) ){
-						$pieces = explode( ':', Reservation::simple( $rec->id, $this->__id, $this->autorec_mode, $this->discontinuity ) );
+					$rec_permission = (boolean)$rec->autorec || ( (int)$rec->split_time>0 && $rec->split_time==$this->split_time ) ? TRUE : FALSE;
+					if( $rec_permission && ( $wave_type==='*' || $rec->type===$wave_type || ( $wave_type==='BS' && $rec->type==='CS' ) || ( $wave_type==='CS' && $rec->type==='BS' ) ) ){
+						$pieces = explode( ':', Reservation::simple( $rec->id, (int)$this->__id, $this->autorec_mode, $this->discontinuity ) );
 						if( (int)$pieces[0] ){
 							usleep( 1000 );		// 書き込みがDBに反映される時間を見極める。
 							// 最終回フラグ
