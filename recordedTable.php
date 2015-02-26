@@ -358,8 +358,10 @@ try{
 			$arr['asf']         = 'viewer.php?reserve_id='.$r['id'];
 			$arr['title']       = htmlspecialchars($r['title'],ENT_QUOTES);
 			$arr['description'] = htmlspecialchars($r['description'],ENT_QUOTES);
-			if( file_exists(INSTALL_PATH.$settings->thumbs.'/'.end(explode( '/', $r['path'] )).'.jpg') )
-				$arr['thumb'] = '<img src="'.$view_url.$settings->thumbs.'/'.rawurlencode(end(explode( '/', $r['path'] ))).'.jpg" />';
+
+			$__tmp_path         = explode( '/', $r['path'] );
+			if( file_exists(INSTALL_PATH.$settings->thumbs.'/'.end($__tmp_path).'.jpg') )
+				$arr['thumb'] = '<img src="'.$view_url.$settings->thumbs.'/'.rawurlencode(end($__tmp_path)).'.jpg" />';
 			else
 				$arr['thumb'] = '';
 			$arr['keyword']     = putProgramHtml( $r['title'], '*', 0, $r['category_id'], 16 );
