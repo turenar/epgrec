@@ -24,18 +24,6 @@ function daemon() {
 	pcntl_signal(SIGTERM, 'handler');
 }
 
-function rec_start( $cmd ) {
-	$descspec = array(
-					0 => array( 'file','/dev/null','r' ),
-					1 => array( 'file','/dev/null','w' ),
-					2 => array( 'file','/dev/null','w' ),
-	);
-	$pro = proc_open( $cmd, $descspec, $pipes );
-	if( is_resource( $pro ) )
-		return $pro;
-	return false;
-}
-
 
 run_user_regulate();
 // デーモン化
@@ -78,7 +66,7 @@ while(1){
 				continue;
 			}
 			// 
-			$tran_start['ts'] = INSTALL_PATH.$settings->spool.'/'.$sauce_ts[0]['path'];
+			$tran_start['ts'] = $sauce_ts[0]['path'];
 			$trans      = array('%FFMPEG%' => $settings->ffmpeg,
 								'%TS%'     => '\''.$tran_start['ts'].'\'',
 								'%TRANS%'  => '\''.$tran_start['path'].'\'',
@@ -91,14 +79,27 @@ while(1){
 								'%AUDIO%'  => $RECORD_MODE[$tran_start['mode']]['audio'],
 								'%ABRATE%' => $RECORD_MODE[$tran_start['mode']]['abrate'],
 							);
-			$cmd_set           = strtr( $RECORD_MODE[$tran_start['mode']]['command']=='' ? TRANS_CMD : $RECORD_MODE[$tran_start['mode']]['command'], $trans );
-			$tran_start['pro'] = rec_start( $cmd_set );
-			if( $tran_start['pro'] !== FALSE ){
+			if( $RECORD_MODE[$tran_start['mode']]['command'] === '' ){
+				$cmd_set               = strtr( TRANS_CMD, $trans );
+				$tran_start['succode'] = TRANS_SUCCESS_CODE;
+			}else{
+				$cmd_set               = strtr( $RECORD_MODE[$tran_start['mode']]['command'], $trans );
+				$tran_start['succode'] = $RECORD_MODE[$tran_start['mode']]['succode']===TRUE ? TRANS_SUCCESS_CODE : $RECORD_MODE[$tran_start['mode']]['succode'];
+			}
+			$descspec = array(
+							0 => array( 'file','/dev/null','r' ),
+							1 => array( 'file','/dev/null','w' ),
+							2 => array( 'file','/dev/null','w' ),
+			);
+			$tran_start['pro'] = proc_open( $cmd_set, $descspec, $pipes, INSTALL_PATH.$settings->spool );
+			if( is_resource( $tran_start['pro'] ) ){
 				reclog( $tran_start['hd'].'開始'.$tran_start['tl'] );
 				$wrt_set = array();
 				$wrt_set['enc_starttime'] = toDatetime(time());
 				$wrt_set['name']          = $RECORD_MODE[$tran_start['mode']]['name'];
 				$wrt_set['status']        = 1;
+				$st                       = proc_get_status( $tran_start['pro'] );
+				$wrt_set['pid']           = $st['pid'];
 				$trans_obj->force_update( $tran_start['id'], $wrt_set );
 
 				$tran_start['title'] = $sauce_ts[0]['title'];
@@ -133,8 +134,7 @@ while(1){
 						// 不具合が出る場合は、以下を入れ替えること
 //						if( (int)trim(exec("stat -c %s '".$trans_stack[$key]['path']."'")) )
 						if( filesize($trans_stack[$key]['path']) )
-//							$wrt_set['status'] = $st['exitcode'] ? 2 : 3;	// FFmpegの終了値が不明なので
-							$wrt_set['status'] = 2;
+							$wrt_set['status'] = (!$trans_stack[$key]['succode'] || $st['exitcode']===$trans_stack[$key]['succode']) ? 2 : 3;	// FFmpegの終了値で成否を判断
 						else
 							$wrt_set['status'] = 3;
 					}else

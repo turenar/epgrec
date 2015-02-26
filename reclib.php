@@ -101,21 +101,79 @@ function ps_tok( $src ){
 }
 
 
-// 指定予約のdo_record.shのpsレコード取得
+function killtree( $rarr, $pid, $force=TRUE, $safe_pid=0 )
+{
+	posix_kill( $pid, 19 );		// 一時停止
+	foreach( $rarr as $cc ){
+		$ps = ps_tok( $cc );
+		if( (int)$ps->ppid===$pid && (int)$ps->pid!==$safe_pid )
+			killtree( $rarr, (int)$ps->pid, $force, $safe_pid );
+	}
+	if( $force )
+		posix_kill( $pid, 9 );		// 強制終了
+	else{
+		posix_kill( $pid, 15 );		// 終了
+		posix_kill( $pid, 18 );		// 再開
+	}
+	return TRUE;
+}
+
+// プレ起動中の予約の録画コマンドかdo_record.shのpsレコード取得
 function search_reccmd( $rec_id ){
-	$ps_output = shell_exec( PS_CMD );
+	global $rec_cmds,$OTHER_TUNERS_CHARA,$EX_TUNERS_CHARA;
+
+	$ps_output = shell_exec( PS_CMD );		// .'ww'
 	$rarr = explode( "\n", $ps_output );
-	$catch_cmd = DO_RECORD.' '.$rec_id;
-	for( $cc=0; $cc<count($rarr); $cc++ ){
-		if( strpos( $rarr[$cc], $catch_cmd ) !== FALSE ){
-			$ps = ps_tok( $rarr[$cc] );
-			do{
-				$cc++;
-				$c_ps = ps_tok( $rarr[$cc] );
-				if( $ps->pid == $c_ps->ppid ){
-					return $c_ps;
-				}
-			}while( $cc < count($rarr) );
+	if( !USE_DORECORD ){
+		$rev_obj   = new DBRecord( RESERVE_TBL );
+		$prev_recs = $rev_obj->fetch_array( 'id', $rec_id );
+
+		$type      = $prev_recs[0]['type'];
+		$smf_type  = $type!=='CS' ? $type : 'BS';
+		$tuner     = (int)$prev_recs[0]['tuner'];
+		if( $smf_type === 'EX' ){
+			$cmd_num = $EX_TUNERS_CHARA[$tuner]['reccmd'];
+			$device  = $EX_TUNERS_CHARA[$tuner]['device']!=='' ? ' '.trim($EX_TUNERS_CHARA[$tuner]['device']) : '';
+		}else{
+			if( $tuner < TUNER_UNIT1 ){
+				$cmd_num = PT1_CMD_NUM;
+				$device  = '';
+			}else{
+				$cmd_num = $OTHER_TUNERS_CHARA[$smf_type][$tuner-TUNER_UNIT1]['reccmd'];
+				$device  = $OTHER_TUNERS_CHARA[$smf_type][$tuner-TUNER_UNIT1]['device']!=='' ? ' '.trim($OTHER_TUNERS_CHARA[$smf_type][$tuner-TUNER_UNIT1]['device']) : '';
+			}
+		}
+		$slc_cmd = $rec_cmds[$cmd_num];
+		if( $prev_recs[0]['mode'] !== '0' ){
+			list( , $pr_sid ) = explode( '_', $prev_recs[0]['channel_disc'] );
+			$sid = $slc_cmd['sidEXT']!=='' ? ' --sid '.$slc_cmd['sidEXT'].','.$pr_sid : ' --sid '.$pr_sid;
+		}else
+			$sid = '';
+		$catch_cmd  = $slc_cmd['cmd'].$slc_cmd['b25'].( $device!=='' ? $device : $sid.' '.$prev_recs[0]['channel'].' ' );	// $deviceが長いと途切れる可能性があるので
+		$catch_path = ' '.$prev_recs[0]['path'];		// 途中から電子の藻屑となる場合が多いので特定材料にならない
+
+		$atjob_pid = (int)trim( file_get_contents( '/tmp/tuner_'.$type.$tuner ) );
+		foreach( $rarr as $cc ){
+			$ps = ps_tok( $cc );
+//			if( strpos( $cc, 'apache2' )===FALSE )
+//				reclog( 'search_reccmd()::LINE['.$cc.']', EPGREC_WARN );
+			if( (int)$ps->ppid===$atjob_pid && strpos( $cc, $catch_cmd )!==FALSE )
+				return $ps;
+		}
+		reclog( 'search_reccmd()::録画コマンド探索に失敗しました。rev_id['.$rec_id.'] cmd['.$catch_cmd.'[time]'.$catch_path.']', EPGREC_WARN );
+	}else{
+		$catch_cmd = DO_RECORD.' '.$rec_id;
+		for( $cc=0; $cc<count($rarr); $cc++ ){
+			if( strpos( $rarr[$cc], $catch_cmd ) !== FALSE ){
+				$ps = ps_tok( $rarr[$cc] );
+				do{
+					$cc++;
+					$c_ps = ps_tok( $rarr[$cc] );
+					if( $ps->pid == $c_ps->ppid ){
+						return $c_ps;
+					}
+				}while( $cc < count($rarr) );
+			}
 		}
 	}
 	return FALSE;
@@ -531,19 +589,10 @@ function at_clean( $r, $settings, $resv_cancel=FALSE )
 	if( $resv_cancel || strpos( $RECORD_MODE[$r['mode']]['suffix'], '.ts' )!==FALSE ){
 		// 残留AT削除
 		while(1){
-			$ret_cd = system( $settings->atrm . ' ' . $r['job'], $var_ret );
-			if( $ret_cd!==FALSE && $var_ret==0 ){
-				if( $resv_cancel )
-					reclog( '[予約ID:'.$r['id'].' 削除] '.
-						$r['channel_disc'].'(T'.$r['tuner'].'-'.$r['channel'].') '.$r['starttime'].' 『'.$r['title'].'』' );
-				else
-					reclog( '[予約ID:'.$r['id'].' 終了化(予約開始失敗・AT['.$r['job'].']残留)] '.
-						$r['channel_disc'].'(T'.$r['tuner'].'-'.$r['channel'].') '.$r['starttime'].' 『'.$r['title'].'』', EPGREC_ERROR );
-				break;
-			}
-			$rarr       = explode( "\n", str_replace( "\t", ' ', shell_exec( $settings->at.'q' ) ) );
+			$ret_cd     = system( $settings->atrm . ' ' . $r['job'], $var_ret );
 			$search_job = $r['job'].' ';
 			$search_own = posix_getlogin();
+			$rarr       = explode( "\n", str_replace( "\t", ' ', shell_exec( $settings->at.'q' ) ) );
 			foreach( $rarr as $str_var ){
 				if( strncmp( $str_var, $search_job, strlen( $search_job ) ) == 0 ){
 					if( strpos( $str_var, $search_own ) !== FALSE )
@@ -555,7 +604,15 @@ function at_clean( $r, $settings, $resv_cancel=FALSE )
 					}
 				}
 			}
-			reclog( '[予約ID:'.$r['id'].' 終了化(予約開始失敗・AT['.$r['job'].']無残留)] '.
+			if( $ret_cd!==FALSE && $var_ret==0 ){
+				if( $resv_cancel )
+					reclog( '[予約ID:'.$r['id'].' 削除] '.
+						$r['channel_disc'].'(T'.$r['tuner'].'-'.$r['channel'].') '.$r['starttime'].' 『'.$r['title'].'』' );
+				else
+					reclog( '[予約ID:'.$r['id'].' 終了化(予約開始失敗・AT['.$r['job'].']残留)] '.
+						$r['channel_disc'].'(T'.$r['tuner'].'-'.$r['channel'].') '.$r['starttime'].' 『'.$r['title'].'』', EPGREC_ERROR );
+			}else
+				reclog( '[予約ID:'.$r['id'].' 終了化(予約開始失敗・AT['.$r['job'].']無残留)] '.
 					$r['channel_disc'].'(T'.$r['tuner'].'-'.$r['channel'].') '.$r['starttime'].' 『'.$r['title'].'』', EPGREC_ERROR );
 			break;
 		}

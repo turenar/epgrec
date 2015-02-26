@@ -69,7 +69,7 @@ if( isset( $argv[1] ) ){
 						}while( $next_getepg_time < time() );
 					}
 
-					if( $next_getepg_time < $next_rectime )
+					if( $next_rectime===0 || $next_getepg_time<$next_rectime )
 						$waketime = $next_getepg_time;
 					else
 						$waketime = $next_rectime;

@@ -147,6 +147,7 @@ define( "TRANSCODE_STRUCT",
 	",name char(16) not null default ''".							// 表示名(変換開始時に記入)
 	",status integer not null default '0'".							// 状態(0:変換開始待ち 1:変換中 2:変換完了 3:変換失敗)
 	",ts_del boolean not null default '0'".							// 元ファイル削除フラグ
+	",pid integer not null default '0'".							// 変換プロセスPID
 	",path blob default null".										// 変換ファイルフルパス
 	",index log_recid_idx (rec_id,status)".
 	",index log_status_idx (status,rec_endtime,rec_id)".

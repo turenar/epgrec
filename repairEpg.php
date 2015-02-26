@@ -15,18 +15,6 @@ define( 'TIME_LIMIT', 1.5*60*60 );
 
 	$settings = Settings::factory();
 
-function search_getepg()
-{
-	$ps_output = shell_exec( PS_CMD );
-	$rarr = explode( "\n", $ps_output );
-	$catch_cmd = INSTALL_PATH.'/getepg.php';
-	for( $cc=0; $cc<count($rarr); $cc++ ){
-		if( strpos( $rarr[$cc], $catch_cmd ) !== FALSE )
-			return TRUE;
-	}
-	return FALSE;
-}
-
 function sig_handler()
 {
 	global	$shm_name,$temp_xml,$temp_ts;
@@ -53,7 +41,6 @@ function sig_handler()
 	pcntl_signal( SIGTERM, "sig_handler" );
 
 
-if( search_getepg() === FALSE ){
 	$channel_id = $argv[1];
 	$rev = new DBRecord( CHANNEL_TBL, "id", $channel_id );
 	$type     = $rev->type;		//GR/BS/CS
@@ -64,32 +51,32 @@ if( search_getepg() === FALSE ){
 	$ch_disc  = $type==='GR' ? strtok( $rev->channel_disc, '_' ) : '/'.$type;
 	$rec_tm   = FIRST_REC;
 	$pid      = posix_getpid();
-	$temp_xml = $settings->temp_xml.$type.'_'.$pid;
-	$temp_ts  = $settings->temp_data.'_'.$type.'_'.$pid;
-
 	if( $type === 'GR' ){
 		$smf_type = 'GR';
-		$sql_type = "type = 'GR'";
+		$sql_type = 'type="GR"';
 		$smf_key  = SEM_GR_START;
 		$tuners   = $settings->gr_tuners;
 	}else
 	if( $type === 'EX' ){
 		$smf_type = 'EX';
-		$sql_type = "type = 'EX'";
+		$sql_type = 'type="EX"';
 		$smf_key  = SEM_EX_START;
 		$tuners   = EXTRA_TUNERS;
 	}else{
 		$smf_type = 'BS';
-		$sql_type = "(type = 'BS' OR type = 'CS')";
+		$sql_type = '(type="BS" OR type="CS")';
 		$smf_key  = SEM_ST_START;
 		$tuners   = $settings->bs_tuners;
 	}
+	$temp_xml    = $settings->temp_xml.$type.'_'.$pid;
+	$pre_temp_ts = $settings->temp_data.'_'.$smf_type;
+
 	$epg_tm  = $rec_tm + $settings->rec_switch_time + $settings->former_time + 2;
-	$sql_use = "WHERE complete = '0' AND ".$sql_type.' AND endtime > subtime( now(), sec_to_time('.($settings->extra_time+2).') ) AND starttime < addtime( now(), sec_to_time('.$epg_tm.') )';
-	$sql_cmd = "WHERE channel_id = '".$channel_id."'";
-	if( DBRecord::countRecords( RESERVE_TBL, $sql_cmd." AND starttime > now() AND starttime <= '".toDatetime( $ed_tm )."' AND complete = '0'" ) )
+	$sql_use = 'complete=0 AND '.$sql_type.' AND endtime>subtime( now(), sec_to_time('.($settings->extra_time+2).') ) AND starttime<addtime( now(), sec_to_time('.$epg_tm.') )';
+	$sql_cmd = 'WHERE channel_id='.$channel_id;
+	if( DBRecord::countRecords( RESERVE_TBL, $sql_cmd.' AND starttime>now() AND starttime<="'.toDatetime( $ed_tm ).'" AND complete=0' ) )
 		exit();
-	$sql_cmd .= ' AND starttime > now() AND starttime <= addtime( now(), sec_to_time('.( $epg_tm + PADDING_TIME ).') )';
+	$sql_cmd .= ' AND starttime>now() AND starttime<=addtime( now(), sec_to_time('.( $epg_tm + PADDING_TIME ).') )';
 	for( $sem_cnt=0; $sem_cnt<$tuners; $sem_cnt++ ){
 		$sem_id[$sem_cnt] = sem_get_surely( $sem_cnt+$smf_key );
 		if( $sem_id[$sem_cnt] === FALSE )
@@ -108,6 +95,7 @@ if( search_getepg() === FALSE ){
 	if( $st_tm > $start_tm+TIME_LIMIT )
 		$st_tm = $start_tm + TIME_LIMIT;
 	power_reduce( REPAIREPG );
+	$res_obj = new DBRecord( RESERVE_TBL );
 	while(1){
 		if( $now_tm < $st_tm ){
 			$sp_tm = $st_tm - $now_tm;
@@ -127,16 +115,16 @@ if( search_getepg() === FALSE ){
 		sleep( $sp_tm );
 		if( DBRecord::countRecords( RESERVE_TBL, $sql_cmd ) )
 			break;
-		if( DBRecord::countRecords( PROGRAM_TBL, $sql_cmd." AND ( title LIKE '%放送%休止%' OR title LIKE '%放送設備%' )" ) )
+		if( DBRecord::countRecords( PROGRAM_TBL, $sql_cmd.' AND ( title LIKE "%放送%休止%" OR title LIKE "%放送設備%" )' ) )
 			break;
 
-		$off_tuners = DBRecord::countRecords( RESERVE_TBL, $sql_use );
+		$revs       = $res_obj->fetch_array( null, null, $sql_use );
+		$off_tuners = count( $revs );
 		if( $off_tuners < $tuners ){
 			//空チューナー降順探索
-			$revs = DBRecord::createRecords( RESERVE_TBL, $sql_use );
 			for( $slc_tuner=$tuners-1; $slc_tuner>=0; $slc_tuner-- ){
 				for( $cnt=0; $cnt<$off_tuners; $cnt++ ){
-					if( $revs[$cnt]->tuner == $slc_tuner )
+					if( (int)$revs[$cnt]['tuner'] === $slc_tuner )
 						continue 2;
 				}
 				if( sem_acquire( $sem_id[$slc_tuner] ) === TRUE ){
@@ -155,12 +143,22 @@ if( search_getepg() === FALSE ){
 							usleep( 100 );
 						sleep( (int)$settings->rec_switch_time );
 reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time()), EPGREC_DEBUG );
-						if( ( $type!=='EX' && ( ( $slc_tuner<TUNER_UNIT1 && RECPT1_EPG_PATCH ) || ( $slc_tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$slc_tuner-TUNER_UNIT1]['epgTs'] ) ) )
-							|| ( $type==='EX' && $EX_TUNERS_CHARA[$slc_tuner]['epgTs'] ) )
-							$cmdline = 'SID=epg ';
-						else
-							$cmdline = "";
-						$cmdline .= 'CHANNEL='.$value.' DURATION='.$rec_tm.' TYPE='.$type.' TUNER_UNIT='.TUNER_UNIT1.' TUNER='.$slc_tuner.' MODE=0 OUTPUT='.$temp_ts.' '.DO_RECORD.' >/dev/null 2>&1';
+						if( $type === 'EX' ){
+							$cmd_num = $EX_TUNERS_CHARA[$slc_tuner]['reccmd'];
+							$device  = $EX_TUNERS_CHARA[$slc_tuner]['device']!=='' ? ' '.trim($EX_TUNERS_CHARA[$slc_tuner]['device']) : '';
+						}else{
+							if( $slc_tuner < TUNER_UNIT1 ){
+								$cmd_num = PT1_CMD_NUM;
+								$device  = '';
+							}else{
+								$cmd_num = $OTHER_TUNERS_CHARA[$smf_type][$slc_tuner-TUNER_UNIT1]['reccmd'];
+								$device  = $OTHER_TUNERS_CHARA[$smf_type][$slc_tuner-TUNER_UNIT1]['device']!=='' ? ' '.trim($OTHER_TUNERS_CHARA[$smf_type][$slc_tuner-TUNER_UNIT1]['device']) : '';
+							}
+						}
+						$sid_opt  = $rec_cmds[$cmd_num]['epgTs'] ? ' --sid epg' : '';
+						$falldely = $rec_cmds[$cmd_num]['falldely']>0 ? ' || sleep '.$rec_cmds[$cmd_num]['falldely'] : '';
+						$temp_ts  = $pre_temp_ts.$slc_tuner.'_'.$pid;
+						$cmdline  = $rec_cmds[$cmd_num]['cmd'].$rec_cmds[$cmd_num]['b25'].$device.$sid_opt.' '.$value.' '.$rec_tm.' '.$temp_ts.' >/dev/null 2>&1'.$falldely;
 						exec( $cmdline );
 						//チューナー占有解除
 						while( sem_acquire( $sem_id[$slc_tuner] ) === FALSE )
@@ -175,10 +173,24 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 								$cmdline .= ' -sid '.$sid;
 							while(1){
 								if( sem_acquire( $sem_dump ) === TRUE ){
-									exec( $cmdline );
+									exec( $cmdline, $output, $ret_var );
+									if( isset($output) ){
+										foreach( $output as $mes )
+											if( $mes !== '' )
+												$put_mes = $mes.'<br>';
+										if( isset($put_mes) )
+											reclog( 'epgdump message::'.$put_mes, EPGREC_WARN );
+										unset( $output );
+									}
+									if( isset($ret_var) ){
+										if( $ret_var !== 0 ){
+											reclog( 'epgdump error::'.$ret_var, EPGREC_WARN );
+										}
+										unset( $ret_var );
+									}else
+										reclog( 'epgdump error::no code', EPGREC_WARN );
 									while( sem_release( $sem_dump ) === FALSE )
 										usleep( 100 );
-									@unlink( $temp_ts );
 									break;
 								}
 								usleep(100 * 1000);
@@ -187,9 +199,11 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 								while(1){
 									if( sem_acquire( $sem_store ) === TRUE ){
 										$ch_id = storeProgram( $type, $temp_xml );
-										@unlink( $temp_xml );
-										if( $ch_id !== -1 )
+										if( $ch_id !== -1 ){
+											@unlink( $temp_ts );
+											@unlink( $temp_xml );
 											doKeywordReservation( $type, $shm_id );	// キーワード予約
+										}
 										while( sem_release( $sem_store ) === FALSE )
 											usleep( 100 );
 										if( is_string( $ch_id ) ){
@@ -231,6 +245,5 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 	}
 	power_reduce( RESUME );
 	shmop_close( $shm_id );
-}
 	exit();
 ?>

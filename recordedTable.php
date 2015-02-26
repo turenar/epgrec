@@ -6,6 +6,32 @@ include_once( INSTALL_PATH . '/Reservation.class.php' );
 include_once( INSTALL_PATH . '/Settings.class.php' );
 include_once( INSTALL_PATH . '/reclib.php' );
 
+
+function view_strlen( $str )
+{
+	$byte_len = strlen( $str );
+	$str_len  = mb_strlen( $str );
+	$mc = (int)(( $byte_len - $str_len ) / 2);
+	$sc = $str_len - $mc;
+	return $mc*2+$sc;
+}
+
+
+function box_pad( $str, $width )
+{
+/*
+	// いいかげんなので保留
+	$str_wd = view_strlen( $str );
+	if( ($width-$str_wd)%2 === 1 )
+		$str .= ' ';
+	if( ($width-$str_wd)/4 > 0 )
+		$str .= str_repeat( '　', ($width-$str_wd)/4 );
+	return $str;
+*/
+	return '['.$str.']';
+}
+
+
 $settings = Settings::factory();
 
 $week_tb = array( '日', '月', '火', '水', '木', '金', '土' );
@@ -89,35 +115,49 @@ if( isset($_POST['do_delete']) ){
 	}
 
 	foreach( $del_list as $rec ){
+		if( $delete_file ){
+			// トラコンファイル削除
+			if( $act_trans ){
+				$del_trans = $trans_obj->fetch_array( null, null, 'rec_id='.$rec['id'].' ORDER BY status' );
+				foreach( $del_trans as $del_file ){
+					switch( $del_file['status'] ){
+						case 1:		// 処理中(0は処理済)
+							$ps_output = shell_exec( PS_CMD );
+							$rarr      = explode( "\n", $ps_output );
+							killtree( $rarr, (int)$del_file['pid'] );
+							sleep(1);
+							break;
+						case 2:		// 正常終了
+						case 3:		// 異常終了
+							if( file_exists( $del_file['path'] ) )
+								@unlink( $del_file['path'] );
+							break;
+					}
+					$trans_obj->force_delete( $del_file['id'] );
+				}
+			}
+			// ファイルを削除
+			$reced = INSTALL_PATH.$settings->spool.'/'.$rec['path'];
+			if( file_exists( $reced ) )
+				@unlink( $reced );
+		}
+		// サムネイル削除
+		$thumbs = INSTALL_PATH.$settings->thumbs.'/'.end(explode( '/', $rec['path'] )).'.jpg';
+		if( file_exists( $thumbs ) )
+			@unlink( $thumbs );
+
 		// 予約取り消し実行
 		try {
 			$ret_code = Reservation::cancel( $rec['id'], 0 );
 		}catch( Exception $e ){
 			// 無視
 		}
-		// サムネイル削除
-		if( file_exists(INSTALL_PATH.$settings->thumbs.'/'.end(explode( '/', $rec['path'] )).'.jpg') )
-			@unlink( INSTALL_PATH.$settings->thumbs.'/'.end(explode( '/', $rec['path'] )).'.jpg' );
-		if( $delete_file ){
-			// トラコンファイル削除
-			if( $act_trans ){
-				// 変換中ジョブ対策は気が向いたら
-				$del_trans = $trans_obj->fetch_array( 'rec_id', $rec['id'] );
-				foreach( $del_trans as $del_file ){
-					@unlink($del_file['path']);
-					$trans_obj->force_delete( $del_file['id'] );
-				}
-			}
-			// ファイルを削除
-			if( file_exists( INSTALL_PATH.$settings->spool.'/'.$rec['path'] ) ){
-				@unlink(INSTALL_PATH.$settings->spool.'/'.$rec['path']);
-			}
-		}
 	}
 }
 
 
 try{
+	// CH一覧作成
 	$ch_list   = $rev_obj->distinct( 'channel_id', 'WHERE '.$options );
 	$ch_opt    = count( $ch_list ) ? ' AND id IN ('.implode( ',', $ch_list ).')' : '';
 	$stations  = array();
@@ -164,21 +204,87 @@ try{
 	}
 //	$chid_list = array_column( $stations, 'id' );		// PHP5.5
 
+	// カテゴリー一覧作成
 	$cat_list = $rev_obj->distinct( 'category_id', 'WHERE '.$options );
-	$cat_opt  = count( $ch_list ) ? 'WHERE id IN ('.implode( ',', $cat_list ).')' : '';
+	$cat_opt  = count( $cat_list ) ? 'WHERE id IN ('.implode( ',', $cat_list ).')' : '';
 	$crecs    = DBRecord::createRecords( CATEGORY_TBL, $cat_opt );
 	$cats     = array();
 	$cats[0]['id'] = 0;
 	$cats[0]['name'] = 'すべて';
 	$cats[0]['selected'] = $category_id == 0 ? 'selected' : '';
 	$cats[0]['count']    = 0;
+	$ct_len = 0;
 	foreach( $crecs as $c ){
 		$arr = array();
 		$arr['id']       = $c->id;
 		$arr['name']     = $c->name_jp;
+		$tmp_len = view_strlen( $arr['name'] );
+		if( $ct_len < $tmp_len )
+			$ct_len = $tmp_len;
 		$arr['selected'] = $c->id == $category_id ? 'selected' : '';
 		$arr['count']    = 0;
 		array_push( $cats, $arr );
+	}
+
+	// 自動キーワード一覧作成
+	$cs_rec_flg = (boolean)$settings->cs_rec_flg;
+	$key_list = $rev_obj->distinct( 'autorec', 'WHERE '.$options );
+	$key_opt  = count( $key_list ) ? 'WHERE id IN ('.implode( ',', $key_list ).') ORDER BY id' : '';
+	$crecs    = DBRecord::createRecords( KEYWORD_TBL, $key_opt );
+	$keyid_list = array();
+	$keys     = array();
+	$keys[0]['id']       = $keyid_list[] = 0;
+	$keys[0]['name']     = '《キーワードなし》';
+	$keys[0]['selected'] = $key_id===0 ? 'selected' : '';
+	$keys[0]['count']    = 0;
+	$id_len = $sn_len = 0;
+	foreach( $crecs as $c ){
+		$arr = array();
+		$arr['id'] = $keyid_list[] = $c->id;
+		$tmp_len = view_strlen( $arr['id'] );
+		if( $id_len < $tmp_len )
+			$id_len = $tmp_len;
+		if( (int)$c->channel_id ){
+			$chid_key     = array_search( (int)$c->channel_id, $chid_list );
+			$station_name = $chid_key!==FALSE ? $stations[$chid_key]['name'] : '';
+		}else
+			$station_name = '';
+		if( $station_name === '' ){
+			if( !$c->typeGR || ( $settings->bs_tuners>0 && ( !$c->typeBS || ( $cs_rec_flg && !$c->typeCS ) ) ) || ( EXTRA_TUNERS>0 && !$c->typeEX ) ){
+				$types = array();
+				if( $c->typeGR )
+					$types[] = 'GR';
+				if( $settings->bs_tuners > 0 ){
+					if( $c->typeBS )
+						$types[] = 'BS';
+					if( $cs_rec_flg && $c->typeCS )
+						$types[] = 'CS';
+				}
+				if( EXTRA_TUNERS>0 && $c->typeEX )
+					$types[] = 'EX';
+				$station_name = implode( '+', $types );
+			}else
+				$station_name = 'ALL';
+		}
+		$arr['station']  = $station_name;
+		$tmp_len = view_strlen( $station_name );
+		if( $sn_len < $tmp_len )
+			$sn_len = $tmp_len;
+		if( $c->keyword !== '' ){
+			$keywds = array();
+			foreach( explode( ' ', trim($c->keyword) ) as $key ){
+				if( strlen( $key )>0 && $key[0]!=='-' ){
+					$keywds[] = $key;
+				}
+			}
+			$arr['name'] = implode( ' ', $keywds );
+		}else
+			$arr['name'] = '';
+		$arr['cat']      = (int)$c->category_id;
+		$arr['subgenre'] = (int)$c->sub_genre;
+		$arr['selected'] = (int)$c->id===$key_id ? ' selected' : '';
+		$arr['count']    = 0;
+		array_push( $keys, $arr );
 	}
 
 
@@ -208,6 +314,13 @@ try{
 		$end_record   = $page * $separate_records;
 	}
 
+	$part_path = explode( '/', $_SERVER['PHP_SELF'] );
+	array_pop( $part_path );
+	$base_path = implode( '/', $part_path );
+	$view_url = $base_path;
+//	$host_url = explode( $base_path, isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : $_SERVER['SCRIPT_NAME'] );
+//	$view_url = $host_url[0].$base_path;		// $settings->install_url
+	$transcode = TRANSCODE_STREAM && $NET_AREA!==FALSE && $NET_AREA!=='H';
 	$records = array();
 	foreach( $rvs as $key => $r ){
 		$arr = array();
@@ -227,35 +340,44 @@ try{
 			if( $cat_key !== FALSE )
 				$cats[$cat_key+1]['count']++;
 		}
+		$arr['key_id'] = (int)$r['autorec'];
+		if( $arr['key_id'] ){
+			if( DBRecord::countRecords( KEYWORD_TBL, 'WHERE id='.$arr['key_id'] )==0 ){
+				$wrt_set = array();
+				$arr['key_id'] = $wrt_set['autorec'] = 0;
+				$rev_obj->force_update( $r['id'], $wrt_set );
+			}
+		}
+		$keys[array_search($arr['key_id'],$keyid_list)]['count']++;
 		if( $start_record<=$key && $key<$end_record ){
 			$arr['id']          = (int)$r['id'];
 			$start_time         = toTimestamp($r['starttime']);
 			$end_time           = toTimestamp($r['endtime']);
 			$arr['starttime']   = date( 'Y/m/d(', $start_time ).$week_tb[date( 'w', $start_time )].')<br>'.date( 'H:i:s', $start_time );
 			$arr['duration']    = date( 'H:i:s', $end_time-$start_time-9*60*60 );
-			$arr['asf']         = $settings->install_url.'/viewer.php?reserve_id='.$r['id'];
+			$arr['asf']         = 'viewer.php?reserve_id='.$r['id'];
 			$arr['title']       = htmlspecialchars($r['title'],ENT_QUOTES);
 			$arr['description'] = htmlspecialchars($r['description'],ENT_QUOTES);
 			if( file_exists(INSTALL_PATH.$settings->thumbs.'/'.end(explode( '/', $r['path'] )).'.jpg') )
-				$arr['thumb'] = '<img src="'.$settings->install_url.$settings->thumbs.'/'.rawurlencode(end(explode( '/', $r['path'] ))).'.jpg" />';
+				$arr['thumb'] = '<img src="'.$view_url.$settings->thumbs.'/'.rawurlencode(end(explode( '/', $r['path'] ))).'.jpg" />';
 			else
 				$arr['thumb'] = '';
-			$arr['keyword']     = putProgramHtml( $arr['title'], '*', 0, $r['category_id'], 16 );
-			$arr['key_id']      = (int)$r['autorec'];
-			if( $arr['key_id'] && DBRecord::countRecords( KEYWORD_TBL, 'WHERE id='.$arr['key_id'] )==0 ){
-				$wrt_set = array();
-				$arr['key_id'] = $wrt_set['autorec'] = 0;
-				$rev_obj->force_update( $r['id'], $wrt_set );
-			}
-			if( $r['complete']==0 && time()>$end_time+(int)$settings->extra_time+2 ){
-				$wrt_set = array();
-				$wrt_set['complete'] = 1;
-				$rev_obj->force_update( $r['id'], $wrt_set );
+			$arr['keyword']     = putProgramHtml( $r['title'], '*', 0, $r['category_id'], 16 );
+			if( $r['complete']==0 && time()>$end_time+(int)$settings->extra_time+5 ){
+				if( at_clean( $r, $settings ) === 0 ){
+					// 予約終了化
+					$wrt_set = array();
+					$wrt_set['complete'] = 1;
+					$rev_obj->force_update( $r['id'], $wrt_set );
+				}
 			}
 			if( file_exists( INSTALL_PATH.$settings->spool.'/'.$r['path'] ) ){
-				$arr['view_set'] = '<a href="'.$arr['asf'].'" title="クリックすると視聴できます（ブラウザの設定でASFとVLCを関連付けている必要があります）"'.
-									' style="white-space: pre; background-color: '.($r['complete']==0 ? 'greenyellow' : 'limegreen').'; color: black;"> '.
+				$arr['view_set'] = '<a href="'.$arr['asf'].'" title="クリックすると視聴できます（ブラウザの設定でASFと視聴アプリを関連付けている必要があります）"'.
+									' style="background-color: '.($r['complete']==0 ? 'greenyellow' : 'limegreen').'; color: black;"> '.
 									(isset($RECORD_MODE[$r['mode']]['tsuffix']) ? 'TS' : $RECORD_MODE[$r['mode']]['name']).' </a>';
+				if( $transcode )	// 録画中のトランスコードストリームも可能
+					$arr['view_set'] .= ' <a href="'.$arr['asf'].'&trans=ON" title="トランスコード視聴" id="trans_url_'.($key-$start_record).
+										'" style="color: white; background-color: royalblue;">▼</a>';
 			}else
 				$arr['view_set'] = '';
 			if( $act_trans ){
@@ -264,22 +386,22 @@ try{
 					$element = '';
 					switch( $tran_unit['status'] ){
 						case 0:
-							$element = '<a style="white-space: pre; background-color: yellow;"> '.$RECORD_MODE[$tran_unit['mode']]['name'].' </a>';
+							$element = '<a style="background-color: yellow;"> '.$RECORD_MODE[$tran_unit['mode']]['name'].' </a>';
 							break;
 						case 1:
-							$element = '<a style="white-space: pre; background-color: greenyellow;" href="'.
-																						$arr['asf'].'&trans='.$tran_unit['id'].'"> '.$tran_unit['name'].' </a>';
+							$element = '<a style="background-color: greenyellow;" href="'.
+																						$arr['asf'].'&trans_id='.$tran_unit['id'].'"> '.$tran_unit['name'].' </a>';
 							break;
 						case 2:
 							if( file_exists( $tran_unit['path'] ) ){
-								$element = '<a style="white-space: pre; background-color: limegreen; color: black" href="'.
-																						$arr['asf'].'&trans='.$tran_unit['id'].'"> '.$tran_unit['name'].' </a>';
+								$element = '<a style="background-color: limegreen; color: black" href="'.
+																						$arr['asf'].'&trans_id='.$tran_unit['id'].'"> '.$tran_unit['name'].' </a>';
 							}else
 								$trans_obj->force_delete( $tran_unit['id'] );
 							break;
 						case 3:
-							$element = '<a style="white-space: pre; background-color: red; color: white;"'.
-								( file_exists( $tran_unit['path'] ) ? ' href="'.$arr['asf'].'&trans='.$tran_unit['id'].'"> ' : '> ' ).$tran_unit['name'].' </a>';
+							$element = '<a style="background-color: red; color: white;"'.
+								( file_exists( $tran_unit['path'] ) ? ' href="'.$arr['asf'].'&trans_id='.$tran_unit['id'].'"> ' : '> ' ).$tran_unit['name'].' </a>';
 							break;
 					}
 					if( $element !== '' ){
@@ -290,22 +412,42 @@ try{
 				}
 			}
 			if( $arr['view_set'] === '' )
-				$arr['view_set'] = '<a style="white-space: pre;"><del> '.$RECORD_MODE[$r['mode']]['name'].' </del></a>';
+				$arr['view_set'] = '<a><del> '.$RECORD_MODE[$r['mode']]['name'].' </del></a>';
 			array_push( $records, $arr );
 		}
 	}
 
+	if( $key_id === FALSE )
+		$keys[0]['name'] = '('.str_pad( $keys[0]['count'], 4, '0', STR_PAD_LEFT ).') '.$keys[0]['name'];
+	for( $piece=1; $piece<count($keys); $piece++ ){
+		$cat_key  = array_search( $keys[$piece]['cat'], $cat_list );
+		$cat_name = $cat_key===FALSE ? $cats[0]['name'] : $cats[$cat_key+1]['name'].'('.$keys[$piece]['subgenre'].')';
+		$keys[$piece]['name'] = ($key_id===FALSE ? '('.str_pad( $keys[$piece]['count'], 4, '0', STR_PAD_LEFT ).') ' : '')
+								.'ID:'.str_pad( $keys[$piece]['id'], $id_len, '0', STR_PAD_LEFT )
+								.' '.box_pad( $keys[$piece]['station'], $sn_len )
+								.' '.box_pad( $cat_name, $ct_len )
+								.' '.$keys[$piece]['name'];
+	}
+
+	if( $transcode && !TRANS_SCRN_ADJUST ){
+		for( $cnt=0; $cnt<count($TRANSSIZE_SET); $cnt++ )
+			$TRANSSIZE_SET[$cnt]['selected'] = $cnt===TRANSTREAM_SIZE_DEFAULT ? ' selected' : '';
+	}
 
 	$smarty = new Smarty();
-	$smarty->assign('sitetitle','録画済一覧'.($key_id!==FALSE ? ' No.'.$key_id : '') );
+	$smarty->assign('sitetitle','録画済一覧' );
 	$smarty->assign( 'records', $records );
 	$smarty->assign( 'search', $search );
 	$smarty->assign( 'stations', $stations );
 	$smarty->assign( 'cats', $cats );
+	$smarty->assign( 'keys', $keys );
 	$smarty->assign( 'key_id', $key_id );
 	$smarty->assign( 'station', $station );
 	$smarty->assign( 'category_id', $category_id );
 	$smarty->assign( 'use_thumbs', $settings->use_thumbs );
+	$smarty->assign( 'TRANSCODE_STREAM', $transcode );
+	$smarty->assign( 'TRANS_SCRN_ADJUST', $transcode && TRANS_SCRN_ADJUST ? 1 : 0 );
+	$smarty->assign( 'transsize_set', $TRANSSIZE_SET );
 	$smarty->assign( 'full_mode', $full_mode );
 	$smarty->assign( 'pager', $full_mode ? '' : make_pager( 'recordedTable.php', $separate_records, $stations[0]['count'], $page ) );
 	$smarty->assign( 'menu_list', link_menu_create() );

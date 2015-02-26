@@ -42,28 +42,29 @@ if( $usable_tuners != 0 ){
 			exit;
 	}
 	$shm_id   = shmop_open_surely();
-	$sql_base = "WHERE complete = '0' AND type = 'EX'";
+	$sql_base = 'complete=0 AND type="EX"';
 	$loop_tim = 10;
 	$key      = 0;
 	$use_cnt  = 0;
 //	$st_time  = time();
+	$res_obj = new DBRecord( RESERVE_TBL );
 	while(1){
 		$sql_time   = create_sql_time( $rec_time+$add_time );
-		$motion_sql = "' AND title NOT LIKE '%放送%休止%' AND title NOT LIKE '%放送設備%'".$sql_time;
-		$rest_sql   = "' AND ( title LIKE '%放送%休止%' OR title LIKE '%放送設備%' )".$sql_time;
-		$sql_cmd = $sql_base.create_sql_time( $rec_time + $add_time*2 + $settings->former_time + $loop_tim );
-		$sql_chk = $sql_base.' AND starttime > now() AND starttime < addtime( now(), sec_to_time('.( $rec_time+$add_time + PADDING_TIME ).') )';
+		$motion_sql = '" AND title NOT LIKE "%放送%休止%" AND title NOT LIKE "%放送設備%" AND title NOT LIKE "%試験放送%" AND title NOT LIKE "%メンテナンス%"'.$sql_time;
+		$rest_sql   = '" AND ( title LIKE "%放送%休止%" OR title LIKE "%放送設備%" OR title LIKE "%試験放送%" OR title LIKE "%メンテナンス%" )'.$sql_time;
+		$sql_cmd    = $sql_base.create_sql_time( $rec_time + $add_time*2 + $settings->former_time + $loop_tim );
+		$sql_chk    = $sql_base.' AND starttime>now() AND starttime<addtime( now(), sec_to_time('.( $rec_time+$add_time + PADDING_TIME ).') )';
 		if( $use_cnt < $usable_tuners ){
 			// 録画重複チェック
-			$off_tuners = DBRecord::countRecords( RESERVE_TBL, $sql_cmd );
+			$revs       = $res_obj->fetch_array( null, null, $sql_cmd );
+			$off_tuners = count( $revs );
 			if( $off_tuners+$use_cnt < $tuners ){
-				$revs  = DBRecord::createRecords( RESERVE_TBL, $sql_cmd );
 				$lp_st = time();
 				do{
 					//空チューナー降順探索
 					for( $slc_tuner=$tuners-1; $slc_tuner>=0; $slc_tuner-- ){
 						for( $cnt=0; $cnt<$off_tuners; $cnt++ ){
-							if( $revs[$cnt]->tuner == $slc_tuner )
+							if( $revs[$cnt]['tuner'] == $slc_tuner )
 								continue 2;
 						}
 						if( sem_acquire( $sem_id[$slc_tuner] ) === TRUE ){
@@ -81,19 +82,19 @@ if( $usable_tuners != 0 ){
 								while( sem_release( $sem_id[$slc_tuner] ) === FALSE )
 									usleep( 100 );
 
-								if( DBRecord::countRecords( RESERVE_TBL, $sql_chk ) > 0 ){
-									$rr     = DBRecord::createRecords( RESERVE_TBL, $sql_chk );
+								$rr = $res_obj->fetch_array( null, null, $sql_chk );
+								if( count( $rr ) > 0 ){
 									$motion = TRUE;
 									if( $slc_tuner < TUNER_UNIT1 ){
 										foreach( $rr as $rev ){
-											if( $rev->tuner < TUNER_UNIT1 ){
+											if( $rev['tuner'] < TUNER_UNIT1 ){
 												$motion = FALSE;
 												break;
 											}
 										}
 									}else{
 										foreach( $rr as $rev ){
-											if( $rev->tuner >= TUNER_UNIT1 ){
+											if( $rev['tuner'] >= TUNER_UNIT1 ){
 												$motion = FALSE;
 												break;
 											}
@@ -106,9 +107,9 @@ if( $usable_tuners != 0 ){
 									// 停波確認と受信CH更新
 									while(1){
 										if( list( $ch_disk, $value ) = each( $ch_list ) ){
-											$num = DBRecord::countRecords( PROGRAM_TBL, "WHERE channel LIKE '".$value.$motion_sql);
+											$num = DBRecord::countRecords( PROGRAM_TBL, 'WHERE channel LIKE "'.$value.$motion_sql);
 											if( $num == 0 ){
-												$num = DBRecord::countRecords( PROGRAM_TBL, "WHERE channel LIKE '".$value.$rest_sql );
+												$num = DBRecord::countRecords( PROGRAM_TBL, 'WHERE channel LIKE "'.$value.$rest_sql );
 												if( $num == 0 )
 													break;		//初回起動
 											}else
@@ -133,27 +134,18 @@ if( $usable_tuners != 0 ){
 										}
 									}
 									if( !HIDE_CH_EPG_GET ){
-										$cut_sid_cmd = "WHERE skip = '1' AND type = 'EX'";
-										$hit         = DBRecord::countRecords( CHANNEL_TBL, $cut_sid_cmd ) + $cnt;
+										$chs_obj = new DBRecord( CHANNEL_TBL );
+										$cuts    = $chs_obj->fetch_array( null, null, 'skip=1 AND type="EX"' );
+										$hit     = count( $cuts ) + $cnt;
 										if( $hit > $cnt ){
-											$cuts = DBRecord::createRecords( CHANNEL_TBL, $cut_sid_cmd );
 											foreach( $cuts as $cut_ch ){
-												if( in_array( (string)$cut_ch->sid, $cut_sids ) === FALSE )
-													$cut_sids[$cnt++] = (string)$cut_ch->sid;
+												if( in_array( (string)$cut_ch['sid'], $cut_sids ) === FALSE )
+													$cut_sids[$cnt++] = (string)$cut_ch['sid'];
 											}
 										}
 									}
-									if( $hit > 0 ){
-										$cnt      = 0;
-										$cmdline .= ' ';
-										while(1){
-											$cmdline .= $cut_sids[$cnt];
-											if( ++$cnt < $hit )
-												$cmdline .= ',';
-											else
-												break;
-										}
-									}
+									if( $hit > 0 )
+										$cmdline .= ' '.implode( ',', $cut_sids );
 
 									$pro[$key] = sheep_release( $cmdline );
 									$use_cnt++;

@@ -1,6 +1,6 @@
 <?php
-include_once( "../config.php");
-include_once( INSTALL_PATH."/Settings.class.php" );
+include_once( '../config.php' );
+include_once( INSTALL_PATH.'/Settings.class.php' );
 
 // 設定の保存
 $settings = Settings::factory();
@@ -58,7 +58,7 @@ $getepg_th_tm = (int)ceil( ($getepg_th_tm+$getepg_gr_tm) / 60 );
 //shepherd.php 所要時間算出
 $tmpdrive_size = disk_free_space( "/tmp" );
 $gr_bs_para = FALSE;
-if( RECPT1_EPG_PATCH && TUNER_UNIT1>0 ){
+if( $rec_cmds[PT1_CMD_NUM]['epgTs'] && TUNER_UNIT1>0 ){
 	$gr_pt1 = $GR_tuners<TUNER_UNIT1? $GR_tuners : TUNER_UNIT1;
 	$bs_pt1 = $BS_tuners<TUNER_UNIT1? $BS_tuners : TUNER_UNIT1;
 }else{
@@ -66,11 +66,11 @@ if( RECPT1_EPG_PATCH && TUNER_UNIT1>0 ){
 	$bs_pt1 = 0;
 }
 for( $tuner=0; $tuner<$GR_tuners-TUNER_UNIT1; $tuner++ ){
-	if( $OTHER_TUNERS_CHARA['GR'][$tuner]['epgTs'] )
+	if( $rec_cmds[$OTHER_TUNERS_CHARA['GR'][$tuner]['reccmd']]['epgTs'] )
 		$gr_pt1++;
 }
 for( $tuner=0; $tuner<$BS_tuners-TUNER_UNIT1; $tuner++ ){
-	if( $OTHER_TUNERS_CHARA['BS'][$tuner]['epgTs'] )
+	if( $rec_cmds[$OTHER_TUNERS_CHARA['BS'][$tuner]['reccmd']]['epgTs'] )
 		$bs_pt1++;
 }
 $gr_oth = $GR_tuners - $gr_pt1;
@@ -192,29 +192,27 @@ $shepherd_tm = (int)ceil( $shepherd_tm / 60 );
 <p>初期設定が完了しました。<br>
 下のリンクをクリックするとEPGの初回受信が始まります。初回受信が終了するまで番組表は表示できません。</p>
 
-<p>EPG受信後、/etc/cron.d/以下にcronによるEPG受信の自動実行を設定する必要があります。<br>
-Debian/Ubuntu用の設定ファイルは<?php echo INSTALL_PATH; ?>/cron.d/getepgです。Debian/Ubuntuをお使いの方は<br>
+<p>EPG受信後、/etc/cron.d/以下にcronによる定期EPG受信の自動実行を設定する必要があります。<br>
+Debian/Ubuntu用の設定ファイルは<?php echo INSTALL_PATH; ?>/cron.d/shepherdです。<br>
+Debian/Ubuntuをお使いの方は<br>
 <pre>
-$ sudo cp <?php echo INSTALL_PATH; ?>/cron.d/getepg /etc/cron.d/ [Enter]
+$ sudo cp <?php echo INSTALL_PATH; ?>/cron.d/shepherd /etc/cron.d/ [Enter]
 </pre>
-<br>という具合にコピーするだけで動作するでしょう。それ以外のディストリビューションをお使いの方は<br>
-Debian/Ubuntu用の設定ファイルを参考に、適切にcronの設定を行ってください。</p>
+<br>という具合にコピーするだけで動作するでしょう。ただしhttpdのドキュメントルートが/var/www/以外の場合は、それに合わせた修正が必要です。<br>
+それ以外のディストリビューションをお使いの方はDebian/Ubuntu用の設定ファイルを参考に、適切にcronの設定を行ってください。</p>
 
 <p>なお、設定ミスや受信データの異常によってEPGの初回受信に失敗すると番組表の表示はできません。<br>
 設定ミスが疑われる場合、<a href="<?php echo $settings->install_url; ?>/install/step1.php">インストール設定</a>を実行し直してください。<br>
 また、手動でEPGの受信を試みるのもひとつの方法です。コンソール上で、<br>
 <pre>
-$ <?php echo INSTALL_PATH; ?>/getepg.php [Enter]
+$ sudo <?php echo INSTALL_PATH; ?>/shepherd.php [Enter]
 </pre>
 <br>
 と実行してください。</p>
 <br>
-<p>EPGの受信には<?php echo $getepg_th_tm; ?>分程度かかります。</p>
-<a href="step5.php?script=/getepg.php&amp;time=<?php echo $getepg_th_tm; ?>">このリンクをクリックするとEPGの初回受信を開始します。</a>
+<p>EPGの受信には<?php echo $shepherd_tm; ?>分程度かかります。</p>
+<a href="step5.php?time=<?php echo $shepherd_tm; ?>">このリンクをクリックするとEPGの初回受信を開始します。</a>
 <p><br><br></p>
-<p>EPG受信を並列受信EPG取得スクリプト"shepherd.php"にて行うと<?php echo $shepherd_tm; ?>分程度かかります。</p>
-
-<p>EPG受信後、EPG受信の自動実行をshepherd.phpにて行う場合は、上記説明中の"getepg"を"shepherd"に置き換えてお読みください。</p>
 
 <?php if( $gr_oth>0 || $bs_oth>0 ) echo "<p>＜注意事項＞<br>
 当スクリプトは、全チューナーを総動員してEPG受信を行います。<br>
@@ -222,10 +220,7 @@ $ <?php echo INSTALL_PATH; ?>/getepg.php [Enter]
 テンポラリーが不足する場合、それに応じて同時受信数を減らしますがEPG取得完了が遅くなります。<br>
 テンポラリー容量の目安は、PT2 1枚の場合、地上波のみ340MB・地上波+BS 850MB・地上波+BS+CS 1020MBです。<br>
 2枚挿しの場合は地上波のみ680MB・地上波+BS 1190MB・地上波+BS+CS 1700MBとなります。<br>
-(衛星波のEPG受信は最大3チューナーまでしか使用しませんので若干減ります。)<br>
-地デジ10局+BS+CSを同時受信する場合は、2720MB使用します。<br>
-十分なテンポラリーを確保した環境下での最短受信時間は、$shepherd_th_tm分です。</p>"; ?>
-
-<a href="step5.php?script=/shepherd.php&amp;time=<?php echo $shepherd_tm; ?>">このリンクをクリックすると並列受信EPG取得スクリプト"shepherd.php"にてEPGの初回受信を開始します。</a>
+<br>
+現在設定で十分なテンポラリーを確保した環境下での最短受信時間は、$shepherd_th_tm分です。</p>"; ?>
 </body>
 </html>

@@ -1,10 +1,31 @@
 <?php
 
-include_once('config.php');
+include('config.php');
 include_once( INSTALL_PATH . '/DBRecord.class.php' );
 include_once( INSTALL_PATH . '/Smarty/Smarty.class.php' );
 include_once( INSTALL_PATH . '/reclib.php' );
 include_once( INSTALL_PATH . '/Settings.class.php' );
+
+function ch_collect( $type, $select_ch, $sort_calm='sid' )
+{
+	$crec = DBRecord::createRecords( CHANNEL_TBL, 'WHERE type=\''.$type.'\' AND skip=0 ORDER BY '.$sort_calm );
+	$single_ch_selects = array();
+	if( strncmp( $type, $select_ch, 2 ) !== 0 )
+		$single_ch_selects[] = array(
+									'name'         => '---------',
+									'channel_disc' => '#',
+									'selected'     => '',
+								);
+	foreach( $crec as $val ) {
+		array_push( $single_ch_selects, array(
+			'name'         => $val->name,
+			'channel_disc' => $val->channel_disc,
+			'selected'     => ( $select_ch===$val->channel_disc ? ' selected' : '' ),
+		));
+	}
+	return $single_ch_selects;
+}
+
 
 // 設定ファイルの有無を検査する
 if( ! file_exists( INSTALL_PATH.'/settings/config.xml') && !file_exists( '/etc/epgrecUNA/config.xml' ) ) {
@@ -34,26 +55,22 @@ if( isset( $_GET['type'] ) ) $type = $_GET['type'];
 // 番組表
 // 表示チャンネル
 $programs = array();
-$single_ch_disc = $single_ch_sid = $single_ch_name = $single_ch = $single_ch_selects = null;
+$single_ch_disc = $single_ch_sid = $single_ch_name = $single_ch = null;
+$single_gr_selects = $single_bs_selects = $single_cs_selects = $single_ex_selects = null;
 $channel_map = array();
 if( isset($_GET['ch']) ){
 	$single_ch_disc = $_GET['ch'];
 	$type           = strtoupper( substr($_GET['ch'], 0, 2) );
 	// チャンネルセレクタ
-	$crec = DBRecord::createRecords( CHANNEL_TBL, 'WHERE type=\''.$type.'\' AND skip=0' );
-	$single_ch_selects = array();
-	foreach( $crec as $val ) {
-		array_push( $single_ch_selects, array(
-			'name' => $val->name,
-			'type' => $val->type,
-			'channel_disc' => $val->channel_disc,
-			'channel' => $val->channel
-		));
+	if( $settings->gr_tuners != 0 )
+		$single_gr_selects = ch_collect( 'GR', $type==='GR' ? $single_ch_disc : FALSE, 'id' );
+	if( $settings->bs_tuners != 0 ){
+		$single_bs_selects = ch_collect( 'BS', $type==='BS' ? $single_ch_disc : FALSE );
+		if( $settings->cs_rec_flg != 0 )
+			$single_cs_selects = ch_collect( 'CS', $type==='CS' ? $single_ch_disc : FALSE );
 	}
-	// echo('<pre>');
-	// print_r($single_ch_selects);
-	// echo('</pre>');exit;
-	
+	if( EXTRA_TUNERS != 0 )
+		$single_ex_selects = ch_collect( 'EX', $type==='EX' ? $single_ch_disc : FALSE );
 }
 if( $type == 'GR' ) $channel_map = $GR_CHANNEL_MAP;
 else if( $type == 'BS' ) $channel_map = $BS_CHANNEL_MAP;
@@ -125,7 +142,7 @@ for( $i = 0; $i < $lp_lmt; $i++ ){
 			$num_all_ch++;
 			$prev_end = $top_time + $ch_full_duration;
 			$programs[$st]['id']   = $ch_id = $crec->id;
-			$programs[$st]['skip'] = $crec->skip;
+			$programs[$st]['skip'] = $single_ch_disc ? 0 : $crec->skip;
 			$programs[$st]['channel_disc'] = $crec->channel_disc;
 			$programs[$st]['station_name'] = $crec->name;
 			$programs[$st]['sid'] = $crec->sid;
@@ -194,7 +211,7 @@ for( $i = 0; $i < $lp_lmt; $i++ ){
 					$programs[$st]['list'][$num]['keyword'] = putProgramHtml( $prg['title'], $type, $ch_id, $prg['category_id'], $prg['sub_genre'] );
 					$num++;
 				}
-				if( $crec->skip==0 && $num>0 )
+				if( $programs[$st]['skip']==0 && $num>0 )
 					$num_ch++;
 			}
 			// 空きを埋める
@@ -234,6 +251,7 @@ if( $settings->gr_tuners != 0 ) {
 	$types[$i]['link']     = $_SERVER['SCRIPT_NAME'] . '?type=GR&length='.$program_length.'&time='.date( 'YmdH', $top_time);
 	$types[$i]['link2']    = $_SERVER['SCRIPT_NAME'] . '?type=GR&length='.$program_length;
 	$types[$i]['name']     = '地デジ';
+	$types[$i]['chs']      = $single_gr_selects;
 	$i++;
 }
 if( $settings->bs_tuners != 0 ) {
@@ -241,6 +259,7 @@ if( $settings->bs_tuners != 0 ) {
 	$types[$i]['link']     = $_SERVER['SCRIPT_NAME'] . '?type=BS&length='.$program_length.'&time='.date( 'YmdH', $top_time);
 	$types[$i]['link2']    = $_SERVER['SCRIPT_NAME'] . '?type=BS&length='.$program_length;
 	$types[$i]['name']     = 'BS';
+	$types[$i]['chs']      = $single_bs_selects;
 	$i++;
 
 	// CS
@@ -249,6 +268,7 @@ if( $settings->bs_tuners != 0 ) {
 		$types[$i]['link']     = $_SERVER['SCRIPT_NAME'] . '?type=CS&length='.$program_length.'&time='.date( 'YmdH', $top_time);
 		$types[$i]['link2']    = $_SERVER['SCRIPT_NAME'] . '?type=CS&length='.$program_length;
 		$types[$i]['name']     = 'CS';
+		$types[$i]['chs']      = $single_cs_selects;
 		$i++;
 	}
 }
@@ -257,6 +277,7 @@ if( EXTRA_TUNERS != 0 ) {
 	$types[$i]['link']     = $_SERVER['SCRIPT_NAME'] . '?type=EX&length='.$program_length.'&time='.date( 'YmdH', $top_time);
 	$types[$i]['link2']    = $_SERVER['SCRIPT_NAME'] . '?type=EX&length='.$program_length;
 	$types[$i]['name']     = 'EX';
+	$types[$i]['chs']      = $single_ex_selects;
 	$i++;
 }
 $smarty->assign( 'types', $types );
@@ -311,6 +332,13 @@ for( $i = 0 ; $i < $iMax; $i++ ) {
 }
 
 
+$transcode = TRANSCODE_STREAM && $NET_AREA!==FALSE && $NET_AREA!=='H';
+if( $transcode && !TRANS_SCRN_ADJUST ){
+	for( $cnt=0; $cnt<count($TRANSSIZE_SET); $cnt++ )
+		$TRANSSIZE_SET[$cnt]['selected'] = $cnt===TRANSTREAM_SIZE_DEFAULT ? ' selected' : '';
+}
+
+
 $smarty->assign( 'tvtimes', $tvtimes );
 $smarty->assign( 'pre8link', $get_param2.'&time='.date('YmdH', $top_time - 8*3600 ) );
 $smarty->assign( 'prelink', $get_param2.'&time='.date('YmdH', $top_time - 3600 ) );
@@ -326,10 +354,13 @@ $smarty->assign( 'single_ch', $single_ch );
 $smarty->assign( 'single_ch_sid', $single_ch_sid );
 $smarty->assign( 'single_ch_disc', $single_ch_disc );
 $smarty->assign( 'single_ch_name', $single_ch_name );
-$smarty->assign( 'single_ch_selects', $single_ch_selects );
 $smarty->assign( 'dayweeks', array('日','月','火','水','木','金','土') );
 $smarty->assign( '__nowDay', date('d', $now_time) );
-$smarty->assign( 'REALVIEW_HTTP', REALVIEW_HTTP ? 1 : 0 );
+$smarty->assign( 'REALVIEW', REALVIEW || REALVIEW_HTTP ? 1 : 0 );
+$smarty->assign( 'TRANSCODE_STREAM', $transcode ? 1 : 0 );
+$smarty->assign( 'TRANS_SCRN_ADJUST', $transcode&&TRANS_SCRN_ADJUST ? 1 : 0 );
+$smarty->assign( 'realview_cmd', REALVIEW  ? 'transwatch.php' : 'watch.php' );
+$smarty->assign( 'transsize_set', $TRANSSIZE_SET );
 
 $sitetitle = date( 'Y', $top_time ) . '年' . date( 'm', $top_time ) . '月' . date( 'd', $top_time ) . '日'. date( 'H', $top_time ) .
               '時～'.( $type == 'GR' ? '地上' : $type ).'デジタル番組表'.($single_ch_disc ? '['.$single_ch_name.']' : '');

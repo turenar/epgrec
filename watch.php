@@ -52,23 +52,25 @@ function searchProces( $pid )
 	}
 	if( $channel!=='-' && isset( $_GET['type'] ) ){
 		$type = substr( $_GET['type'], 0, 2 );			// index.htmlのchannel_discから流用してるため
-		if( $type === 'GR' ){
-			$sql_type = "type = 'GR'";
-			$smf_key  = SEM_GR_START;
-			$tuners   = $GR_max;
-		}else
-		if( $type === 'EX' ){
-			$sql_type = "type = 'EX'";
-			$smf_key  = SEM_EX_START;
-			$tuners   = $EX_max;
-		}else{
-			//BS/CS
-			$sql_type = "(type = 'BS' OR type = 'CS')";
-			$smf_key  = SEM_ST_START;
-			$tuners   = $ST_max;
+		switch( $type ){
+			case 'GR':
+				$sql_type = 'type="GR"';
+				$smf_key  = SEM_GR_START;
+				$tuners   = $GR_max;
+				break;
+			case 'EX':
+				$sql_type = 'type="EX"';
+				$smf_key  = SEM_EX_START;
+				$tuners   = $EX_max;
+				break;
+			default:	//BS/CS
+				$sql_type = '(type="BS" OR type="CS")';
+				$smf_key  = SEM_ST_START;
+				$tuners   = $ST_max;
+				break;
 		}
 	}else
-		$type = "";
+		$type = '';
 	$shm_id = shmop_open_surely();
 	$rv_sem = sem_get_surely( SEM_REALVIEW );
 	if( $rv_sem === FALSE )
@@ -99,34 +101,21 @@ function searchProces( $pid )
 				if( $channel === '-' )
 					$tuner_stop = TRUE;
 				else{
-					if( $now_type !== 'EX' ){
-						if( $now_tuner < TUNER_UNIT1 )
-							$tuner_stop = !USE_RECPT1;			// DVBドライバーの対応は無し
+					if( $now_type === 'EX' )
+						$cmd_num = $EX_TUNERS_CHARA[$now_tuner]['reccmd'];
+					else
+						$cmd_num = $now_tuner<TUNER_UNIT1 ? PT1_CMD_NUM : $OTHER_TUNERS_CHARA[$now_type][$now_tuner-TUNER_UNIT1]['reccmd'];
+					if( $wave_disc === $now_type )
+						if( $rec_cmds[$cmd_num]['httpS'] )
+							$tuner_stop = FALSE;
 						else
-							if( $wave_disc === $now_type )
-								if( $OTHER_TUNERS_CHARA["$now_type"][$now_tuner-TUNER_UNIT1]['httpS'] )
-									$tuner_stop = FALSE;
-								else
-									if( $OTHER_TUNERS_CHARA["$now_type"][$now_tuner-TUNER_UNIT1]['cntrl'] ){
-										$tuner_stop = FALSE;
-										$ctl_chng   = TRUE;
-									}else
-										$tuner_stop = TRUE;
-							else
-								$tuner_stop = TRUE;
-					}else{
-						if( $wave_disc === $now_type )
-							if( $EX_TUNERS_CHARA[$now_tuner]['httpS'] )
+							if( $rec_cmds[$cmd_num]['cntrl'] ){
 								$tuner_stop = FALSE;
-							else
-								if( $EX_TUNERS_CHARA[$now_tuner]['cntrl'] ){
-									$tuner_stop = FALSE;
-									$ctl_chng   = TRUE;
-								}else
-									$tuner_stop = TRUE;
-						else
-							$tuner_stop = TRUE;
-					}
+								$ctl_chng   = TRUE;
+							}else
+								$tuner_stop = TRUE;
+					else
+						$tuner_stop = TRUE;
 				}
 				$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
 				// 録画コマンド常駐確認
@@ -192,15 +181,16 @@ function searchProces( $pid )
 	}
 
 	$lp = 0;
+	$res_obj = new DBRecord( RESERVE_TBL );
 	while(1){
-		$sql_cmd    = "WHERE complete = '0' AND ".$sql_type." AND endtime > now() AND starttime < addtime( now(), '00:03:00' )";
-		$off_tuners = DBRecord::countRecords( RESERVE_TBL, $sql_cmd );
+		$sql_cmd    = 'complete=0 AND '.$sql_type.' AND endtime>now() AND starttime<addtime( now(), "00:03:00" )';
+		$revs       = $res_obj->fetch_array( null, null, $sql_cmd );
+		$off_tuners = count( $revs );
 		if( $off_tuners < $tuners ){
 			//空チューナー降順探索
-			$revs = DBRecord::createRecords( RESERVE_TBL, $sql_cmd );
 			for( $slc_tuner=$tuners-1; $slc_tuner>=0; $slc_tuner-- ){
 				for( $cnt=0; $cnt<$off_tuners; $cnt++ ){
-					if( $revs[$cnt]->tuner == $slc_tuner )
+					if( $revs[$cnt]['tuner'] == $slc_tuner )
 						continue 2;
 				}
 				$shm_name = $smf_key + $slc_tuner;
@@ -320,8 +310,11 @@ $asf_buf .= "<PARAM NAME = \"Encoding\" VALUE = \"UTF-8\" />";
 $asf_buf .= "<ENTRY>";
 $asf_buf .= "<TITLE>".$channel.":".$sid.' '.$_GET['name']."</TITLE>";
 $now_type = $type==='CS' ? 'BS' : $type;
-if( ( $type==='EX' && $EX_TUNERS_CHARA[$slc_tuner]['httpS'] ) ||
-		 ( $type!=='EX' && ( ( $slc_tuner<TUNER_UNIT1 && USE_RECPT1 ) || ( $slc_tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$now_type"][$slc_tuner-TUNER_UNIT1]['httpS'] ) ) ) )
+if( $now_type === 'EX' )
+	$cmd_num = $EX_TUNERS_CHARA[$slc_tuner]['reccmd'];
+else
+	$cmd_num = $slc_tuner<TUNER_UNIT1 ? PT1_CMD_NUM : $OTHER_TUNERS_CHARA[$now_type][$slc_tuner-TUNER_UNIT1]['reccmd'];
+if( $rec_cmds[$cmd_num]['httpS'] )
 	$asf_buf .= "<REF HREF=\"http://".$_SERVER['SERVER_NAME'].':'.REALVIEW_HTTP_PORT.'/'.$channel."/".$sid."\" />";
 else
 	$asf_buf .= "<REF HREF=\"http://".$_SERVER['SERVER_NAME'].':'.REALVIEW_HTTP_PORT."/\" />";

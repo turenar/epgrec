@@ -20,6 +20,16 @@ function garbageClean() {
 	$arr = DBRecord::createRecords( PROGRAM_TBL, 'WHERE starttime  > adddate( now(), 8 )' );
 	foreach( $arr as $val ) $val->delete();
 
+	// 重複警告防止フラグクリア
+	if( date( 'H', time() ) === '00' ){
+		$arr = array();
+		$arr = DBRecord::createRecords( PROGRAM_TBL, 'WHERE key_id!=0' );
+		foreach( $arr as $val ){
+			$val->key_id = 0;
+			$val->update();
+		}
+	}
+
 	// 8日以上前のログを消す
 	$arr = array();
 	$arr = DBRecord::createRecords( LOG_TBL, 'WHERE logtime < subdate( now(), 8 )' );
@@ -94,8 +104,13 @@ function storeProgram( $type, $xmlfile ) {
 		return -1;	// EPGデータが読み取れないなら何もしない
 	}
 	// channel抽出
-	$chs_para = unserialize( array_shift($params) );
-	if( $chs_para === FALSE ){
+	while(1){
+		$serial_line = array_shift( $params );
+		if( $serial_line !== NULL ){
+			$chs_para = unserialize( $serial_line );
+			if( $chs_para!==FALSE && count($chs_para)>0 )
+				break;
+		}
 		reclog( 'EPG更新:: 正常な'.$xmlfile.'が作成されなかった模様(TS中にSDTが無い)', EPGREC_WARN );
 //		$new_name = $xmlfile.'.'.toDatetime(time());
 //		rename( $xmlfile, $new_name );
@@ -279,17 +294,21 @@ function storeProgram( $type, $xmlfile ) {
 	$pro_obj   = new DBRecord( PROGRAM_TBL );
 	while( count($params) ){
 		// 取得
-		$ch_para = unserialize( array_shift($params) );
-		if( $ch_para === FALSE ){
+		while(1){
+			$serial_line = array_shift( $params );
+			if( $serial_line !== NULL ){
+				$ch_para = unserialize( $serial_line );
+				if( $ch_para !== FALSE )
+					break;
+			}
 			reclog( 'EPG更新:: 正常な'.$xmlfile.'が作成されなかった模様(TS中にSDTまたはEITが無い)', EPGREC_WARN );
 //			$new_name = $xmlfile.'.'.toDatetime(time());
 //			rename( $xmlfile, $new_name );
 			return -1;	// XMLが読み取れないなら何もしない
-		}else{
-			$channel_disc = $ch_para['disc'];
-			$pf_lmt       = $ch_para['pf_cnt'];
-			$ev_lmt       = $ch_para['sch_cnt'];
 		}
+		$channel_disc = $ch_para['disc'];
+		$pf_lmt       = $ch_para['pf_cnt'];
+		$ev_lmt       = $ch_para['sch_cnt'];
 		// チャンネル スキップ
 		if( $pf_lmt==0 && $ev_lmt==0 )
 			continue;	// EPGデータ無し
@@ -323,9 +342,12 @@ function storeProgram( $type, $xmlfile ) {
 		if( $pf_lmt ){
 			while(1){
 				if( count($params) ){
-					$event_pf = unserialize( array_shift($params) );
-					if( $event_pf !== FALSE )
-						break;
+					$serial_line = array_shift( $params );
+					if( $serial_line !== NULL ){
+						$event_pf = unserialize( $serial_line );
+						if( $event_pf !== FALSE )
+							break;
+					}
 				}
 				reclog( 'EPG更新:: 正常な'.$xmlfile.'が作成されなかった模様('.$channel_disc.'のpf読み取りに失敗しました。)', EPGREC_WARN );
 				return -1;	// XMLが読み取れないなら何もしない
@@ -430,9 +452,12 @@ function storeProgram( $type, $xmlfile ) {
 			// sch unserialize
 			while(1){
 				if( count($params) ){
-					$event_sch = unserialize( array_shift($params) );
-					if( $event_sch !== FALSE )
-						break;
+					$serial_line = array_shift( $params );
+					if( $serial_line !== NULL ){
+						$event_sch = unserialize( $serial_line );
+						if( $event_sch !== FALSE )
+							break;
+					}
 				}
 				reclog( 'EPG更新:: 正常な'.$xmlfile.'が作成されなかった模様('.$channel_disc.'のsch読み取りに失敗しました。)', EPGREC_WARN );
 				return -1;	// XMLが読み取れないなら何もしない
@@ -449,28 +474,28 @@ function storeProgram( $type, $xmlfile ) {
 						if( count( $sch ) ){
 							// 複数の場合を未考慮(EPG更新にバグがあるかな･･･)
 
-							if( $pf_cnt == 0 ){
+							if( $pf_cnt === 0 ){
 								//EIT[pf]より前が無いEIT[sch]をDBより１つ補完
 								$sch_in = $pro_obj->fetch_array( 'channel_id', $channel_id,
 												'starttime<\''.$sch[0]['starttime'].'\' AND endtime>=\''.$sch[0]['starttime'].'\' ORDER BY endtime DESC' );
 								if( count( $sch_in ) ){
 									//番組挿入 複数の場合を未考慮
-									$event_add[$ev_cnt]['starttime']    = $sch_in[0]['starttime'];
-									$event_add[$ev_cnt]['endtime']      = $sch_in[0]['endtime'];
-									$event_add[$ev_cnt]['channel_disc'] = $channel_disc;
-									$event_add[$ev_cnt]['title']        = $sch_in[0]['title'];
-									$event_add[$ev_cnt]['desc']         = $sch_in[0]['description'];
-									$event_add[$ev_cnt]['eid']          = (int)$sch_in[0]['eid'];
-									$event_add[$ev_cnt]['category']     = (int)$sch_in[0]['category_id'];
-									$event_add[$ev_cnt]['genre2']       = (int)$sch_in[0]['genre2'];
-									$event_add[$ev_cnt]['genre3']       = (int)$sch_in[0]['genre3'];
-									$event_add[$ev_cnt]['sub_genre']    = (int)$sch_in[0]['sub_genre'];
-									$event_add[$ev_cnt]['sub_genre2']   = (int)$sch_in[0]['sub_genre2'];
-									$event_add[$ev_cnt]['sub_genre3']   = (int)$sch_in[0]['sub_genre3'];
-									$event_add[$ev_cnt]['video_type']   = (int)$sch_in[0]['video_type'];
-									$event_add[$ev_cnt]['audio_type']   = (int)$sch_in[0]['audio_type'];
-									$event_add[$ev_cnt]['multi_type']   = (int)$sch_in[0]['multi_type'];
-									$ev_cnt++;
+									$event_add[0]['starttime']    = $sch_in[0]['starttime'];
+									$event_add[0]['endtime']      = $sch[0]['starttime'];
+									$event_add[0]['channel_disc'] = $channel_disc;
+									$event_add[0]['title']        = $sch_in[0]['title'];
+									$event_add[0]['desc']         = $sch_in[0]['description'];
+									$event_add[0]['eid']          = (int)$sch_in[0]['eid'];
+									$event_add[0]['category']     = (int)$sch_in[0]['category_id'];
+									$event_add[0]['genre2']       = (int)$sch_in[0]['genre2'];
+									$event_add[0]['genre3']       = (int)$sch_in[0]['genre3'];
+									$event_add[0]['sub_genre']    = (int)$sch_in[0]['sub_genre'];
+									$event_add[0]['sub_genre2']   = (int)$sch_in[0]['sub_genre2'];
+									$event_add[0]['sub_genre3']   = (int)$sch_in[0]['sub_genre3'];
+									$event_add[0]['video_type']   = (int)$sch_in[0]['video_type'];
+									$event_add[0]['audio_type']   = (int)$sch_in[0]['audio_type'];
+									$event_add[0]['multi_type']   = (int)$sch_in[0]['multi_type'];
+									$ev_cnt = 1;
 									$sch_add++;
 								}
 							}
@@ -495,66 +520,82 @@ function storeProgram( $type, $xmlfile ) {
 							$sch_add++;
 						}else{
 							// $event_pf[$pf_cnt]は、早期終了時の穴埋め番組
-							if( $pf_cnt == 0 ){
+							if( $pf_cnt === 0 ){
 								//EIT[pf]より前が無いEIT[sch]をDBより１つ補完
 								$sch_in = $pro_obj->fetch_array( 'channel_id', $channel_id,
-										'starttime<\''.$event_pf[$pf_cnt]['starttime'].'\' AND endtime>=\''.$event_pf[$pf_cnt]['starttime'].'\' ORDER BY endtime DESC' );
+										'starttime<\''.$event_pf[0]['starttime'].'\' AND endtime>=\''.$event_pf[0]['starttime'].'\' ORDER BY endtime DESC' );
 								if( count( $sch_in ) ){
 									//番組挿入 複数の場合を未考慮
-									$event_add[$ev_cnt]['starttime']    = $sch_in[0]['starttime'];
-									$event_add[$ev_cnt]['endtime']      = $event_pf[$pf_cnt]['starttime'];		// 穴埋め番組の開始時間で補正
-									$event_add[$ev_cnt]['channel_disc'] = $channel_disc;
-									$event_add[$ev_cnt]['title']        = $sch_in[0]['title'];
-									$event_add[$ev_cnt]['desc']         = $sch_in[0]['description'];
-									$event_add[$ev_cnt]['eid']          = (int)$sch_in[0]['eid'];
-									$event_add[$ev_cnt]['category']     = (int)$sch_in[0]['category_id'];
-									$event_add[$ev_cnt]['genre2']       = (int)$sch_in[0]['genre2'];
-									$event_add[$ev_cnt]['genre3']       = (int)$sch_in[0]['genre3'];
-									$event_add[$ev_cnt]['sub_genre']    = (int)$sch_in[0]['sub_genre'];
-									$event_add[$ev_cnt]['sub_genre2']   = (int)$sch_in[0]['sub_genre2'];
-									$event_add[$ev_cnt]['sub_genre3']   = (int)$sch_in[0]['sub_genre3'];
-									$event_add[$ev_cnt]['video_type']   = (int)$sch_in[0]['video_type'];
-									$event_add[$ev_cnt]['audio_type']   = (int)$sch_in[0]['audio_type'];
-									$event_add[$ev_cnt]['multi_type']   = (int)$sch_in[0]['multi_type'];
-									$ev_cnt++;
+									$event_add[0]['starttime']    = $sch_in[0]['starttime'];
+									$event_add[0]['endtime']      = $event_pf[0]['starttime'];		// 穴埋め番組の開始時間で補正
+									$event_add[0]['channel_disc'] = $channel_disc;
+									$event_add[0]['title']        = $sch_in[0]['title'];
+									$event_add[0]['desc']         = $sch_in[0]['description'];
+									$event_add[0]['eid']          = (int)$sch_in[0]['eid'];
+									$event_add[0]['category']     = (int)$sch_in[0]['category_id'];
+									$event_add[0]['genre2']       = (int)$sch_in[0]['genre2'];
+									$event_add[0]['genre3']       = (int)$sch_in[0]['genre3'];
+									$event_add[0]['sub_genre']    = (int)$sch_in[0]['sub_genre'];
+									$event_add[0]['sub_genre2']   = (int)$sch_in[0]['sub_genre2'];
+									$event_add[0]['sub_genre3']   = (int)$sch_in[0]['sub_genre3'];
+									$event_add[0]['video_type']   = (int)$sch_in[0]['video_type'];
+									$event_add[0]['audio_type']   = (int)$sch_in[0]['audio_type'];
+									$event_add[0]['multi_type']   = (int)$sch_in[0]['multi_type'];
+									$ev_cnt = 1;
 									$sch_add++;
 								}
 							}
 						}
 					}else{
-						if( $pf_cnt == 0 ){
-							if( $event_pf[$pf_cnt]['sch_pnt'] == $ev_cnt+1 ){
-								$event_add[$ev_cnt]           = array_shift( $event_sch );
-								$ev_cnt++;
+						if( $pf_cnt === 0 ){
+							if( $event_pf[0]['sch_pnt'] === 1 ){
+								$event_add[0] = array_shift( $event_sch );
+								$ev_cnt       = 1;
 							}else{
 								//EIT[pf]より前が無いEIT[sch]をDBより１つ補完
 								$sch = $pro_obj->fetch_array( 'channel_id', $channel_id,
-										'starttime<\''.$event_pf[$pf_cnt]['starttime'].'\' AND endtime>=\''.$event_pf[$pf_cnt]['starttime'].'\' ORDER BY endtime DESC' );
+										'starttime<\''.$event_pf[0]['starttime'].'\' AND endtime>=\''.$event_pf[0]['starttime'].'\' ORDER BY endtime DESC' );
 								if( count( $sch ) ){
 									//番組挿入 複数の場合を未考慮
-									$event_add[$ev_cnt]['starttime']    = $sch[0]['starttime'];
-									$event_add[$ev_cnt]['endtime']      = $sch[0]['endtime'];
-									$event_add[$ev_cnt]['channel_disc'] = $channel_disc;
-									$event_add[$ev_cnt]['title']        = $sch[0]['title'];
-									$event_add[$ev_cnt]['desc']         = $sch[0]['description'];
-									$event_add[$ev_cnt]['eid']          = (int)$sch[0]['eid'];
-									$event_add[$ev_cnt]['category']     = (int)$sch[0]['category_id'];
-									$event_add[$ev_cnt]['genre2']       = (int)$sch[0]['genre2'];
-									$event_add[$ev_cnt]['genre3']       = (int)$sch[0]['genre3'];
-									$event_add[$ev_cnt]['sub_genre']    = (int)$sch[0]['sub_genre'];
-									$event_add[$ev_cnt]['sub_genre2']   = (int)$sch[0]['sub_genre2'];
-									$event_add[$ev_cnt]['sub_genre3']   = (int)$sch[0]['sub_genre3'];
-									$event_add[$ev_cnt]['video_type']   = (int)$sch[0]['video_type'];
-									$event_add[$ev_cnt]['audio_type']   = (int)$sch[0]['audio_type'];
-									$event_add[$ev_cnt]['multi_type']   = (int)$sch[0]['multi_type'];
-									$ev_cnt++;
+									$event_add[0]['starttime']    = $sch[0]['starttime'];
+									$event_add[0]['endtime']      = $event_pf[0]['starttime'];
+									$event_add[0]['channel_disc'] = $channel_disc;
+									$event_add[0]['title']        = $sch[0]['title'];
+									$event_add[0]['desc']         = $sch[0]['description'];
+									$event_add[0]['eid']          = (int)$sch[0]['eid'];
+									$event_add[0]['category']     = (int)$sch[0]['category_id'];
+									$event_add[0]['genre2']       = (int)$sch[0]['genre2'];
+									$event_add[0]['genre3']       = (int)$sch[0]['genre3'];
+									$event_add[0]['sub_genre']    = (int)$sch[0]['sub_genre'];
+									$event_add[0]['sub_genre2']   = (int)$sch[0]['sub_genre2'];
+									$event_add[0]['sub_genre3']   = (int)$sch[0]['sub_genre3'];
+									$event_add[0]['video_type']   = (int)$sch[0]['video_type'];
+									$event_add[0]['audio_type']   = (int)$sch[0]['audio_type'];
+									$event_add[0]['multi_type']   = (int)$sch[0]['multi_type'];
+									$ev_cnt = 1;
 									$sch_add++;
 								}	// else DBにない場合(特に初回起動)にrepairEPG.phpを動かさないようにする
 							}
+						}else{
+							$erase_cnt = $event_pf[$pf_cnt]['sch_pnt'] + $sch_add - $ev_cnt;
+/*
+							// pf[now]とpf[next]間の余分なschを削除
+							if( $erase_cnt > 0 ){
+								array_splice( $event_sch, 0, $erase_cnt );
+								$ev_lmt -= $erase_cnt;
+								for( $e_cnt=$pf_cnt+1; $e_cnt<$pf_lmt; $e_cnt++ )
+									if( $event_pf[$e_cnt]['sch_pnt'] !== -1 )
+										$event_pf[$e_cnt]['sch_pnt'] += $sch_add - $erase_cnt;
+							}
+*/
+							// pf[now]とpf[next]間の余分なschをコピー(後で削除するがあえてやる)
+							while( $erase_cnt > 0 ){
+								$erase_cnt--;
+								$event_add[$ev_cnt++] = array_shift( $event_sch );
+							}
 						}
 						$event_add[$ev_cnt]           = array_shift( $event_sch );
-						$event_pf[$pf_cnt]['sch_pnt'] = $ev_cnt;
-						$ev_cnt++;
+						$event_pf[$pf_cnt]['sch_pnt'] = $ev_cnt++;
 					}
 				}
 				$ev_lmt += $sch_add;
@@ -762,8 +803,24 @@ BORDER_CHK_THR:;
 						if( $start_cmp!=0 || strcmp( $event_sch[$ev_cnt]['endtime'], $event_pf[$pf_cnt]['endtime'] )!=0 )
 							$sch_sync['cnt'] = $ev_cnt;
 
-					if( $ev_cnt>0 && strcmp( $event_sch[$ev_cnt-1]['endtime'], $event_pf[$pf_cnt]['starttime'] ) > 0 ){
-						$event_sch[$ev_cnt-1]['endtime'] = $event_pf[$pf_cnt]['starttime'];
+					$del_cnt = $ev_cnt - 1;
+					$pf_st   = $event_pf[$pf_cnt]['starttime'];
+					while( $del_cnt >= 0 ){
+						if( strcmp( $event_sch[$del_cnt]['endtime'], $pf_st ) > 0 ){
+							if( strcmp( $event_sch[$del_cnt]['starttime'], $pf_st ) < 0 ){
+								$event_sch[$del_cnt]['endtime'] = $pf_st;
+								$pf_st                          = $event_sch[$del_cnt]['starttime'];
+							}else{
+								array_splice( $event_sch, $del_cnt, 1 );
+								$debug_msg = '[array_splice():'.$ev_lmt.'>'.count( $event_sch ).']';
+								$ev_lmt--;
+								for( $e_cnt=$pf_cnt; $e_cnt<$pf_lmt; $e_cnt++ )
+									if( $event_pf[$e_cnt]['sch_pnt'] != -1 )
+										$event_pf[$e_cnt]['sch_pnt']--;
+							}
+						}else
+							break;
+						$del_cnt--;
 					}
 					$event_sch[$ev_cnt]['endtime'] = $stk_end;
 					$debug_msg .= $channel_disc.' ( '.$pf_cnt.'['.$event_pf[$pf_cnt]['status'].':'.$event_pf[$pf_cnt]['eid'].']:'.$event_pf[$pf_cnt]['starttime'].'→'.$stk_end.')';
@@ -1007,7 +1064,7 @@ NEXT_SUB:;
 							$prg_st = toTimestamp( $rec['starttime'] );
 							$prg_ed = toTimestamp( $rec['endtime'] );
 							try {
-								$prev_recs = DBRecord::createRecords( RESERVE_TBL, 'WHERE complete=0 AND program_id='.$rec['id'].' ORDER BY starttime DESC' );
+								$prev_recs = DBRecord::createRecords( RESERVE_TBL, 'WHERE complete=0 AND program_id='.$rec['id'].' ORDER BY starttime DESC', FALSE );
 								foreach( $prev_recs as $reserve ){
 									$rev_st    = $reserve->starttime;
 									$rec_start = toTimestamp( $rev_st );
@@ -1026,11 +1083,11 @@ NEXT_SUB:;
 											$rewrite_eid = $eid;
 										}
 										//録画延伸指示(チューナ依存 recpt1ctl対応が必要)
-										if( time()<$rec_end && (
-										( $type!=='EX' && 
-										( ( USE_RECPT1 && $prev_tuner<TUNER_UNIT1 ) || ( $prev_tuner>=TUNER_UNIT1 && $OTHER_TUNERS_CHARA["$smf_type"][$prev_tuner-TUNER_UNIT1]['cntrl'] ) ) )
-										|| ( $type==='EX' && $EX_TUNERS_CHARA[$prev_tuner]['cntrl'] )
-										) ){
+										if( $type === 'EX' )
+											$cmd_num = $EX_TUNERS_CHARA[$prev_tuner]['reccmd'];
+										else
+											$cmd_num = $prev_tuner<TUNER_UNIT1 ? PT1_CMD_NUM : $OTHER_TUNERS_CHARA[$smf_type][$prev_tuner-TUNER_UNIT1]['reccmd'];
+										if( time()<$rec_end && $rec_cmds[$cmd_num]['cntrl'] ){
 											$add_time = toTimestamp($endtime) - $prg_ed;
 											$new_end  = toDatetime( $rec_end + $add_time );
 											if( $add_time > 0 ){
@@ -1059,6 +1116,7 @@ NEXT_SUB:;
 										if( (int)($reserve->autorec) === 0 ){
 											// 手動予約の退避
 											$arr = array();
+											$arr['old_id'] = $reserve->id;
 											$arr['eid']    = (int)$rec['eid'];
 											$arr['old_st'] = $prg_st;
 											$arr['st_tm']  = $rec_start;
@@ -1255,7 +1313,7 @@ NEXT_SUB:;
 					$pro_obj->force_update( $rec['id'], $wrt_set );
 					if( $reserve_chg ){
 						try {
-							$prev_recs = DBRecord::createRecords( RESERVE_TBL, 'WHERE complete=0 AND program_id='.$rec['id'].' ORDER BY starttime ASC' );
+							$prev_recs = DBRecord::createRecords( RESERVE_TBL, 'WHERE complete=0 AND program_id='.$rec['id'].' ORDER BY starttime ASC', FALSE );
 							foreach( $prev_recs as $reserve ){
 								if( !((boolean)$reserve->dirty) && time() < toTimestamp( $reserve->starttime ) - $ed_tm_sft ){
 									// dirtyが立っていない録画予約であるなら
@@ -1296,37 +1354,31 @@ NEXT_SUB:;
 
 		//手動予約のタイムシフト再予約
 		foreach( $stk_rev as $post ){
-			try{
-				$prg = DBRecord::createRecords( PROGRAM_TBL, 'WHERE channel_id='.$post['ch_id'].' AND eid='.$post['eid'] );
-				if( count( $prg ) ){
-					if( $post['ch_id'] == (int)($prg[0]->channel_id) ){
-						$add_time = toTimestamp($prg[0]->starttime) - $post['old_st'];
-						$st_tm    = toDatetime( $post['st_tm'] + $add_time );
-						$ed_tm    = toDatetime( $post['ed_tm'] + $add_time );
-						try{
-							$rval = Reservation::custom( $st_tm, $ed_tm, $post['ch_id'], $post['title'], $post['desc'], $post['cat_id'], (int)$prg[0]->id,
-												0, $post['rs_md'], $post['discon'], $post['rs_dt'], $post['prior'] );
-							// 手動予約のトラコン設定の予約ID修正
-							list( , , $rec_id, ) = explode( ':', $rval );
-							$tran_ex = DBRecord::createRecords( TRANSEXPAND_TBL, 'WHERE key_id=0 AND type_no='.$post['old_id'] );
-							foreach( $tran_ex as $tran_set ){
-								$tran_set->type_no = $rec_id;
-								$tran_set->update();
-							}
-							continue;
-						}catch( Exception $e ){
-							// 手動予約のトラコン設定削除
-							$tran_ex = DBRecord::createRecords( TRANSEXPAND_TBL, 'WHERE key_id=0 AND type_no='.$post['old_id'] );
-							foreach( $tran_ex as $tran_set )
-								$tran_set->delete();
-							reclog( '再予約:: '.$e->getMessage() , EPGREC_ERROR);
-						}
-					}else
-						reclog( '再予約:: ch_id不一致('.$post['ch_id'].'::'.$prg[0]->channel_id.')' , EPGREC_ERROR);
+			$prg = DBRecord::createRecords( PROGRAM_TBL, 'WHERE channel_id='.$post['ch_id'].' AND eid='.$post['eid'] );
+			if( count( $prg ) ){
+				$add_time = toTimestamp($prg[0]->starttime) - $post['old_st'];
+				$st_tm    = toDatetime( $post['st_tm'] + $add_time );
+				$ed_tm    = toDatetime( $post['ed_tm'] + $add_time );
+				try{
+					$rval = Reservation::custom( $st_tm, $ed_tm, $post['ch_id'], $post['title'], $post['desc'], $post['cat_id'], (int)$prg[0]->id,
+										0, $post['rs_md'], $post['discon'], $post['rs_dt'], $post['prior'] );
+					// 手動予約のトラコン設定の予約ID修正
+					list( , , $rec_id, ) = explode( ':', $rval );
+					$tran_ex = DBRecord::createRecords( TRANSEXPAND_TBL, 'WHERE key_id=0 AND type_no='.$post['old_id'] );
+					foreach( $tran_ex as $tran_set ){
+						$tran_set->type_no = $rec_id;
+						$tran_set->update();
+					}
+					continue;
+				}catch( Exception $e ){
+					reclog( '再予約:: '.$e->getMessage() , EPGREC_ERROR);
+					// 手動予約のトラコン設定削除
+					$tran_ex = DBRecord::createRecords( TRANSEXPAND_TBL, 'WHERE key_id=0 AND type_no='.$post['old_id'] );
+					foreach( $tran_ex as $tran_set )
+						$tran_set->delete();
 				}
-			}catch( Exception $e ){
+			}else
 				reclog( '再予約:: eid不一致('.$post['eid'].')' , EPGREC_ERROR);
-			}
 			// EPGから消えたのでprogram_id==0の時刻指定予約として再予約(タイムシフト再予約をした場合は、元の時間が失われる)
 			$st_tm = toDatetime( $post['st_tm'] );
 			$ed_tm = toDatetime( $post['ed_tm'] );
@@ -1341,11 +1393,11 @@ NEXT_SUB:;
 					$tran_set->update();
 				}
 			}catch( Exception $e ){
+				reclog( '再再予約:: '.$e->getMessage() , EPGREC_ERROR);
 				// 手動予約のトラコン設定削除
 				$tran_ex = DBRecord::createRecords( TRANSEXPAND_TBL, 'WHERE key_id=0 AND type_no='.$post['old_id'] );
 				foreach( $tran_ex as $tran_set )
 					$tran_set->delete();
-				reclog( '再再予約:: '.$e->getMessage() , EPGREC_ERROR);
 			}
 		}
 		unset( $stk_rev );
@@ -1361,7 +1413,12 @@ NEXT_SUB:;
 					$ps_output = shell_exec( PS_CMD );
 					if( strpos( $ps_output, $resq ) === FALSE ){
 						reclog( '番組構成修正スクリプト起動 '.$resq.'['.$type.':'.$map["$disc"].':'.$channel_rec->sid.']', EPGREC_DEBUG );
-						@exec( $resq.' '.toTimestamp( $event['starttime']).' '.toTimestamp( $event['endtime']).' >/dev/null 2>&1 &' );
+						$st_tm = toTimestamp( $event['starttime'] );
+						$ed_tm = toTimestamp( $event['endtime'] );
+						// 番組延伸対策
+						if( $st_tm > $ed_tm )
+							$ed_tm = $st_tm + 60;
+						@exec( $resq.' '.$st_tm.' '.$ed_tm.' >/dev/null 2>&1 &' );
 					}else
 						return (string)toTimestamp( $event['starttime'] );
 				}
