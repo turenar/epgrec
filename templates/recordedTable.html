@@ -157,7 +157,6 @@ table#reservation_table tr.ctg_aa, #category_select a.ctg_aa {background-color: 
 <h2><form>{$sitetitle}
 <select onChange="popJump(this)">
 <option value="#">メニュー</option>
-{$link_add}
 {foreach from=$menu_list item=record}
 <option value="{$record.url}">{$record.name}</option>
 {/foreach}

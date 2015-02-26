@@ -8,17 +8,26 @@ include_once( INSTALL_PATH . '/Reservation.class.php' );
 include_once( INSTALL_PATH . '/Settings.class.php' );
 include_once( INSTALL_PATH . '/recLog.inc.php' );
 include_once( INSTALL_PATH . '/reclib.php' );
+include( INSTALL_PATH . '/powerReduce.inc.php' );
 
 
-function get_logcmd( $src_tm )
+function get_logcmd( $src_tm, $grep_word, $omit_word )
 {
-	return '/bin/grep \''.date('M ',$src_tm).sprintf( '% 2s', date('j',$src_tm) ).date(' H:i:',$src_tm).(($src_tm%60)/10).'\' /var/log/syslog | /bin/grep Drop';
+	return '/bin/grep \''.date('M ',$src_tm).sprintf( '% 2s', date('j',$src_tm) ).date(' H:i:',$src_tm).(($src_tm%60)/10).'\' /var/log/syslog | /bin/grep '.$grep_word.' | /bin/grep -v '.$omit_word;
+}
+
+function get_syslog( $be_time, $set_time, $grep_word, $omit_word )
+{
+	$log = shell_exec( get_logcmd( $be_time, $grep_word, $omit_word ) );
+	if( $be_time !== $set_time )
+		$log .= shell_exec( get_logcmd( $set_time, $grep_word, $omit_word ) );
+	return $log;
 }
 
 // トランスコードJOB追加
 function trans_job_set( $rrec, $tran_ex )
 {
-	global $RECORD_MODE;
+	global $RECORD_MODE,$settings;
 
 	$wrt_set = array();
 	$wrt_set['rec_id']      = $rrec->id;
@@ -29,7 +38,7 @@ function trans_job_set( $rrec, $tran_ex )
 	$ts_name         = end( explode( '/', $rrec->path ) );
 	$ts_suffix       = strpos( $ts_name, $RECORD_MODE[$tran_ex['mode']]['suffix'] )!==FALSE ? $RECORD_MODE[$tran_ex['mode']]['suffix'] : $RECORD_MODE[$rrec->mode]['suffix'];
 	$trans_name      = str_replace( $ts_suffix, $RECORD_MODE[$tran_ex['mode']]['tsuffix'], $ts_name );
-	$wrt_set['path'] = str_replace( '%VIDEO%', INSTALL_PATH.'/video', TRANS_ROOT ).($tran_ex['dir']!='' ? '/'.$tran_ex['dir'] : '').'/'.$trans_name;
+	$wrt_set['path'] = str_replace( '%VIDEO%', INSTALL_PATH.$settings->spool, TRANS_ROOT ).($tran_ex['dir']!='' ? '/'.$tran_ex['dir'] : '').'/'.$trans_name;
 	$trans_obj = new DBRecord( TRANSCODE_TBL );
 	$trans_obj->force_update( 0, $wrt_set );
 }
@@ -37,25 +46,36 @@ function trans_job_set( $rrec, $tran_ex )
 $settings = Settings::factory();
 
 $reserve_id = $argv[1];
+$job_set    = FALSE;
 
 try{
 	$rrec = new DBRecord( RESERVE_TBL, 'id' , $reserve_id );
 	$rev_id = '[予約ID:'.$rrec->id;
 	$rev_ds = $rrec->channel_disc.'(T'.$rrec->tuner.'-'.$rrec->channel.') '.$rrec->starttime.' 『'.$rrec->title.'』';
+	$ts_path = INSTALL_PATH .$settings->spool . '/'. $rrec->path;
 
-	if( (int)$rrec->autorec > 0 ){
-		$restart_lmt = toTimestamp( $rrec->starttime ) + REC_RETRY_LIMIT;
+	$autorec    = (int)$rrec->autorec;
+	$program_id = (int)$rrec->program_id;
+	if( $autorec>=0 && $program_id>0 && storage_free_space( $ts_path ) ){
+		// PID付き手動予約も制限付きで対応
+		$prg = new DBRecord( PROGRAM_TBL, 'id', $program_id );
+		if($autorec ){
+			$keyword     = new DBRecord( KEYWORD_TBL, 'id', $autorec );
+			$restart_lmt = toTimestamp( $prg->starttime ) + REC_RETRY_LIMIT + (int)$keyword->sft_start;
+			$starttime   = $prg->starttime;
+			$endtime     = $prg->endtime;
+		}else{
+			$restart_lmt = toTimestamp( $prg->starttime ) + REC_RETRY_LIMIT;
+			$starttime   = $rrec->starttime;
+			$endtime     = $rrec->shortened ? toDatetime(toTimestamp($rrec->endtime)+(int)$settings->former_time+(int)$settings->rec_switch_time) : $rrec->endtime;
+		}
 		if( $restart_lmt<toTimestamp( $rrec->endtime ) && time()<$restart_lmt ){
 			// 録画開始に失敗 再予約
 			$pre_id        = $rrec->id;
-			$starttime     = $rrec->starttime;
-			$endtime       = $rrec->shortened ? toDatetime(toTimestamp($rrec->endtime)+(int)$settings->former_time+(int)$settings->rec_switch_time) : $rrec->endtime;
 			$channel_id    = $rrec->channel_id;
 			$title         = $rrec->title;
 			$description   = $rrec->description;
 			$category_id   = $rrec->category_id;
-			$program_id    = $rrec->program_id;
-			$autorec       = $rrec->autorec;
 			$mode          = $rrec->mode;
 			$discontinuity = $rrec->discontinuity;
 			$priority      = $rrec->priority;
@@ -99,33 +119,27 @@ try{
 			exit();
 		}
 	}
-	$ts_path = INSTALL_PATH .$settings->spool . '/'. $rrec->path;
-	if( file_exists( $ts_path ) ) {
+	if( file_exists( $ts_path ) ){
 		// PT1のログを取得
 		//$get_time = time();
 		usleep(10 * 1000);
-		//$be_time  = (int)(($get_time-1)/10) * 10;
-		//$set_time = (int)(($get_time+1)/10) * 10;
-		//$cmd      = get_logcmd( $be_time );
-		// grep pid=0x01XX and sort by packet counts
+		$be_time  = (int)(($get_time-1)/10) * 10;
+		$set_time = (int)(($get_time+1)/10) * 10;
+		$log      = get_syslog( $be_time, $set_time, 'Drop=', 'Drop=00000000:00000000:00000000:00000000' );
+		// PT3のログを取得(ドライバーのログ出力が必要)
+		if( $log === NULL )
+			$log = get_syslog( $be_time, $set_time, '\') error count \'', '\'error count 0\'' );
 		$cmd      = INSTALL_PATH."/check-drop.sh '$ts_path' 2>&1 | grep 0x01 | sort -t'=' -k 3 -nr";
-		$log      = shell_exec( $cmd );
-		/*if( $be_time != $set_time ){
-			$cmd  = get_logcmd( $set_time );
-			$log .= shell_exec( $cmd );
-		}*/
-		if( $log != NULL ){
-			if( strpos( $log, 'Drop=00000000:00000000:00000000:00000000' ) === FALSE )
-				$syslog = '<br><font color="#ff0000">'.str_replace( "\n", '<br>', htmlspecialchars($log) ).'</font>';
-			else
-				$syslog = '<br>'.str_replace( "\n", '<br>', htmlspecialchars($log) );
-			$rev_ds = htmlspecialchars($rev_ds);
+		$log     .= shell_exec( $cmd );
+		if( $log !== NULL ){
+			$syslog = '<br><font color="#ff0000">'.str_replace( "\n", '<br>', htmlspecialchars($log) ).'</font>';
+			$rev_ds = htmlspecialchars( $rev_ds );
 		}else
 			$syslog = NULL;
-		if( $rrec->autorec ){
-			$autorec = (int)$rrec->autorec>=0 ? (int)$rrec->autorec : (int)$rrec->autorec * -1 - 1;
+		if( $autorec < 0 )
+			$autorec = $autorec * -1 - 1;
+		if( $autorec )
 			$rev_id  = '<input type="button" value="録画済(ID:'.$autorec.')" onClick="location.href=\'recordedTable.php?key='.$autorec.'\'"> '.htmlspecialchars($rev_id);
-		}
 		// 不具合が出る場合は、以下を入れ替えること
 //		if( (int)trim(exec("stat -c %s '".$ts_path."'")) )
 		if( filesize( $ts_path ) )
@@ -136,7 +150,7 @@ try{
 				$rec_success = TRUE;
 			}else{
 				if( (int)$rrec->autorec >= 0 ){
-					if( disk_free_space( INSTALL_PATH.$settings->spool ) )
+					if( storage_free_space( $ts_path ) )
 						reclog( $rev_id.' 録画中断] '.$rev_ds.'<br>ソフトウェアもしくは記憶ストレージ・受信チューナーなどハードウェアに異常があります。'.$syslog, EPGREC_ERROR );
 					else
 						reclog( $rev_id.' 録画中断] '.$rev_ds.'<br>録画ストレージ残容量が0byteです。'.$syslog, EPGREC_ERROR );
@@ -151,7 +165,6 @@ try{
 			$rrec->update();
 			if( $rec_success ){
 				// トランスコードJOB追加
-				$job_set = FALSE;
 				$trans_obj = new DBRecord( TRANSEXPAND_TBL );
 				if( $rrec->autorec ){
 					$tran_ex = $trans_obj->fetch_array( null, null, 'key_id='.$rrec->autorec.' ORDER BY type_no' );
@@ -211,7 +224,7 @@ try{
 				}
 			}
 		}else{
-			if( disk_free_space( INSTALL_PATH.$settings->spool ) )
+			if( storage_free_space( $ts_path ) )
 				reclog( $rev_id.' 録画失敗] '.$rev_ds.'<br>録画ファイルサイズが0byteです。ソフトウェアもしくは記憶ストレージ・受信チューナーなどハードウェアに異常があります。'.$syslog, EPGREC_ERROR );
 			else
 				reclog( $rev_id.' 録画失敗] '.$rev_ds.'<br>録画ストレージ残容量が0byteです。'.$syslog, EPGREC_ERROR );
@@ -228,5 +241,9 @@ catch( exception $e ) {
 	reclog( 'recomplete:: 予約テーブルのアクセスに失敗した模様('.$e->getMessage().')', EPGREC_ERROR );
 	exit( $e->getMessage() );
 }
+// 省電力
+if( !$job_set )
+	power_reduce( RESERVE );
+
 exit();
 ?>

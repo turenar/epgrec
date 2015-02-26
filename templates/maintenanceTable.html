@@ -100,7 +100,6 @@ table#extinct_ch_table td.rec_id {display: none;}
 メンテナンス
 <select onChange="popJump(this)">
 <option value="#">メニュー</option>
-{$link_add}
 {foreach from=$menu_list item=record}
 <option value="{$record.url}">{$record.name}</option>
 {/foreach}
@@ -144,8 +143,8 @@ table#extinct_ch_table td.rec_id {display: none;}
 </table>
 <br>
 
+<div style="font-weight: bold;">廃止チャンネル候補一覧</div>
 {if count($ext_chs)}
- <div style="font-weight: bold;">廃止チャンネル候補一覧 </div>
  <div>削除についてはリスクを承知の上でお願いします。</div>
  <div>背景がグレーになっているCHは、非表示に設定されたCHの可能性が高いです。</div>
  <table id="extinct_ch_table">
@@ -183,9 +182,10 @@ table#extinct_ch_table td.rec_id {display: none;}
   {/foreach}
  </table>
 {else}
-  廃止チャンネルはありません
+  廃止チャンネルはありません<br>
 {/if}
 
+{$file_upload}
 
 {literal}
 <script type="text/javascript">

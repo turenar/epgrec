@@ -4,7 +4,6 @@ include_once( INSTALL_PATH . '/DBRecord.class.php' );
 include_once( INSTALL_PATH . '/Smarty/Smarty.class.php' );
 include_once( INSTALL_PATH . '/reclib.php' );
 include_once( INSTALL_PATH . '/Settings.class.php' );
-include_once( INSTALL_PATH . '/settings/menu_list.php' );
 
 $settings = Settings::factory();
 
@@ -30,7 +29,7 @@ function get_channels( $type )
 	$ext_pac = array();
 	$cer_pac = array();
 	try{
-		$channel = DBRecord::createRecords( CHANNEL_TBL, "WHERE type = '".$type."' ORDER BY sid" );
+		$channel = DBRecord::createRecords( CHANNEL_TBL, 'WHERE type=\''.$type.'\' ORDER BY sid' );
 		foreach( $channel as $ch ){
 			$arr = array();
 			$arr['id']           = (int)$ch->id;
@@ -41,14 +40,14 @@ function get_channels( $type )
 			$arr['name']         = $ch->name;
 			$arr['skip']         = (boolean)$ch->skip;
 			if( $map[$arr['channel_disc']] !== 'NC' ){
-				if( DBRecord::countRecords( PROGRAM_TBL , 'WHERE channel_id = '.$arr['id'] ) == 0 ){
+				if( DBRecord::countRecords( PROGRAM_TBL, 'WHERE channel_id='.$arr['id'] ) == 0 ){
 					// 廃止チャンネル
-					$arr['rec'] = DBRecord::countRecords( RESERVE_TBL, "WHERE channel_id = '".$arr['id']."' AND complete = '1'");
+					$arr['rec'] = DBRecord::countRecords( RESERVE_TBL, 'WHERE channel_id='.$arr['id'].' AND complete=1' );
 					array_push( $ext_pac, $arr );
 				}else
 					array_push( $cer_pac, $arr );
 			}else{
-				$arr['rec'] = DBRecord::countRecords( RESERVE_TBL, "WHERE channel_id = '".$arr['id']."' AND complete = '1'");
+				$arr['rec'] = DBRecord::countRecords( RESERVE_TBL, 'WHERE channel_id='.$arr['id'].' AND complete=1' );
 				array_push( $ext_pac, $arr );
 			}
 		}
@@ -163,20 +162,18 @@ function rate_time( $minute )
 		array_push( $spool_disks, $arr );
 	}
 
-	$link_add = '';
-	if( (int)$settings->gr_tuners > 0 )
-		$link_add .= '<option value="index.php">地上デジタル番組表</option>';
-	if( (int)$settings->bs_tuners > 0 ){
-		$link_add .= '<option value="index.php?type=BS">BSデジタル番組表</option>';
-		if( (boolean)$settings->cs_rec_flg )
-			$link_add .= '<option value="index.php?type=CS">CSデジタル番組表</option>';
-	}
-	if( EXTRA_TUNERS )
-		$link_add .= '<option value="index.php?type=EX">'.EXTRA_NAME.'番組表</option>';
+	if( file_exists( INSTALL_PATH.'/setting_upload.php' ) ){
+		$file_upload = '<br><div style="font-weight: bold;">設定ファイルの同期</div>'.
+						'<form enctype="multipart/form-data" action="setting_upload.php" method="POST">'.
+						'<input type="hidden" name="MAX_FILE_SIZE" value="3000000">'.
+						'<input name="userfile" type="file"><br>'.	// name 属性の値が、$_FILES 配列のキーになります
+						'<input type="submit" value="ファイル同期">'.
+						'</form>';
+	}else
+		$file_upload = '';
 
 	$smarty = new Smarty();
-	$smarty->assign( 'link_add',    $link_add );
-	$smarty->assign( 'menu_list',   $MENU_LIST );
+	$smarty->assign( 'menu_list',   link_menu_create() );
 	$smarty->assign( 'free_size',   number_format( $free_mega/1024, 1 ) );
 	$smarty->assign( 'free_time',   rate_time( $free_mega ) );
 	$smarty->assign( 'ts_rate',     $ts_stream_rate );
@@ -185,5 +182,6 @@ function rate_time( $minute )
 	$smarty->assign( 'cer_chs',     $cer_chs );
 	$smarty->assign( 'epg_get',     HIDE_CH_EPG_GET  );
 	$smarty->assign( 'auto_del',    EXTINCT_CH_AUTO_DELETE );
+	$smarty->assign( 'file_upload', $file_upload );
 	$smarty->display('maintenanceTable.html');
 ?>

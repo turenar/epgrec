@@ -41,7 +41,7 @@ if( isset($_GET['reserve_id']) ){
 		}
 	}
 	catch( Exception $e ){
-		// 無視
+		exit( 'Error' . $e->getMessage() );
 	}
 }else if( isset($_GET['program_id']) ){
 	$program_id = $_GET['program_id'];

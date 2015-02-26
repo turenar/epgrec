@@ -59,7 +59,6 @@ table#log_table td.errorlevel3 {background-color: blue;}
 {$sitetitle}
 <select onChange="popJump(this)">
 <option value="#">メニュー</option>
-{$link_add}
 {foreach from=$menu_list item=record}
 <option value="{$record.url}">{$record.name}</option>
 {/foreach}
@@ -77,6 +76,7 @@ table#log_table td.errorlevel3 {background-color: blue;}
 </form>
 </div>
 
+{if $pager != ''}{$pager}{/if}
 <table id="log_table">
  <tr>
   <th>レベル</th>
@@ -91,5 +91,7 @@ table#log_table td.errorlevel3 {background-color: blue;}
   <td>{$log.message}</td>
  </tr>
 {/foreach}
+</table>
+{if $pager != ''}{$pager}{/if}
 </body>
 </html>

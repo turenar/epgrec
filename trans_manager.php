@@ -7,6 +7,7 @@ include_once( INSTALL_PATH . '/DBRecord.class.php' );
 include_once( INSTALL_PATH . '/Settings.class.php' );
 include_once( INSTALL_PATH . '/recLog.inc.php' );
 include_once( INSTALL_PATH . '/reclib.php' );
+include( INSTALL_PATH . '/powerReduce.inc.php' );
 
 // SIGTERMシグナル
 function handler( $signo = 0 ) {
@@ -47,7 +48,7 @@ $res_obj   = new DBRecord( RESERVE_TBL );
 
 $settings = Settings::factory();
 $trans_stack = array();
-$wait_time = 1;
+$wait_time   = 1;
 while(1){
 	$transing_cnt = DBRecord::countRecords( TRANSCODE_TBL, 'WHERE status=1' );
 	if( $transing_cnt && count( $trans_stack )==0 ){
@@ -63,9 +64,20 @@ while(1){
 	if( $transing_cnt < TRANS_PARA ){
 		$pending_trans = $trans_obj->fetch_array( null, null, 'status=0 ORDER BY rec_endtime, rec_id' );
 		if( count( $pending_trans ) ){
-			$tran_start = $pending_trans[0];
-			// 
+			$tran_start       = $pending_trans[0];
 			$sauce_ts         = $res_obj->fetch_array( 'id', $tran_start['rec_id'] );
+			$tran_start['hd'] = '[予約ID:'.$tran_start['rec_id'].' トランスコード';
+			$tran_start['tl'] = '['.$RECORD_MODE[$tran_start['mode']]['name'].'(mode'.$tran_start['mode'].')]] '.
+					$sauce_ts[0]['channel_disc'].'(T'.$sauce_ts[0]['tuner'].'-'.$sauce_ts[0]['channel'].') '.$sauce_ts[0]['starttime'].' 『'.$sauce_ts[0]['title'].'』';
+			if( storage_free_space( $tran_start['path'] ) == 0 ){
+				reclog( $tran_start['hd'].'開始失敗'.$tran_start['tl'].' ストレージ残容量が0byteです。', EPGREC_ERROR );
+				$wrt_set = array();
+				$wrt_set['status'] = 3;
+				$wrt_set['enc_starttime'] = $wrt_set['enc_endtime'] = toDatetime(time());
+				$trans_obj->force_update( $tran_start['id'], $wrt_set );
+				continue;
+			}
+			// 
 			$tran_start['ts'] = INSTALL_PATH.$settings->spool.'/'.$sauce_ts[0]['path'];
 			$trans      = array('%FFMPEG%' => $settings->ffmpeg,
 								'%TS%'     => '\''.$tran_start['ts'].'\'',
@@ -81,9 +93,6 @@ while(1){
 							);
 			$cmd_set           = strtr( $RECORD_MODE[$tran_start['mode']]['command']=='' ? TRANS_CMD : $RECORD_MODE[$tran_start['mode']]['command'], $trans );
 			$tran_start['pro'] = rec_start( $cmd_set );
-			$tran_start['hd']  = '[予約ID:'.$tran_start['rec_id'].' トランスコード';
-			$tran_start['tl']  = '['.$RECORD_MODE[$tran_start['mode']]['name'].'(mode'.$tran_start['mode'].')]] '.
-					$sauce_ts[0]['channel_disc'].'(T'.$sauce_ts[0]['tuner'].'-'.$sauce_ts[0]['channel'].') '.$sauce_ts[0]['starttime'].' 『'.$sauce_ts[0]['title'].'』';
 			if( $tran_start['pro'] !== FALSE ){
 				reclog( $tran_start['hd'].'開始'.$tran_start['tl'] );
 				$wrt_set = array();
@@ -91,10 +100,17 @@ while(1){
 				$wrt_set['name']          = $RECORD_MODE[$tran_start['mode']]['name'];
 				$wrt_set['status']        = 1;
 				$trans_obj->force_update( $tran_start['id'], $wrt_set );
+
+				$tran_start['title'] = $sauce_ts[0]['title'];
+				$tran_start['desc']  = $sauce_ts[0]['description'];
+				if( $RECORD_MODE[$tran_start['mode']]['tm_rate'] > 0 )
+					$tran_start['tm_lmt'] = time() + (int)(( toTimestamp( $sauce_ts[0]['endtime'] ) - toTimestamp( $sauce_ts[0]['starttime'] ) ) * $RECORD_MODE[$tran_start['mode']]['tm_rate'] );
+				else
+					$tran_start['tm_lmt'] = 0;		// 監視無効
 				array_push( $trans_stack, $tran_start );
 				$transing_cnt++;
 			}else{
-				reclog( $tran_start['hd'].'開始失敗'.$tran_start['tl'].' コマンドに異常がある可能性があります', EPGREC_WARN );
+				reclog( $tran_start['hd'].'開始失敗'.$tran_start['tl'].' コマンドに異常がある可能性があります', EPGREC_ERROR );
 				$wrt_set = array();
 				$wrt_set['status'] = 3;
 				$wrt_set['enc_starttime'] = $wrt_set['enc_endtime'] = toDatetime(time());
@@ -133,7 +149,6 @@ while(1){
 //							$wrt_set['path'] = '';
 //							$res_obj->force_update( $trans_stack[$key]['rec_id'], $wrt_set );
 						}
-/*
 						// mediatomb登録
 						if( $settings->mediatomb_update == 1 ) {
 							// ちょっと待った方が確実っぽい
@@ -143,25 +158,41 @@ while(1){
 							if( $dbh !== false ) {
 								// 別にやらなくてもいいが
 								@mysqli_set_charset( $dbh, 'utf8' );
-								$sqlstr = "update mt_cds_object set metadata='dc:description=".mysqli_real_escape_string( $dbh, $rrec->description ).
-															"&epgrec:id=".$reserve_id."' where dc_title='".$rrec->path."'";
+								$sqlstr = "update mt_cds_object set metadata='dc:description=".mysqli_real_escape_string( $dbh, $tran_start['desc'] ).
+															"&epgrec:id=".$trans_stack[$key]['rec_id']."' where dc_title='".$trans_stack[$key]['path']."'";
 								@mysqli_query( $dbh, $sqlstr );
-								$sqlstr = "update mt_cds_object set dc_title='".mysqli_real_escape_string( $dbh, $rrec->title )."(".date("Y/m/d").")' where dc_title='".$rrec->path."'";
+								$sqlstr = "update mt_cds_object set dc_title='[".$RECORD_MODE[$trans_stack[$key]['mode']]['name'].']'.
+											mysqli_real_escape_string( $dbh, $tran_start['title'] )."(".date('Y/m/d').")' where dc_title='".$trans_stack[$key]['path']."'";
 								@mysqli_query( $dbh, $sqlstr );
 							}
 						}
-*/
 					}else
 						reclog( $trans_stack[$key]['hd'].'失敗(code='.$st['exitcode'].')'.$trans_stack[$key]['tl'], EPGREC_WARN );
 					array_splice( $trans_stack, $key, 1 );
 					continue 2;
-				}else
-					$key++;
+				}else{
+					if( $trans_stack[$key]['tm_lmt']>0 && time()>=$trans_stack[$key]['tm_lmt'] ){
+						// time out
+						proc_terminate( $trans_stack[$key]['pro'], 9 );
+						$wrt_set = array();
+						$wrt_set['enc_endtime'] = toDatetime(time());
+						$wrt_set['status']      = 3;
+						$trans_obj->force_update( $trans_stack[$key]['id'], $wrt_set );
+						reclog( $trans_stack[$key]['hd'].'失敗(タイムアウト)'.$trans_stack[$key]['tl'], EPGREC_WARN );
+						array_splice( $trans_stack, $key, 1 );
+						continue 2;
+					}else
+						$key++;
+				}
 			}else
 				array_splice( $trans_stack, $key, 1 );
 		}while( $key < count($trans_stack) );
-	}else
+	}else{
+		// 省電力
+		power_reduce( RESERVE );
+
 		exit();
+	}
 	sleep( $wait_time );
 }
 ?>

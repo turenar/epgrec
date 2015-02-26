@@ -20,21 +20,21 @@ function cat_maker( $cat_obj, $id, $cat_ja, $cat_en ){
 $settings = Settings::factory();
 $settings->post();	// いったん保存する
 $settings->save();
-/*
+
 // データベース接続チェック
 $dbh = @mysql_connect( $settings->db_host, $settings->db_user, $settings->db_pass );
-if( $dbh == false ) {
-	jdialog( 'MySQLに接続できません。ホスト名/ユーザー名/パスワードを再チェックしてください', 'step2.php' );
+if( $dbh === false ){
+	jdialog( 'MySQLに接続できません。ホスト名['.$settings->db_host.']/ユーザー名['.$settings->db_user.']/パスワード['.$settings->db_pass.']を再チェックしてください', 'step2.php' );
 	exit();
 }
 
 $sqlstr = 'use '.$settings->db_name;
 $res = @mysql_query( $sqlstr );
-if( $res == false ) {
-	jdialog( 'データベース名が異なるようです', 'step2.php' );
+if( $res === false ){
+	jdialog( 'データベース名['.$settings->db_name.']が異なるようです', 'step2.php' );
 	exit();
 }
-*/
+
 // DBテーブルの作成
 
 try {
@@ -63,7 +63,7 @@ try {
     $rec->createTable( TRANSEXPAND_STRUCT );
 }
 catch( Exception $e ) {
-	jdialog( "テーブルの作成に失敗しました。データベースに権限がない等の理由が考えられます。\n".$e, 'step2.php' );
+	jdialog( 'テーブルの作成に失敗しました。データベースに権限がない等の理由が考えられます。', 'step2.php' );
 	exit();
 }
 

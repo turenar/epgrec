@@ -6,7 +6,6 @@ include_once( INSTALL_PATH . '/reclib.php' );
 include_once( INSTALL_PATH . '/Reservation.class.php' );
 include_once( INSTALL_PATH . '/Keyword.class.php' );
 include_once( INSTALL_PATH . '/Settings.class.php' );
-include_once( INSTALL_PATH . '/settings/menu_list.php' );
 
 function word_chk( $chk_wd )
 {
@@ -68,25 +67,27 @@ if( isset($_POST['add_keyword']) ) {
 			else
 				$keyword_id = $rec->id;
 			// transcode
-			$cnt = 0;
-			for( $loop=0; $loop<TRANS_SET_KEYWD; $loop++ ){
-				$pool = DBRecord::createRecords( TRANSEXPAND_TBL, 'WHERE key_id='.$keyword_id.' AND type_no='.$loop );
-				$mode = (int)$_POST['k_trans_mode'.$loop];
-				if( $mode ){
-					if( count($pool) ){
-						$trans_ex = $pool[0];
-					}else{
-						$trans_ex = new DBRecord( TRANSEXPAND_TBL );
-						$trans_ex->key_id = $keyword_id;
-					}
-					$trans_ex->type_no = $cnt++;
-					$trans_ex->mode    = $mode;
-					$trans_ex->dir     = word_chk( $_POST['k_transdir'.$loop] );
-					$trans_ex->ts_del  = isset( $_POST['k_auto_del'] );
-					$trans_ex->update();
-				}else
-					if( count($pool) )
-						$pool[0]->delete();
+			if( array_key_exists( 'tsuffix', end($RECORD_MODE) ) ){
+				$cnt = 0;
+				for( $loop=0; $loop<TRANS_SET_KEYWD; $loop++ ){
+					$pool = DBRecord::createRecords( TRANSEXPAND_TBL, 'WHERE key_id='.$keyword_id.' AND type_no='.$loop );
+					$mode = isset($_POST['k_trans_mode'.$loop]) ? (int)$_POST['k_trans_mode'.$loop] : 0;
+					if( $mode ){
+						if( count($pool) ){
+							$trans_ex = $pool[0];
+						}else{
+							$trans_ex = new DBRecord( TRANSEXPAND_TBL );
+							$trans_ex->key_id = $keyword_id;
+						}
+						$trans_ex->type_no = $cnt++;
+						$trans_ex->mode    = $mode;
+						$trans_ex->dir     = word_chk( $_POST['k_transdir'.$loop] );
+						$trans_ex->ts_del  = isset( $_POST['k_auto_del'] );
+						$trans_ex->update();
+					}else
+						if( count($pool) )
+							$pool[0]->delete();
+				}
 			}
 			if( (boolean)$rec->kw_enable ){
 				$t_cnt = 0;
@@ -213,22 +214,11 @@ catch( Exception $e ) {
 	exit( $e->getMessage() );
 }
 
-	$link_add = '';
-	if( (int)$settings->gr_tuners > 0 )
-		$link_add .= '<option value="index.php">地上デジタル番組表</option>';
-	if( (int)$settings->bs_tuners > 0 ){
-		$link_add .= '<option value="index.php?type=BS">BSデジタル番組表</option>';
-		if( (boolean)$settings->cs_rec_flg )
-			$link_add .= '<option value="index.php?type=CS">CSデジタル番組表</option>';
-	}
-	if( EXTRA_TUNERS )
-		$link_add .= '<option value="index.php?type=EX">'.EXTRA_NAME.'番組表</option>';
 
 $smarty = new Smarty();
 
 $smarty->assign( 'keywords', $keywords );
-$smarty->assign( 'link_add', $link_add );
-$smarty->assign( 'menu_list', $MENU_LIST );
+$smarty->assign( 'menu_list', link_menu_create() );
 $smarty->assign( 'sitetitle', '自動録画キーワードの管理' );
 $smarty->display( 'keywordTable.html' );
 ?>

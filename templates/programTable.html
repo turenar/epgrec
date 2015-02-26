@@ -327,7 +327,6 @@ table#reservation_table td.rev_id, table#reservation_table td.autorec {display: 
 {$sitetitle}
 <select onChange="popJump(this)">
 <option value="#">メニュー</option>
-{$link_add}
 {foreach from=$menu_list item=record}
 <option value="{$record.url}">{$record.name}</option>
 {/foreach}

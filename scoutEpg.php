@@ -69,7 +69,11 @@ function sig_handler()
 		$lmt_tm = time() + ( $mode==1 ? FIRST_REC : SHORT_REC ) + $settings->rec_switch_time + $settings->former_time + 2;
 	}else{
 		$rev    = new DBRecord( RESERVE_TBL, 'id', $argv[1] );
-		$lmt_tm = toTimestamp( $rev->starttime ) - $settings->rec_switch_time - $settings->former_time - 2;
+		if( time() <= toTimestamp( $rev->starttime ) )
+			$lmt_tm = toTimestamp( $rev->starttime ) - $settings->rec_switch_time - $settings->former_time - 2;
+		else{
+			$lmt_tm = time();
+		}
 	}
 	$type     = $rev->type;		//GR/BS/CS
 	$value    = $rev->channel;

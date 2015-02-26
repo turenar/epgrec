@@ -4,7 +4,6 @@ include_once( INSTALL_PATH . '/DBRecord.class.php' );
 include_once( INSTALL_PATH . '/Smarty/Smarty.class.php' );
 include_once( INSTALL_PATH . '/Settings.class.php' );
 include_once( INSTALL_PATH . '/Keyword.class.php' );
-include_once( INSTALL_PATH . '/settings/menu_list.php' );
 
 $settings = Settings::factory();
 
@@ -199,7 +198,8 @@ if(isset( $_POST['do_search'] )) {
 	if( isset($_GET['keyword_id']) ) {
 		$keyword_id    = (int)($_GET['keyword_id']);
 		if( DBRecord::countRecords( KEYWORD_TBL, 'WHERE id='.$keyword_id ) == 0 ){
-			echo '<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"></head><body onLoad="history.back()"></body></html>';
+//			echo '<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"></head><body onLoad="history.back()"></body></html>';
+			echo '<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"></head><body onLoad="var ref = document.referrer;var key = \'keywordTable.php\';if( ref.indexOf(key) > -1 ){location.href = key;}else{if( ref.indexOf(\'programTable.php\') > -1 ){location.href = key;}else{location.href = ref;}}"></body></html>';
 			exit( 1 );
 		}
 		$keyc          = new DBRecord( KEYWORD_TBL, 'id', $keyword_id );
@@ -538,22 +538,10 @@ EXIT_REV:;
 	}
 	$autorec_modes[$autorec_mode]['selected'] = 'selected';
 
-	$link_add = '';
-	if( (int)$settings->gr_tuners > 0 )
-		$link_add .= '<option value="index.php">地上デジタル番組表</option>';
-	if( (int)$settings->bs_tuners > 0 ){
-		$link_add .= '<option value="index.php?type=BS">BSデジタル番組表</option>';
-		if( (boolean)$settings->cs_rec_flg )
-			$link_add .= '<option value="index.php?type=CS">CSデジタル番組表</option>';
-	}
-	if( EXTRA_TUNERS )
-		$link_add .= '<option value="index.php?type=EX">'.EXTRA_NAME.'番組表</option>';
-
 
 	$smarty = new Smarty();
 	$smarty->assign('sitetitle', !$keyword_id ? '番組検索' : '自動録画キーワード編集 №'.$keyword_id );
-	$smarty->assign( 'link_add', $link_add );
-	$smarty->assign( 'menu_list', $MENU_LIST );
+	$smarty->assign( 'menu_list', link_menu_create() );
 	$smarty->assign( 'do_keyword', $do_keyword );
 	$smarty->assign( 'programs', $programs );
 	$smarty->assign( 'cats', $cats );
