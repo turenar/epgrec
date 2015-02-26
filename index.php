@@ -56,6 +56,7 @@ if( isset( $_GET['type'] ) ) $type = $_GET['type'];
 // 表示チャンネル
 $programs = array();
 $single_ch_disc = $single_ch_sid = $single_ch_name = $single_ch = null;
+$selected_channel = FALSE;
 $single_gr_selects = $single_bs_selects = $single_cs_selects = $single_ex_selects = null;
 $channel_map = array();
 if( isset($_GET['ch']) ){
@@ -76,6 +77,7 @@ if( $type == 'GR' ) $channel_map = $GR_CHANNEL_MAP;
 else if( $type == 'BS' ) $channel_map = $BS_CHANNEL_MAP;
 else if( $type == 'CS' ) $channel_map = $CS_CHANNEL_MAP;
 else if( $type == 'EX' ) $channel_map = $EX_CHANNEL_MAP;
+else if( $type == 'SELECT' ) $selected_channel =TRUE;
 
 // 先頭(現在)の時間
 if( isset( $_GET['time'] ) && sscanf( $_GET['time'] , '%04d%2d%2d%2d', $y, $mon, $day, $h )==4 ){
@@ -100,6 +102,7 @@ $genres = DBRecord::createRecords( CATEGORY_TBL );
 $cats   = array();
 $num    = 0;
 foreach( $genres as $val ) {
+	$cats[$num]['id']      = $num + 1;
 	$cats[$num]['name_en'] = $val->name_en;
 	$cats[$num]['name_jp'] = $val->name_jp;
 	$num++;
@@ -117,27 +120,26 @@ catch( Exception $e ) {
 }
 $num_ch     = 0;
 $num_all_ch = 0;
-$wave_type  = ($type === 'GR' ? '地上D' : $type ).':';
-$lp_lmt     = $single_ch_disc ? 8 : count($channel_map);
-$channel_map_keys = array_keys($channel_map);
+if( $selected_channel ){
+	$lp_lmt           = count($SELECTED_CHANNEL_MAP);
+	$channel_map_keys = $SELECTED_CHANNEL_MAP;
+}else{
+	$lp_lmt           = $single_ch_disc ? 8 : count($channel_map);
+	$channel_map_keys = array_keys($channel_map);
+}
 for( $i = 0; $i < $lp_lmt; $i++ ){
-	if( $single_ch_disc ){
-		$channel_disc = $single_ch_disc;
-		$ch_full_duration = $st * 24*60*60;
-		$ch_top_time = $top_time + $ch_full_duration;
-		$ch_last_time = $ch_top_time + 24*60*60;
-	}else{
-		$channel_disc = $channel_map_keys[$i];
-		$ch_full_duration = 0;
-		$ch_top_time = $top_time;
-		$ch_last_time = $last_time;
-	}
 	try {
-		if( !$single_ch_disc && $type==='GR' )
-			$options = 'WHERE channel=\''.$channel_map[$channel_disc].'\' ORDER BY sid ASC';
-		else
-			$options = 'WHERE channel_disc=\''.$channel_disc.'\'';
-		$chd = DBRecord::createRecords( CHANNEL_TBL, $options );
+		if( $single_ch_disc ){
+			$ch_full_duration = $st * 24*60*60;
+			$ch_top_time = $top_time + $ch_full_duration;
+			$ch_last_time = $ch_top_time + 24*60*60;
+			$chd = DBRecord::createRecords( CHANNEL_TBL, 'WHERE channel_disc="'.$single_ch_disc.'"' );
+		}else{
+			$ch_full_duration = 0;
+			$ch_top_time = $top_time;
+			$ch_last_time = $last_time;
+			$chd = DBRecord::createRecords( CHANNEL_TBL, 'WHERE channel_disc LIKE "'.$channel_map_keys[$i].'%" ORDER BY sid ASC' );
+		}
 		foreach( $chd as $crec ){
 			$num_all_ch++;
 			$prev_end = $top_time + $ch_full_duration;
@@ -164,7 +166,7 @@ for( $i = 0; $i < $lp_lmt; $i++ ){
 											'endtime>\''.toDatetime($ch_top_time).'\' AND starttime<\''.toDatetime($ch_last_time).'\' ORDER BY starttime ASC' );
 			$num = 0;
 			if( count( $reca )>1 || ( count( $reca )==1 && (string)$reca[0]['title']!=='放送休止' ) ){
-				$ch_num = $wave_type.$crec->channel.'ch';
+				$ch_num = ( $crec->type==='GR' ? '地上D' : $crec->type ).':'.$crec->channel.'ch';
 				foreach( $reca as $prg ) {
 					// 前プログラムとの空きを調べる
 					$program_id = (int)$prg['id'];
@@ -197,18 +199,25 @@ for( $i = 0; $i < $lp_lmt; $i++ ){
 					$programs[$st]['list'][$num]['id']            = $program_id;
 					$programs[$st]['list'][$num]['autorec']       = $prg['autorec'];
 					if( $program_id ){
-						$rev = DBRecord::createRecords( RESERVE_TBL, 'WHERE complete=0 AND program_id='.$program_id );
+						$rev = DBRecord::createRecords( RESERVE_TBL, 'WHERE complete=0 AND program_id='.$program_id.' ORDER BY starttime' );
 						$programs[$st]['list'][$num]['rec'] = $rec_cnt = count( $rev );
 						if( $rec_cnt ){
 							$programs[$st]['list'][$num]['tuner'] = $rev[0]->tuner;
 							// 複数ある場合の対処無し
-						}else
+							$pri_list = array();
+							foreach( $rev as $re )
+								$pri_list[] = $re->priority;
+							$programs[$st]['list'][$num]['prios'] = 'P('.implode( ',', $pri_list ).')';
+						}else{
 							$programs[$st]['list'][$num]['tuner'] = '';
+							$programs[$st]['list'][$num]['prios'] = '';
+						}
 					}else{
 						$programs[$st]['list'][$num]['rec']   = 0;
 						$programs[$st]['list'][$num]['tuner'] = '';
+						$programs[$st]['list'][$num]['prios'] = '';
 					}
-					$programs[$st]['list'][$num]['keyword'] = putProgramHtml( $prg['title'], $type, $ch_id, $prg['category_id'], $prg['sub_genre'] );
+					$programs[$st]['list'][$num]['keyword'] = putProgramHtml( $prg['title'], $crec->type, $ch_id, $prg['category_id'], $prg['sub_genre'] );
 					$num++;
 				}
 				if( $programs[$st]['skip']==0 && $num>0 )
@@ -280,6 +289,15 @@ if( EXTRA_TUNERS != 0 ) {
 	$types[$i]['chs']      = $single_ex_selects;
 	$i++;
 }
+if( isset($SELECTED_CHANNEL_MAP) ){
+	$types[$i]['selected'] = $type==='SELECT' ? 'class="selected"' : '';
+	$types[$i]['link']     = $_SERVER['SCRIPT_NAME'] . '?type=SELECT&length='.$program_length.'&time='.date( 'YmdH', $top_time);
+	$types[$i]['link2']    = $_SERVER['SCRIPT_NAME'] . '?type=SELECT&length='.$program_length;
+	$types[$i]['name']     = '選別';
+	$types[$i]['chs']      = $single_ex_selects;
+	$i++;
+}
+
 $smarty->assign( 'types', $types );
 
 // 日付選択
@@ -363,7 +381,7 @@ $smarty->assign( 'realview_cmd', REALVIEW  ? 'transwatch.php' : 'watch.php' );
 $smarty->assign( 'transsize_set', $TRANSSIZE_SET );
 
 $sitetitle = date( 'Y', $top_time ) . '年' . date( 'm', $top_time ) . '月' . date( 'd', $top_time ) . '日'. date( 'H', $top_time ) .
-              '時～'.( $type == 'GR' ? '地上' : $type ).'デジタル番組表'.($single_ch_disc ? '['.$single_ch_name.']' : '');
+              '時～'.( $type==='SELECT' ? '選別番組表' : ( $type==='GR' ? '地上' : $type ).'デジタル番組表'.($single_ch_disc ? '['.$single_ch_name.']' : '') );
 
 $smarty->assign('sitetitle', $sitetitle );
 

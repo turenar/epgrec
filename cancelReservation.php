@@ -7,6 +7,8 @@ include_once( INSTALL_PATH . '/Settings.class.php' );
 
 $program_id = 0;
 $reserve_id = 0;
+$split_time = 0;
+$start_time = 0;
 $settings = Settings::factory();
 
 if( isset($_GET['reserve_id']) ){
@@ -52,6 +54,13 @@ if( isset($_GET['reserve_id']) ){
 		$thumbs = INSTALL_PATH.$settings->thumbs.'/'.end(explode( '/', $rec[0]['path'] )).'.jpg';
 		if( file_exists( $thumbs ) )
 			@unlink( $thumbs );
+		// 分割予約禁止フラグ準備
+		if( $rec[0]['autorec'] !== '0' ){
+			$keyword    = new DBRecord( KEYWORD_TBL, 'id', $rec[0]['autorec'] );
+			$split_time = (int)$keyword->split_time;
+			if( $split_time !== 0 )
+				$start_time = toTimestamp( $rec[0]['starttime'] ) - (int)$keyword->sft_start;
+		}
 	}
 	catch( Exception $e ){
 		exit( 'Error' . $e->getMessage() );
@@ -70,11 +79,34 @@ if( isset($_GET['reserve_id']) ){
 
 // 自動録画対象フラグ変更
 if( isset($_GET['autorec']) ){
-	$autorec = $_GET['autorec'];
+	$autorec = (boolean)$_GET['autorec'];
 	if( $program_id ){
 		try{
 			$rec = new DBRecord(PROGRAM_TBL, 'id', $program_id );
-			$rec->autorec = $autorec ? 0 : 1;
+			if( $autorec ){
+				$rec->autorec = 0;
+				// 分割予約禁止フラグ
+				if( $split_time ){
+					$loop      = 0x01;
+					$chk_start = toTimestamp( $rec->starttime );
+					$chk_end   = toTimestamp( $rec->endtime );
+					while(1){
+						if( $chk_start === $start_time ){
+							$rec->split_time     = $split_time;
+							$rec->rec_ban_parts |= $loop;
+							break;
+						}
+						$chk_start += $split_time;
+						if( $chk_start >= $chk_end )
+							break;
+						$loop <<= 1;
+					}
+				}
+			}else{
+				$rec->autorec       = 1;
+				$rec->split_time    = 0;
+				$rec->rec_ban_parts = 0;
+			}
 			$rec->update();
 		}
 		catch( Exception $e ){

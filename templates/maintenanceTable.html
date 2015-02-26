@@ -11,11 +11,13 @@
 <script type="text/javascript" src="js/jquery-1.3.2.min.js"></script>
 <script type="text/javascript" src="js/jquery-ui-1.7.2.custom.min.js"></script>
 <link rel="stylesheet" href="start/jquery-ui-1.7.2.custom.css" type="text/css">
+<link rel="stylesheet" href="start/layout.css" type="text/css">
+<script type="text/javascript" src="js/common.js"></script>
 <script type="text/javascript" src="js/mdabasic.js"></script>
 <script type="text/javascript">
 	var PRG = {
 		del_ch:function(del_id){
-			var chg_id = $('#extid_' + del_id).children('.rec_id').html();
+			var chg_id = $('#extid_' + del_id).children('.rev_id').html();
 			$.get(INISet.prgDelChURL, { delete_id: del_id, change_id: chg_id } ,function(data){
 				if(data.match(/^error/i)){
 					alert(data);
@@ -26,67 +28,23 @@
 		},
 		chg_ch:function(del_id,index){
 			var chg_id = selOBJ.options[index].value;
-			$('#extid_' + del_id).children('.rec_id').html(chg_id);
+			$('#extid_' + del_id).children('.rev_id').html(chg_id);
 		}
 	}
-
-	function popJump(selOBJ)
-	{
-		n = selOBJ.selectedIndex;
-		location.href = selOBJ.options[n].value;
-	}
 </script>
+
 <style type="text/css">
 <!--
-body {padding:4px;margin:0;font-size:10pt;}
-a {text-decoration:none;}
-
-table#storage_table {
-    border: 1px #BBB solid;
-    border-collapse: collapse;
-    border-spacing: 0;
+table#reservation_table {
+    margin: 0;
+    width: auto;
 }
 
-table#storage_table th {
-    padding: 5px;
-    border: #E3E3E3 solid;
-    border-width: 0 0 1px 1px;
-    background: #BBB;
-    font-weight: bold;
-    line-height: 120%;
-    text-align: center;
-}
-table#storage_table td {
-    padding: 5px;
-    border: 1px #BBB solid;
-    border-width: 0 0 1px 1px;
+table#reservation_table td {
     text-align: center;
 }
 
-table#extinct_ch_table {
-    border: 1px #BBB solid;
-    border-collapse: collapse;
-    border-spacing: 0;
-}
-
-table#extinct_ch_table th {
-    padding: 5px;
-    border: #E3E3E3 solid;
-    border-width: 0 0 1px 1px;
-    background: #BBB;
-    font-weight: bold;
-    line-height: 120%;
-    text-align: center;
-}
-table#extinct_ch_table td {
-    padding: 5px;
-    border: 1px #BBB solid;
-    border-width: 0 0 1px 1px;
-    text-align: center;
-}
-
-table#extinct_ch_table tr.freeze {background-color: #CCCCCC;}
-table#extinct_ch_table td.rec_id {display: none;}
+table#reservation_table td.rev_id {display: none;}
 
 -->
 </style>
@@ -96,7 +54,7 @@ table#extinct_ch_table td.rec_id {display: none;}
 
 <body>
 
-<h2><form>
+<h2><form id="naver">
 メンテナンス
 <select onChange="popJump(this)">
 <option value="#">メニュー</option>
@@ -108,9 +66,9 @@ table#extinct_ch_table td.rec_id {display: none;}
 </form></h2>
 
 <br>
-<div style="font-weight: bold;">録画ストレージ一覧</div>
+<div id="nav_margin" style="margin-top:30px; font-weight: bold;">録画ストレージ一覧</div>
 <div>背景色が赤のストレージは、書き込みが出来ない可能性が高いです。</div>
-<table id="storage_table">
+<table id="reservation_table">
  <tr>
   <th>DEVICE名</th>
   <th>PATH</th>
@@ -118,7 +76,7 @@ table#extinct_ch_table td.rec_id {display: none;}
   <th>グループ</th>
   <th>パーミッション</th>
   <th>残容量</th>
-  <th>残時間({$ts_rate}MB/min)</th>
+  <th>残時間({$ts_rate}M{$byte_unit}/min)</th>
  </tr>
  <tr>
   <td>全録画ストレージ</td>
@@ -126,7 +84,7 @@ table#extinct_ch_table td.rec_id {display: none;}
   <td>---</td>
   <td>---</td>
   <td>------</td>
-  <td style="text-align: right;">{$free_size}GB</td>
+  <td style="text-align: right;">{$free_size}G{$byte_unit}</td>
   <td style="text-align: right;">{$free_time}</td>
  </tr>
 {foreach from=$spool_disks item=disk}
@@ -136,7 +94,7 @@ table#extinct_ch_table td.rec_id {display: none;}
   <td>{$disk.owner}</td>
   <td>{$disk.grupe}</td>
   <td>{$disk.perm}</td>
-  <td style="text-align: right;">{$disk.size}GB</td>
+  <td style="text-align: right;">{$disk.size}G{$byte_unit}</td>
   <td style="text-align: right;">{$disk.time}</td>
  </tr>
 {/foreach}
@@ -147,7 +105,7 @@ table#extinct_ch_table td.rec_id {display: none;}
 {if count($ext_chs)}
  <div>削除についてはリスクを承知の上でお願いします。</div>
  <div>背景がグレーになっているCHは、非表示に設定されたCHの可能性が高いです。</div>
- <table id="extinct_ch_table">
+ <table id="reservation_table">
   <tr>
    <th>ID</th>
    <th>種別</th>
@@ -177,7 +135,7 @@ table#extinct_ch_table td.rec_id {display: none;}
      {/if}
     </td>
     <td><input type="button" value="削除" onClick="javascript:PRG.del_ch('{$extinct.id}')"></td>
-    <td class="rec_id">0</td>
+    <td class="rev_id">0</td>
    </tr>
   {/foreach}
  </table>
@@ -186,6 +144,8 @@ table#extinct_ch_table td.rec_id {display: none;}
 {/if}
 
 {$file_upload}
+
+<div id="pagetop"><img src="imgs/b_pagetop.png" alt="TOP"></div>
 
 {literal}
 <script type="text/javascript">

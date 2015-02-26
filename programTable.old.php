@@ -71,7 +71,6 @@ try{
 		$arr['id']       = $chid_list[] = (int)$c->id;
 		$arr['name']     = $c->name;
 		$arr['type']     = 'GR';
-		$arr['disc']     = $c->channel_disc;
 		$arr['selected'] = '';
 		array_push( $stations, $arr );
 	}
@@ -81,7 +80,6 @@ try{
 		$arr['id']       = $chid_list[] = (int)$c->id;
 		$arr['name']     = $c->name;
 		$arr['type']     = 'BS';
-		$arr['disc']     = $c->channel_disc;
 		$arr['selected'] = '';
 		array_push( $stations, $arr );
 	}
@@ -91,7 +89,6 @@ try{
 		$arr['id']       = $chid_list[] = (int)$c->id;
 		$arr['name']     = $c->name;
 		$arr['type']     = 'CS';
-		$arr['disc']     = $c->channel_disc;
 		$arr['selected'] = '';
 		array_push( $stations, $arr );
 	}
@@ -100,7 +97,6 @@ try{
 		$arr = array();
 		$arr['id']       = $chid_list[] = (int)$c->id;
 		$arr['name']     = $c->name;
-		$arr['disc']     = $c->channel_disc;
 		$arr['type']     = 'EX';
 		$arr['selected'] = '';
 		array_push( $stations, $arr );
@@ -345,42 +341,34 @@ try{
 if( $do_keyword ){
 	$precs = Keyword::search( $search, $use_regexp, $collate_ci, $ena_title, $ena_desc, $typeGR, $typeBS, $typeCS, $typeEX, $category_id, $channel_id, $weekofday, $prgtime, $period, $sub_genre, $first_genre );
 	
-	$prg_cnt = count( $precs );
-	foreach( $precs as $key => $p ){
+	foreach( $precs as $p ){
 	try{
 		$arr = array();
-		$arr['no']           = (string)($key + 1);
-		$arr['type']         = $p->type;
-		$start_time          = toTimestamp($p->starttime);
-		$end_time            = toTimestamp($p->endtime);
-		$duration            = $end_time - $start_time;
+		$arr['type'] = $p->type;
+		$arr['station_name'] = $stations[array_search( (int)$p->channel_id, $chid_list )]['name'];
+		$start_time = toTimestamp($p->starttime);
+		$end_time = toTimestamp($p->endtime);
+		$duration = $end_time - $start_time;
 		if( $duration > $criterion_dura )
 			$criterion_dura = $duration;
-		$arr['date']        = date( 'm/d(', $start_time ).$week_tb[date( 'w', $start_time )].')';
-		$arr['starttime']   = date( 'H:i:s-', $start_time );
-		$arr['endtime']     = date( 'H:i:s', $end_time );
-		$arr['duration']    = date( 'H:i:s', $duration-9*60*60 );
-		$arr['prg_top']     = date( 'YmdH', $start_time-60*60*1 );
-		$station_point       = array_search( (int)$p->channel_id, $chid_list );
-		$arr['station_name'] = '<a href="index.php?ch='.$stations[$station_point]['disc'].'&time='.$arr['prg_top'].'" title="単局EPG番組表へジャンプ">'.$stations[$station_point]['name'].'</a>';
-		$arr['title']       = $p->title;
+		$arr['date'] = date( 'm/d(', $start_time ).$week_tb[date( 'w', $start_time )].')';
+		$arr['starttime'] = date( 'H:i:s-', $start_time );
+		$arr['endtime'] = date( 'H:i:s', $end_time );
+		$arr['duration'] = date( 'H:i:s', $duration-9*60*60 );
+		$arr['prg_top'] = date( 'YmdH', $start_time-60*60*1 );
+		$arr['title'] = $p->title;
 		$arr['description'] = $p->description;
-		$arr['id']          = $p->id;
-		$arr['cat']         = $p->category_id;
-		$arr['autorec']     = $p->autorec;
-		$arr['keyword']     = putProgramHtml( $arr['title'], $p->type, $p->channel_id, $p->category_id, $p->sub_genre );
-		$arr['rev_id']      = 0;
-		$arr['key_id']      = 0;
-
-		// 予約情報取得
-		$rev = DBRecord::createRecords(RESERVE_TBL, 'WHERE program_id='.$p->id.' AND complete=0 ORDER BY starttime ASC');
-		$arr['excl'] = count( $rev );
-		if( $arr['excl'] ){
-			$arr['rec']   = 1;
-			$arr['resvd'] = 'resvd';
+		$arr['id']  = $p->id;
+		$arr['cat'] = $p->category_id;
+		$rev        = DBRecord::createRecords(RESERVE_TBL, 'WHERE program_id='.$p->id.' AND complete=0 ORDER BY starttime ASC');
+		$rec_cnt    =  count( $rev );
+		if( $rec_cnt ){
+			$arr['excl'] = $rec_cnt;
 			if( $keyword_id ){
 				foreach( $rev as $r ){
 					if( (int)$r->autorec == $keyword_id ){
+						$arr['rev_id'] = $r->id;
+						$arr['rec']    = $r->tuner + 1;
 						$arr['key_id'] = $keyword_id;
 						goto EXIT_REV;
 					}
@@ -390,45 +378,28 @@ if( $do_keyword ){
 			foreach( $rev as $r ){
 				// 複数の場合はどうする？排他のみはID付きが1つだけなので判別可能
 				if( (int)$r->autorec ){
+					$arr['rev_id'] = $r->id;
+					$arr['rec']    = $r->tuner + 1;
 					$arr['key_id'] = (int)$r->autorec;
 					goto EXIT_REV;
 				}
 			}
-EXIT_REV:;
-			array_push( $programs, $arr );
-
-			$arr['excl']         = 1;
-			$arr['resvd']        = 'resvd_child';
-			$stk_no              = $arr['no'];
-			$arr['keyword']      = '';
-			foreach( $rev as $cnt => $r ){
-				$arr['no']           = $stk_no.'_'.($cnt+1);
-				$arr['station_name'] = $cnt+1;
-				$arr['title']        = $r->title;
-				$arr['description']  = $r->description;
-				$start_time          = toTimestamp($r->starttime);
-				$end_time            = toTimestamp($r->endtime);
-				$duration            = $end_time - $start_time;
-				$arr['date']         = date( 'm/d(', $start_time ).$week_tb[date( 'w', $start_time )].')';
-				$arr['starttime']    = date( 'H:i:s-', $start_time );
-				$arr['endtime']      = date( 'H:i:s', $end_time );
-				$arr['duration']     = date( 'H:i:s', $duration-9*60*60 );
-				$arr['prg_top']      = date( 'YmdH', $start_time-60*60*1 );
-				$arr['rev_id']       = $r->id;
-				$arr['rec']          = $r->tuner + 1;
-				$arr['key_id']       = (int)$r->autorec;
-				array_push( $programs, $arr );
-			}
+			$arr['rev_id'] = $rev[0]->id;
+			$arr['rec']    = $rev[0]->tuner + 1;
+			$arr['key_id'] = 0;
 		}else{
-			$arr['rec']   = 0;
-			$arr['resvd'] = '';
-			array_push( $programs, $arr );
+			$arr['excl']   = 0;
+			$arr['rev_id'] = 0;
+			$arr['rec']    = 0;
+			$arr['key_id'] = 0;
 		}
+EXIT_REV:;
+		$arr['autorec'] = $p->autorec;
+		$arr['keyword'] = putProgramHtml( $arr['title'], $p->type, $p->channel_id, $p->category_id, $p->sub_genre );
+		array_push( $programs, $arr );
 	}catch( exception $e ){}
 	}
-}else
-	$prg_cnt = 0;
-
+}
 	if( $criterion_dura===0 && $criterion_enab )
 		$criterion_dura = 1;
 
@@ -583,7 +554,6 @@ EXIT_REV:;
 	$smarty->assign( 'do_keyword', $do_keyword );
 	$smarty->assign( 'programs', $programs );
 	$smarty->assign( 'cats', $cats );
-	$smarty->assign( 'prg_cnt', $prg_cnt );
 	$smarty->assign( 'k_category', $category_id );
 	$smarty->assign( 'k_category_name', $k_category_name );
 	$smarty->assign( 'k_sub_genre', $sub_genre );

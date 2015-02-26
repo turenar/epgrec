@@ -49,13 +49,25 @@ if( isset($_POST['add_keyword']) ) {
 			$rec->period          = $_POST['k_period'];
 			$rec->autorec_mode    = $_POST['autorec_mode'];
 			$rec->sft_start       = parse_time( $_POST['k_sft_start'] );
-			$rec->sft_end         = parse_time( $_POST['k_sft_end'] );
+			if( $_POST['k_sft_end'][0] === '@' ){
+				$rec->duration_chg = TRUE;
+				$rec->sft_end      = parse_time( substr( $_POST['k_sft_end'], 1 ) );
+			}else{
+				$rec->duration_chg = FALSE;
+				$rec->sft_end      = parse_time( $_POST['k_sft_end'] );
+			}
 			$rec->discontinuity   = isset($_POST['k_discontinuity']);
 			$rec->priority        = $_POST['k_priority'];
 			$rec->overlap         = isset( $_POST['k_overlap'] );
 			$rec->rest_alert      = isset( $_POST['k_rest_alert'] );
 			$rec->criterion_dura  = isset( $_POST['k_criterion_enab'] ) ? $_POST['k_criterion_dura'] : 0;
 			$rec->smart_repeat    = isset( $_POST['k_smart_repeat'] );
+			$rec->split_time      = parse_time( $_POST['k_split_time'] );
+			if( $rec->split_time < 0 )
+				$rec->split_time = 0;
+			else
+				if( $rec->split_time > 0 )
+					$rec->overlap = TRUE;
 			$rec->filename_format = word_chk( $_POST['k_filename'] );
 			$rec->directory       = word_chk( $_POST['k_directory'] );
 			$sem_key              = sem_get_surely( SEM_KW_START );
@@ -179,17 +191,13 @@ try {
 		$arr['sub_genre'] = $rec->sub_genre;
 		$arr['first_genre'] = $rec->first_genre;
 		
-		$arr['options'] = '';
-		if( defined( 'KATAUNA' ) ){
-			$arr['options']  = '<a style="white-space: pre;">'.((boolean)$rec->use_regexp ? '正' : '－');
-			$arr['options'] .= (boolean)$rec->ena_title ? 'タ' : '－';
-			$arr['options'] .= (boolean)$rec->ena_desc ? '概' : '－';
-			$arr['options'] .= '<br>';
-			$arr['options'] .= (boolean)$rec->overlap ? '多' : '－';
-			$arr['options'] .= (boolean)$rec->rest_alert ? '無' : '－';
-			$arr['options'] .= ((boolean)$rec->criterion_dura ? '幅' : '－').'</a>';
-		}else
-			$arr['options'] = (boolean)$rec->use_regexp ? '○' : '×';
+		$arr['options']  = '<a style="white-space: pre;">'.( (boolean)$rec->use_regexp ? '正' : ( (boolean)$rec->collate_ci ? '全' : '－' ) );
+		$arr['options'] .= (boolean)$rec->ena_title ? 'タ' : '－';
+		$arr['options'] .= (boolean)$rec->ena_desc ? '概' : '－';
+		$arr['options'] .= '<br>';
+		$arr['options'] .= (boolean)$rec->split_time ? '分' : ( (boolean)$rec->overlap ? '多' : '－' );
+		$arr['options'] .= (boolean)$rec->rest_alert ? '無' : '－';
+		$arr['options'] .= ((boolean)$rec->criterion_dura ? '幅' : '－').'</a>';
 
 		if( $rec->weekofdays != 0x7f ){
 			$arr['weekofday'] = '';
@@ -204,7 +212,7 @@ try {
 		$arr['period']  = $rec->period;
 		$arr['autorec_mode'] = $RECORD_MODE[(int)$rec->autorec_mode]['name'];
 		$arr['sft_start'] = transTime( $rec->sft_start, TRUE );
-		$arr['sft_end']   = transTime( $rec->sft_end, TRUE );
+		$arr['sft_end']   = ((boolean)$rec->duration_chg ? '@':'').transTime( $rec->sft_end, TRUE );
 		$arr['discontinuity'] = $rec->discontinuity;
 		$arr['priority'] = $rec->priority;
 		array_push( $keywords, $arr );
@@ -219,6 +227,7 @@ $smarty = new Smarty();
 
 $smarty->assign( 'keywords', $keywords );
 $smarty->assign( 'menu_list', link_menu_create() );
+$smarty->assign( 'spool_freesize', spool_freesize() );
 $smarty->assign( 'sitetitle', '自動録画キーワードの管理' );
 $smarty->display( 'keywordTable.html' );
 ?>

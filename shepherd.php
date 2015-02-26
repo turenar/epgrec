@@ -23,29 +23,6 @@ function dog_release( $cmd ){
 	return false;
 }
 
-function stop_process( $kill_pid ){
-	while(1){
-		if( posix_kill( $kill_pid, 15 ) )
-			return;
-		else{
-			$errno = posix_get_last_error();
-			if( $errno == ESRCH )
-				return;
-		}
-		//
-	}
-}
-
-function cleanup( $rarr, $cmd ){
-	foreach( $rarr as $ra ){
-		if( strpos( $ra, $cmd ) !== FALSE ){
-			$ps       = ps_tok( $ra );
-			$kill_pid = (int)$ps->pid;
-			stop_process( $kill_pid );
-		}
-	}
-}
-
 function exit_shephewrd(){
 	global $shepherd_st;
 
@@ -90,7 +67,7 @@ function exit_shephewrd(){
 				case 0:
 					// 予約終了化
 					$wrt_set['complete'] = 1;
-					$rev_obj->force_update( $r['id'], $wrt_set );
+					$res_obj->force_update( $r['id'], $wrt_set );
 					continue;
 				case 1:	// トランスコード中
 					continue;
@@ -107,21 +84,18 @@ function exit_shephewrd(){
 	for( $cc=0; $cc<count($rarr); $cc++ ){
 		if( strpos( $rarr[$cc], 'shepherd.php' ) !== FALSE ){
 			$ps = ps_tok( $rarr[$cc] );
-			if( $my_pid == (int)$ps->pid ){
-				$per_pid = (int)$ps->ppid;
+			if( $my_pid === (int)$ps->pid ){
+				$my_ppid = (int)$ps->ppid;
 				foreach( $rarr as $ra ){
 					if( strpos( $ra, 'shepherd.php' ) !== FALSE ){
-						$ps = ps_tok( $ra );
+						$ps       = ps_tok( $ra );
 						$kill_pid = (int)$ps->pid;
-						if( $kill_pid!=$my_pid && $kill_pid!=$per_pid ){
-							stop_process( $kill_pid );
+						if( $kill_pid!==$my_pid && $kill_pid!==$my_ppid ){
+							killtree( $rarr, $kill_pid );
 							$kill_flg = TRUE;
 						}
 					}
 				}
-				cleanup( $rarr, 'collie.php' );
-				cleanup( $rarr, 'sheepdog.php' );
-				cleanup( $rarr, 'airwavesSheep.php' );
 				if( $kill_flg )
 					reclog( '前回の定期EPG更新が終了していなかったので中断させました。', EPGREC_WARN );
 				break;
@@ -427,21 +401,14 @@ ST_ESP:
 		if( $wtd_tm++ >= 60*60 ){
 			$ps_output = shell_exec( PS_CMD.' 2>/dev/null' );
 			$rarr      = explode( "\n", $ps_output );
-			cleanup( $rarr, 'airwavesSheep.php' );
 			if( $proST !== FALSE ){
-				cleanup( $rarr, 'collie.php' );
-				while( $st['running'] );
-				proc_close( $proST );
+				proc_terminate( $proST, 9 );
 			}
 			if( $proEX !== FALSE ){
-				cleanup( $rarr, 'greatpyrenees.php' );
-				while( $st['running'] );
-				proc_close( $proEX );
+				proc_terminate( $proEX, 9 );
 			}
 			if( $proGR !== FALSE ){
-				cleanup( $rarr, 'sheepdog.php' );
-				while( $st['running'] );
-				proc_close( $proGR );
+				proc_terminate( $proGR, 9 );
 			}
 			shmop_write_surely( $shm_id, SEM_REBOOT, 1 );
 			break;
@@ -453,22 +420,31 @@ ST_ESP:
 
 	// PT2が不安定な場合、リブートする
 	if( PT1_REBOOT ){
-		$smph = shmop_read_surely( $shm_id, SEM_REBOOT );
-		if( $smph == 1 ){
+		if( shmop_read_surely( $shm_id, SEM_REBOOT ) == 1 ){
+			shmop_write_surely( $shm_id, SEM_REBOOT, 2 );
 			$search_core = time();
 			while(1){
 				// 5分以内に予約がなければリブート(変更する場合は3分より大きくすること)
 				$sql_cmd = 'complete=0 AND endtime>"'.toDatetime($search_core).'" AND starttime<"'.toDatetime($search_core+5*60).'" ORDER BY endtime DESC';
 				$revs    = $res_obj->fetch_array( null, null, $sql_cmd );
 				if( count( $revs ) == 0 ){
-					$sleep_tm     = $search_core - time();
+					$sleep_tm = $search_core - time();
 					if( $sleep_tm < 0 )
 						$sleep_tm = 0;
+					$sleep_tm += $settings->extra_time + 10;
 					reclog( REBOOT_COMMENT.toDatetime($search_core+$settings->extra_time+10), EPGREC_WARN );
 					// 10は、録画完了後のDB書き込み待ち
-					sleep( $sleep_tm+$settings->extra_time+10 );		//使用中でない事が確認できる方法がないかな･･･
-					system( REBOOT_CMD );
-					break;
+					while(1){
+						sleep( $sleep_tm );
+						switch( shmop_read_surely( $shm_id, SEM_REBOOT ) ){
+							case 2:
+								system( REBOOT_CMD );		//使用中でない事が確認できる方法がないかな･･･
+								shmop_write_surely( $shm_id, SEM_REBOOT, 0 );
+							case 0:
+								break 3;
+						}
+						$sleep_tm = 10;		// 適当
+					}
 				}else{
 					$search_core = toTimestamp( $revs[0]['endtime'] );
 					if( $search_core-$shepherd_st >= (2*60-5)*60 )

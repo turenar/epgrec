@@ -15,8 +15,9 @@ try {
   $prec = new DBRecord( PROGRAM_TBL, "id", $program_id );
   if( $keyword_id ){
 	$keyc = new DBRecord( KEYWORD_TBL, "id", $keyword_id );
-	$starttime     = toDatetime( toTimestamp( $prec->starttime )  + $keyc->sft_start );
-	$endtime       = toDatetime( toTimestamp( $prec->endtime ) + $keyc->sft_end );
+	$start_time    = toTimestamp( $prec->starttime )  + $keyc->sft_start;
+	$starttime     = toDatetime( $start_time );
+	$endtime       = toDatetime( (boolean)$keyc->duration_chg ? $start_time+(int)$keyc->sft_end :  toTimestamp( $prec->endtime )+(int)$keyc->sft_end );
 	$autorec_mode  = (int)$keyc->autorec_mode;
 	$discontinuity = (boolean)$keyc->discontinuity ? ' checked="checked"' : '';
   }else{

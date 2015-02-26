@@ -1138,6 +1138,7 @@ NEXT_SUB:;
 									}
 								}
 								unset( $reserve );
+								unset( $prev_recs );
 							}
 							catch( Exception $e ) {
 								// 無視
@@ -1210,6 +1211,8 @@ NEXT_SUB:;
 								}
 								Reservation::cancel( $reserve->id );
 							}
+							unset( $reserve );
+							unset( $prev_recs );
 							if( !$skip_ch ){		// 非表示CHはログを出さない
 								reclog( 'EPG更新::時間重複した番組ID'.$del_pro->id.': '.$channel_disc.'::'.$eid.' '.date('Y-m-d H:i-',$prg_st).date('H:i',toTimestamp( $del_pro->endtime )).
 										'『'.$del_pro->title.'』を削除', EPGREC_DEBUG  );
@@ -1264,26 +1267,29 @@ NEXT_SUB:;
 			}else{
 				$rec = $records[0];
 				// 番組内容更新
-				$reserve_chg = FALSE;
-				$wrt_set     = FALSE;
+				$genre_chg = $media_chg = $desc_chg = FALSE;
+				$wrt_set   = FALSE;
 				if( strcmp( $rec['title'], $title ) != 0 ){
 					$title_old        = $rec['title'];
 					$wrt_set['title'] = $title;
-					$reserve_chg      = TRUE;
-				}else
+					$title_chg        = TRUE;
+				}else{
 					$title_old = $title;
+					$title_chg = FALSE;
+				}
 				if( (int)($rec['category_id']) !== $category_id ){
 					$wrt_set['category_id'] = $category_id;
-					$reserve_chg            = TRUE;
+					$genre_chg              = TRUE;
 				}
 				if( (int)($rec['sub_genre']) !== $sub_genre ){
 					$wrt_set['sub_genre'] = $sub_genre;
-					$reserve_chg          = TRUE;
+					$genre_chg            = TRUE;
 				}
 				if( $category_id===15 && $sub_genre===14 )		// 補完した放送休止は除外
-					$reserve_chg = FALSE;
+					$genre_chg = FALSE;
 				if( strcmp( $rec['description'] , $desc ) != 0 ){
 					$wrt_set['description'] = $desc;
+					$desc_chg               = TRUE;
 				}
 				if( (int)($rec['genre2']) !== $genre2 ){
 					$wrt_set['genre2'] = $genre2;
@@ -1299,37 +1305,81 @@ NEXT_SUB:;
 				}
 				if( (int)($rec['video_type']) !== $video_type ){
 					$wrt_set['video_type'] = $video_type;
-					$reserve_chg           = TRUE;
+					$media_chg             = TRUE;
 				}
 				if( (int)($rec['audio_type']) !== $audio_type ){
 					$wrt_set['audio_type'] = $audio_type;
-					$reserve_chg           = TRUE;
+					$media_chg             = TRUE;
 				}
 				if( (int)($rec['multi_type']) !== $multi_type ){
 					$wrt_set['multi_type'] = $multi_type;
-					$reserve_chg           = TRUE;
+					$media_chg             = TRUE;
 				}
 				if( $wrt_set !== FALSE ){
 					$pro_obj->force_update( $rec['id'], $wrt_set );
-					if( $reserve_chg ){
+					if( $genre_chg || $title_chg || $media_chg || $desc_chg ){
 						try {
 							$prev_recs = DBRecord::createRecords( RESERVE_TBL, 'WHERE complete=0 AND program_id='.$rec['id'].' ORDER BY starttime ASC', FALSE );
 							foreach( $prev_recs as $reserve ){
-								if( !((boolean)$reserve->dirty) && time() < toTimestamp( $reserve->starttime ) - $ed_tm_sft ){
+								if( !(boolean)$reserve->dirty && time()<toTimestamp( $reserve->starttime )-$ed_tm_sft ){
 									// dirtyが立っていない録画予約であるなら
-									if( $sch_obtain && (int)($reserve->autorec) && strcmp( $reserve->title, $title_old )==0 ){
+									$chg_rev = FALSE;
+									if( $sch_obtain && (int)$reserve->autorec ){
+										if( !$media_chg ){
+											$keyword = new DBRecord( KEYWORD_TBL, 'id', $reserve->autorec );
+											$filename_format = $keyword->filename_format!='' ? $keyword->filename_format : $settings->filename_format;
+											if( $title_chg && ( strpos( $filename_format, '%T' )!==FALSE || (boolean)$keyword->ena_title ) )
+												$chg_rev = TRUE;
+											else
+												if( $desc_chg && (boolean)$keyword->ena_desc )
+													$chg_rev = TRUE;
+												else
+													if( $genre_chg && (int)$keyword->category_id ){
+														// 第2・第3については忘れる
+														if( (int)$keyword->category_id === $category_id ){
+															if( (int)$keyword->sub_genre<16 && (int)$keyword->sub_genre!==$sub_genre &&
+																	!( $category_id===7 && $keyword->sub_genre==3 && $sub_genre===4 ) )		// この1行は裏仕様
+																$chg_rev = TRUE;
+														}else
+															$chg_rev = TRUE;
+													}
+											unset( $keyword );
+										}else
+											$chg_rev = TRUE;
+									}
+
+									if( $chg_rev ){
 										//自動キーワード再予約のためキャンセル
 										$key_stk[$key_cnt++] = (int)$reserve->autorec;
 										Reservation::cancel( $reserve->id );
 									}else{
-										$reserve->title       = $title;
-										$reserve->description = $desc;
-										reclog( 'EPG更新:: 予約ID'.$reserve->id.'のEPG情報が更新された' );
-										$reserve->update();
+										$elememts = '';
+										if( $title_chg ){
+											$reserve->title = $title;
+											$elememts = 'タイトル';
+										}
+										if( $desc_chg ){
+											$reserve->description = $desc;
+											if( $elememts !== '' )
+												$elememts .= '・';
+											$elememts .= '概要';
+										}
+										if( $genre_chg ){
+											$reserve->category_id = $category_id;
+											$reserve->sub_genre   = $sub_genre;
+											if( $elememts !== '' )
+												$elememts .= '・';
+											$elememts .= 'ジャンルコード';
+										}
+										if( $genre_chg || $title_chg || $desc_chg ){
+											$reserve->update();
+											reclog( 'EPG更新:: 予約ID'.$reserve->id.'のEPG情報['.$elememts.']が更新された' );
+										}
 									}
 								}
 							}
 							unset( $reserve );
+							unset( $prev_recs );
 						}
 						catch( Exception $e ) {
 							// 無視する
@@ -1409,18 +1459,21 @@ NEXT_SUB:;
 			if( $type==='GR' || !$skip_ch ){
 				$disc = $type==='GR' ? strtok( $channel_disc, '_' ) : $channel_disc;
 				if( array_key_exists( "$disc", $map ) && $map["$disc"]!='NC' ){
-					$resq      = INSTALL_PATH.'/repairEpg.php '.$channel_id;
 					$ps_output = shell_exec( PS_CMD );
-					if( strpos( $ps_output, $resq ) === FALSE ){
-						reclog( '番組構成修正スクリプト起動 '.$resq.'['.$type.':'.$map["$disc"].':'.$channel_rec->sid.']', EPGREC_DEBUG );
-						$st_tm = toTimestamp( $event['starttime'] );
-						$ed_tm = toTimestamp( $event['endtime'] );
-						// 番組延伸対策
-						if( $st_tm > $ed_tm )
-							$ed_tm = $st_tm + 60;
-						@exec( $resq.' '.$st_tm.' '.$ed_tm.' >/dev/null 2>&1 &' );
-					}else
-						return (string)toTimestamp( $event['starttime'] );
+					$resq      = INSTALL_PATH.'/repairEpg.php ';
+					$chd       = DBRecord::createRecords( CHANNEL_TBL, 'WHERE channel_disc LIKE "'.$disc.'%" ORDER BY sid ASC' );
+					foreach( $chd as $chh ){
+						if( strpos( $ps_output, $resq.$chh->id ) !== FALSE )
+							return (string)toTimestamp( $event['starttime'] );
+					}
+					$resq .= $channel_id;
+					reclog( '番組構成修正スクリプト起動 '.$resq.'['.$type.':'.$map["$disc"].':'.$channel_rec->sid.']', EPGREC_DEBUG );
+					$st_tm = toTimestamp( $event['starttime'] );
+					$ed_tm = toTimestamp( $event['endtime'] );
+					// 番組延伸対策
+					if( $st_tm > $ed_tm )
+						$ed_tm = $st_tm + 60;
+					@exec( $resq.' '.$st_tm.' '.$ed_tm.' >/dev/null 2>&1 &' );
 				}
 			}
 		}

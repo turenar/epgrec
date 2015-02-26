@@ -277,7 +277,7 @@ try{
 					$keywds[] = $key;
 				}
 			}
-			$arr['name'] = implode( ' ', $keywds );
+			$arr['name'] = str_replace( '%', ' ', implode( ' ', $keywds ) );
 		}else
 			$arr['name'] = '';
 		$arr['cat']      = (int)$c->category_id;
@@ -424,9 +424,9 @@ try{
 		$cat_name = $cat_key===FALSE ? $cats[0]['name'] : $cats[$cat_key+1]['name'].'('.$keys[$piece]['subgenre'].')';
 		$keys[$piece]['name'] = ($key_id===FALSE ? '('.str_pad( $keys[$piece]['count'], 4, '0', STR_PAD_LEFT ).') ' : '')
 								.'ID:'.str_pad( $keys[$piece]['id'], $id_len, '0', STR_PAD_LEFT )
-								.' '.box_pad( $keys[$piece]['station'], $sn_len )
-								.' '.box_pad( $cat_name, $ct_len )
-								.' '.$keys[$piece]['name'];
+								.' '.htmlspecialchars($keys[$piece]['name']."\t",ENT_QUOTES)
+								.htmlspecialchars(box_pad( $keys[$piece]['station'], $sn_len ).' '.box_pad( $cat_name, $ct_len ),ENT_QUOTES)
+								;
 	}
 
 	if( $transcode && !TRANS_SCRN_ADJUST ){
@@ -436,6 +436,10 @@ try{
 
 	$smarty = new Smarty();
 	$smarty->assign('sitetitle','録画済一覧' );
+	$smarty->assign( 'menu_list', link_menu_create() );
+	$smarty->assign( 'spool_freesize', spool_freesize() );
+	$smarty->assign( 'pager', $full_mode ? '' : make_pager( 'recordedTable.php', $separate_records, $stations[0]['count'], $page ) );
+	$smarty->assign( 'full_mode', $full_mode );
 	$smarty->assign( 'records', $records );
 	$smarty->assign( 'search', $search );
 	$smarty->assign( 'stations', $stations );
@@ -448,9 +452,6 @@ try{
 	$smarty->assign( 'TRANSCODE_STREAM', $transcode );
 	$smarty->assign( 'TRANS_SCRN_ADJUST', $transcode && TRANS_SCRN_ADJUST ? 1 : 0 );
 	$smarty->assign( 'transsize_set', $TRANSSIZE_SET );
-	$smarty->assign( 'full_mode', $full_mode );
-	$smarty->assign( 'pager', $full_mode ? '' : make_pager( 'recordedTable.php', $separate_records, $stations[0]['count'], $page ) );
-	$smarty->assign( 'menu_list', link_menu_create() );
 	$smarty->display('recordedTable.html');
 }
 catch( exception $e ){

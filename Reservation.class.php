@@ -11,24 +11,120 @@ include_once( INSTALL_PATH . '/recLog.inc.php' );
 class Reservation {
 	
 	public static function simple( $program_id , $autorec = 0, $mode = 0, $discontinuity=0 ) {
+		global $settings;
+
 		$rval = 0;
 		try {
-			$prec = new DBRecord( PROGRAM_TBL, 'id', $program_id );
-			
-			$rval = self::custom(
-				$prec->starttime,
-				$prec->endtime,
-				$prec->channel_id,
-				$prec->title,
-				$prec->description,
-				$prec->category_id,
-				$program_id,
-				$autorec,
-				$mode,
-				$discontinuity );
-				
-		}
-		catch( Exception $e ) {
+			$prec       = new DBRecord( PROGRAM_TBL, 'id', $program_id );
+			$start_time = toTimestamp( $prec->starttime );
+			$end_time   = $end_org = toTimestamp( $prec->endtime );
+			if( $autorec ){
+				$keyword    = new DBRecord( KEYWORD_TBL, 'id', $autorec );
+				$split_time = (int)$keyword->split_time;
+				if( $split_time > 0 ){
+					$filename   = $keyword->filename_format!=='' ? $keyword->filename_format : $settings->filename_format;
+					$split_loop = ( $end_time - $start_time ) / $split_time;
+					do{
+						$magic_c = strpos( $filename, '%TL_SB' );
+						if( $magic_c !== FALSE ){
+							$magic_c += 6;
+							$tl_num   = 0;
+							while( ctype_digit( $filename[$magic_c] ) )
+								$tl_num = $tl_num * 10 + (int)$filename[$magic_c++];
+							if( $tl_num>0 && $filename[$magic_c]==='%' ){
+								$split_title = '%TL_SB';
+								break;
+							}
+						}
+						$magic_c = strpos( $filename, '%TITLE' );
+						if( $magic_c!==FALSE && strpos( $filename, '%TITLE%' )===FALSE ){
+							$magic_c += 6;
+							$tl_num   = 0;
+							while( ctype_digit( $filename[$magic_c] ) )
+								$tl_num = $tl_num * 10 + (int)$filename[$magic_c++];
+							if( $tl_num>0 && $filename[$magic_c]==='%' ){
+								$split_title = '%TITLE';
+								break;
+							}
+						}
+						$split_title = '';
+					}while(0);
+				}else{
+					$split_time  = $end_time - $start_time;
+					$split_loop  = 1;
+					$split_title = '';
+				}
+			}else{
+				$split_time  = $end_time - $start_time;
+				$split_loop  = 1;
+				$split_title = '';
+			}
+			$loop    = 1;
+			$bit_pic = 0x01;
+			while(1){
+				$end_time = $start_time + $split_time;
+				if( ( (int)$prec->rec_ban_parts & $bit_pic ) === 0 ){		// 分割自動予約禁止フラグ確認
+					if( $end_time > $end_org )
+						$end_time = $end_org;
+					switch( $split_title ){
+						case '%TITLE':
+							if( strpos( $prec->title, '/' ) !== FALSE ){
+								$split_tls = explode( '/', $prec->title );
+								$pictitle  = count($split_tls)>=$loop ? $split_tls[$loop-1] : $split_tls[count($split_tls)-1].'('.$loop.')';
+								$title     = mb_str_replace( '%TITLE'.$tl_num.'%', $pictitle, $filename );
+							}else{
+								$pictitle = $prec->title;
+								if( $split_loop > 1 )
+									$pictitle .= '('.$loop.')';
+								$title = mb_str_replace( '%TITLE'.$tl_num.'%', $pictitle, $filename );
+							}
+							break;
+						case '%TL_SB':
+							if( strpos( $prec->title, '」#' ) !== FALSE ){
+								list( $pictitle, $sbtls ) = explode( ' #', $prec->title );
+								$split_tls = explode( '」#', $sbtls );
+								$pictitle .= ' #'.( count($split_tls)>=$loop ? $split_tls[$loop-1] : $split_tls[count($split_tls)-1].'('.$loop.')' );
+								if( $loop < count( $split_tls ) )
+									$pictitle .= '」';
+								$title = mb_str_replace( '%TL_SB'.$tl_num.'%', $pictitle, $filename );
+							}else{
+								$pictitle = $prec->title;
+								if( $split_loop > 1 )
+									$pictitle .= '('.$loop.')';
+								$title = mb_str_replace( '%TL_SB'.$tl_num.'%', $pictitle, $filename );
+							}
+							break;
+						default:
+							$title = $prec->title;
+							if( $split_loop > 1 )
+								$title .= '('.$loop.')';
+							break;
+					}
+					try {
+						$rval = self::custom(
+							toDatetime( $start_time ),
+							toDatetime( $end_time ),
+							$prec->channel_id,
+							$title,
+							$prec->description,
+							$prec->category_id,
+							$program_id,
+							$autorec,
+							$mode,
+							$discontinuity );
+					}catch( Exception $e ){
+//						throw $e;
+					}
+				}
+				if( $loop >= $split_loop )
+					break;
+				$loop++;
+				$bit_pic  <<= 1;
+				$start_time = $end_time;
+			}
+			if( $rval===0 && isset($e) )
+				throw $e;
+		}catch( Exception $e ) {
 			throw $e;
 		}
 		return $rval.( strpos( $prec->description, '【終】' )!==FALSE ? ':1' : ':0' );
@@ -64,28 +160,35 @@ class Reservation {
 
 				// 同一番組予約チェック
 				if( $program_id ){
-					$num = DBRecord::countRecords( RESERVE_TBL, 'WHERE program_id='.$program_id.' AND autorec='.$autorec );
-					if( $num == 0 ){
-						if( !$overlap ){
-							$num = DBRecord::countRecords( RESERVE_TBL, 'WHERE program_id='.$program_id );
-							if( $num ){
-								$del_revs = DBRecord::createRecords( RESERVE_TBL, 'WHERE program_id='.$program_id.' AND priority<'.$priority );
-								$num     -= count( $del_revs );
-								if( $num <= 0 ){
-									foreach( $del_revs as $rr )
-										self::cancel( $rr->id );
-									$num = 0;
+					if( (int)$keyword->split_time === 0 ){
+						$num = DBRecord::countRecords( RESERVE_TBL, 'WHERE program_id='.$program_id.' AND autorec='.$autorec );
+						if( $num === 0 ){
+							if( !$overlap ){
+								$num = DBRecord::countRecords( RESERVE_TBL, 'WHERE program_id='.$program_id );
+								if( $num ){
+									$del_revs = DBRecord::createRecords( RESERVE_TBL, 'WHERE program_id='.$program_id.' AND priority<'.$priority );
+									$num     -= count( $del_revs );
+									if( $num <= 0 ){
+										foreach( $del_revs as $rr )
+											self::cancel( $rr->id );
+										$num = 0;
+									}
 								}
-							}
-						}else
-							$num = DBRecord::countRecords( RESERVE_TBL, 'WHERE program_id='.$program_id.' AND overlap=0 AND priority>='.$priority );
+							}else
+								$num = DBRecord::countRecords( RESERVE_TBL, 'WHERE program_id='.$program_id.' AND overlap=0 AND priority>='.$priority );
+						}
+					}else{
+						// 分割予約
+						$num = DBRecord::countRecords( RESERVE_TBL, 'WHERE program_id='.$program_id.' AND autorec='.$autorec.
+																		' AND starttime>="'.$starttime.'" AND endtime<="'.$endtime.'"' );
 					}
 					if( $num ){
 						throw new Exception('同一の番組が録画予約されています');
 					}
-				}
-
-				$duration = $end_time - $start_time;
+					$event = new DBRecord( PROGRAM_TBL, 'id', $program_id );
+					$duration = toTimestamp( $event->endtime ) - toTimestamp( $event->starttime );
+				}else
+					$duration = $end_time - $start_time;
 				if( (int)$keyword->criterion_dura && $duration!=(int)$keyword->criterion_dura ){
 					if( (int)$keyword->criterion_dura > 1 )
 						reclog( autoid_button($autorec).'にヒットした'.$crec->channel_disc.'-Ch'.$crec->channel.
@@ -96,27 +199,12 @@ class Reservation {
 					$keyword->update();
 				}
 				$tmp_start = $start_time + (int)$keyword->sft_start;
-				$tmp_end   = $end_time + (int)$keyword->sft_end;
-/*
-				if( $tmp_start>=$end_time || $tmp_end<=$start_time || $tmp_start>=$tmp_end )
+				$tmp_end   = (boolean)$keyword->duration_chg ? $tmp_start+(int)$keyword->sft_end : $end_time+(int)$keyword->sft_end;
+				if( $tmp_start<$tmp_end && $start_time<$tmp_end && $tmp_start<$end_time ){
+					$start_time = $tmp_start;
+					$end_time   = $tmp_end;
+				}else
 					throw new Exception( '時刻シフト量が異常なため、開始時刻が終了時刻以降に指定されています' );
-				else{
-					$start_time = $tmp_start;
-					$end_time   = $tmp_end;
-				}
-*/
-				if( $start_time<$tmp_end && $tmp_start<$end_time ){
-					$start_time = $tmp_start;
-					$end_time   = $tmp_end;
-				}else{
-					// 枠内の編成変更対策(2番組から1番組のみに対応)
-					$half_time = $duration / 2;
-					if( strpos( $title, '%TL_SB' )!==FALSE && $tmp_start<($end_time-$half_time) && $start_time<($tmp_end+$half_time) ){
-						$start_time = $tmp_start;
-						$end_time   = $tmp_end + $half_time;
-					}else
-						throw new Exception( '時刻シフト量が異常なため、開始時刻が終了時刻以降に指定されています' );
-				}
 			}else{
 				$priority = (int)$man_priority;
 				$overlap  = FALSE;
@@ -375,7 +463,9 @@ PRIORITY_CHECK:
 						}
 						//自動予約禁止
 						$event = new DBRecord( PROGRAM_TBL, 'id', $program_id );
-						if( (int)$event->key_id!==0 && (int)$event->key_id!==$autorec && DBRecord::countRecords( KEYWORD_TBL, 'WHERE id='.$event->key_id )!==0 )
+//						if( (int)$event->key_id!==0 && (int)$event->key_id!==$autorec && DBRecord::countRecords( KEYWORD_TBL, 'WHERE id='.$event->key_id )!==0 )
+						if( (int)$event->key_id!==0 && ( (int)$event->key_id===$autorec
+												|| ( (int)$event->key_id!==$autorec && DBRecord::countRecords( KEYWORD_TBL, 'WHERE id='.$event->key_id )!==0 ) ) )
 							goto LOG_THROW;
 						$event->key_id = $autorec;
 						$event->update();
@@ -993,11 +1083,12 @@ LOG_THROW:;
 			$filename = mb_str_replace('%DURATION%',$duration, $filename );
 			// %DURATIONHMS%	録画時間（hh:mm:ss）
 			$filename = mb_str_replace('%DURATIONHMS%',transTime($duration,TRUE), $filename );
-			// %[YmdHisD]*%	開始日時(date()に書式をそのまま渡す 非変換部に'%'を使う場合は誤変換に注意・対策はしない)
-			if( substr_count( $filename, '%' ) >= 2 ){
-				$split_tls = explode( '%', $filename );
-				$iti       = $filename[0]==='%' ? 0 : 1;
-				$filename  = mb_str_replace('%'.$split_tls[$iti].'%',date( $split_tls[$iti], $start_time ), $filename );
+			// %%[YmdHisD]*%%	開始日時(date()に書式をそのまま渡す 非変換部に'%%'を使う場合は誤変換に注意・対策はしない)
+			if( substr_count( $filename, '%%' ) === 2 ){
+				$split_tls = explode( '%%', $filename );
+				$tran_date = date( $split_tls[1], $start_time );
+				if( $tran_date!==FALSE && $tran_date!==$split_tls[1] )
+					$filename = mb_str_replace( '%%'.$split_tls[1].'%%', $tran_date, $filename );
 			}
 
 			if( defined( 'KATAUNA' ) ){
@@ -1017,8 +1108,8 @@ LOG_THROW:;
 									$find_ps = file_get_contents( 'http://cal.syoboi.jp/find?sd=0&r=0&v=0&kw='.urlencode($search_nm) );		// エンコードは変わるかも
 									if( $find_ps !== FALSE ){
 										if( strpos( $find_ps, 'href="/tid/' ) !== FALSE ){
-											list( $dust_trim, $dust ) = explode( '外部サイトの検索結果', $find_ps );
-											$tl_list = explode( 'href="/tid/', $dust_trim );
+											$dust_trim = explode( '外部サイトの検索結果', $find_ps );
+											$tl_list   = explode( 'href="/tid/', $dust_trim[0] );
 											for( $loop=1; $loop<count($tl_list); $loop++ ){
 												if( strpos( $tl_list[$loop], '">'.$search_nm.'</a>' ) !== FALSE ){
 													list( $tid, ) = explode( '">', $tl_list[$loop] );
@@ -1072,7 +1163,7 @@ LOG_THROW:;
 													foreach( $sub_pieces as $sub_piece ){
 														if( strpos( $sub_piece.'」', '「」' )!==FALSE || strpos( $sub_piece.'」', ' 他」' )!==FALSE ){
 															$scount = (int)$sub_piece;							// 強引？
-															if( $scount <= $st_count ){
+															if( $scount>=0 && $scount <= $st_count ){
 																$num_cmp = sprintf( '%d*', $scount );
 																if( strpos( $st_list[$scount-1], $num_cmp ) !== FALSE ){
 																	if( $scount === $st_count ){
