@@ -66,7 +66,7 @@ class DBRecord {
 			throw new exception( '__query:DBに接続されていない' );
 		$res = @mysql_query( $sqlstr, self::$__dbh );
 		if( $res === FALSE )
-			throw new exception( '__query:DBクエリ失敗:'.$sqlstr );
+			throw new exception( sprintf('__query:DBクエリ失敗 (%d|%s): %s', mysql_errno(), mysql_error(), $sqlstr));
 		return $res;
 	}
 
