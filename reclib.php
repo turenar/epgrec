@@ -732,11 +732,11 @@ function spool_freesize(){
 }
 
 // return	0:成功 1:実行失敗 2:タイムアウト
-function exe_start( $cmd, $wait_lp, $start_wt=0 ){
+function exe_start( $cmd, $wait_lp, $start_wt=0, $rst_view=TRUE ){
 	$descspec = array(
 					0 => array( 'file','/dev/null','r' ),
-					1 => array( 'file','/dev/null','w' ),
-					2 => array( 'file','/dev/null','w' ),
+					1 => array( 'pipe','w' ),
+					2 => array( 'pipe','w' ),
 	);
 	$pro = proc_open( $cmd, $descspec, $pipes );
 	if( is_resource( $pro ) ){
@@ -745,22 +745,42 @@ function exe_start( $cmd, $wait_lp, $start_wt=0 ){
 		while(1){
 			$st = proc_get_status( $pro );
 			if( $st['running'] == FALSE ){
+				$rststk = '';
+				$rstring = trim( stream_get_contents( $pipes[1] ) );
+				if( $rstring !== '' )
+					$rststk = '<br>'.str_replace( "\n", '<br>', $rstring );
+				fclose( $pipes[1] );
+				$rstring = trim( stream_get_contents( $pipes[2] ) );
+				if( $rstring !== '' )
+					$rststk .= '<br>'.str_replace( "\n", '<br>', $rstring );
+				fclose( $pipes[2] );
+				proc_close( $pro );
 				if( $st['exitcode'] !== 0 )
-					reclog( 'command error['.$st['exitcode'].']<br>'.$cmd, EPGREC_WARN );
-				break;
+					reclog( 'command error['.$st['exitcode'].'] '.$cmd.$rststk, EPGREC_WARN );
+				else
+					if( $rst_view && $rststk!=='' )
+						reclog( 'command rst['.$cmd.']'.$rststk, EPGREC_WARN );
+				return 0;
 			}else
 				if( $wait_cnt < $wait_lp )
 					sleep( 1 );
 				else{
 					//タイムアウト
+					$rststk = '';
+					$rstring = trim( stream_get_contents( $pipes[1] ) );
+					if( $rstring !== '' )
+						$rststk = '<br>'.str_replace( "\n", '<br>', $rstring );
+					fclose( $pipes[1] );
+					$rstring = trim( stream_get_contents( $pipes[2] ) );
+					if( $rstring !== '' )
+						$rststk .= '<br>'.str_replace( "\n", '<br>', $rstring );
+					fclose( $pipes[2] );
 					proc_terminate( $pro, 9 );
-					reclog( 'コマンドがスタックしてる可能性があります<br>'.$cmd, EPGREC_WARN );
+					reclog( 'コマンドがスタックしてる可能性があります['.$cmd.']<br>'.$rststk, EPGREC_WARN );
 					return 2;
 				}
 			$wait_cnt++;
 		}
-		proc_close( $pro );
-		return 0;
 	}else{
 		reclog( 'コマンドに異常がある可能性があります<br>'.$cmd, EPGREC_WARN );
 		return 1;

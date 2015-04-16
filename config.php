@@ -14,7 +14,8 @@ $GR_CHANNEL_MAP = array(
 	'GR21' => '21',		// フジ
 	'GR24' => '24',		// テレ朝
 	'GR23' => '23',		// テレ東
-//	'GR20' => '20',		// MX TV
+//	'GR16' => '16',		// MX TV(スカイツリー)
+//	'GR20' => '20',		// MX TV(東京タワー)
 //	'GR18' => '18',		// テレ神
 	'GR30' => '30',		// 千葉
 //	'GR32' => '32',		// テレ玉
@@ -291,48 +292,62 @@ if( file_exists( INSTALL_PATH.'/settings/trans_config.php' ) ){
 
 
 // セキュリティ強化
-if( isset($_SERVER['REMOTE_ADDR']) ){
-	$check_addr = strtolower( $_SERVER['REMOTE_ADDR'] );
-	if( strpos( $check_addr, ':' ) !== FALSE )
+function get_net_area( $src_ip )
+{
+	$check_addr = strtolower( $src_ip );
+	if( strpos( $check_addr, ':' ) !== FALSE ){
+		$check_addr = trim( $check_addr, '[]' );
 		if( strpos( $check_addr, '.' ) !== FALSE ){		// IPv4射影アドレス/IPv4互換アドレス チェック
 			$check_addr = str_replace( (!strncmp( $check_addr, '::ffff:', 7 ) ? '::ffff:' : '::'), '', $check_addr );
 			$ipv4 = TRUE;
 		}else
 			$ipv4 = FALSE;
-	else
+	}else
 		$ipv4 = TRUE;
 	if( $ipv4 ){
 		// IPv4
+		$adrs = explode( '.', $check_addr );
+		if( count( $adrs ) !== 4 )
+			return 'T';
+		foreach( $adrs as $adr ){
+			if( !is_numeric($adr) )
+				return 'T';
+		}
 		if( $check_addr === '127.0.0.1' ){
-			$NET_AREA = 'H';			// local host(loop back)
+			return 'H';			// local host(loop back)
 		}else
 		if( strncmp( $check_addr, '192.168.', 8 ) === 0 ){
-			$NET_AREA = 'C';			// class C
+			return 'C';			// class C
 		}else
 		if( strncmp($check_addr, '10.', 3 ) === 0 ){
-			$NET_AREA = 'A';			// class A
+			return 'A';			// class A
 		}else{
-			$adrs = explode( '.', $check_addr );
 			if( $adrs[0]==='172' && ((int)$adrs[1]&0xf0)==0x10 )
-				$NET_AREA = 'B';			// class B
+				return 'B';			// class B
 			else
-				$NET_AREA = 'G';			// global
+				return 'G';			// global
 		}
 	}else{
 		// IPv6
 		if( $check_addr === '::1' ){
-			$NET_AREA = 'H';			// local host(loop back)
+			return 'H';			// local host(loop back)
 		}else{
-			list( $adrstr, ) = explode( ':', $check_addr );
-			$adrs            = hexdec( $adrstr );
-			if( $adrs&0xFE00===0xFC00 || $adrs&0xFFC0===0xFE80 )
-				$NET_AREA = 'P';			// private(ユニークローカルユニキャストアドレス/リンクローカルユニキャストアドレス)
+			$adrs = explode( ':', $check_addr );
+			if( count( $adrs ) === 1 )
+				return 'T';
+			foreach( $adrs as $adr ){
+				if( $adr!=='' && !is_numeric('0x'.$adr) )
+					return 'T';
+			}
+			$ip6_top = hexdec( $adrs[0] );
+			if( $ip6_top&0xFE00===0xFC00 || $ip6_top&0xFFC0===0xFE80 )
+				return 'P';			// private(ユニークローカルユニキャストアドレス/リンクローカルユニキャストアドレス)
 			else
-				$NET_AREA = 'G';			// global
+				return 'G';			// global
 		}
 	}
-}else
-	$NET_AREA = FALSE;
+}
+$NET_AREA   = isset( $_SERVER['REMOTE_ADDR'] ) ? get_net_area( $_SERVER['REMOTE_ADDR'] ) : FALSE;
 $AUTHORIZED = isset($_SERVER['REMOTE_USER']);
 
 // グローバルIPからのアクセスにHTTP認証を強要

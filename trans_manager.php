@@ -21,6 +21,7 @@ function daemon() {
 	posix_setsid();
 	if( pcntl_fork() != 0 )
 		exit;
+	declare( ticks = 1 );
 	pcntl_signal(SIGTERM, 'handler');
 }
 

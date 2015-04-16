@@ -1,20 +1,15 @@
 <?php
-header('Expires: Thu, 01 Dec 1994 16:00:00 GMT');
-header('Last-Modified: '. gmdate('D, d M Y H:i:s'). ' GMT');
-header('Cache-Control: no-cache, must-revalidate');
-header('Cache-Control: post-check=0, pre-check=0', false);
-header('Pragma: no-cache');
+ob_start();
 
 
 include('config.php');
 include_once(INSTALL_PATH . '/DBRecord.class.php' );
 include_once(INSTALL_PATH . '/reclib.php' );
 include_once(INSTALL_PATH . '/Settings.class.php' );
+include( INSTALL_PATH . '/realview_stop.php' );
 
-$settings = Settings::factory();
 
-
-function searchProces( $cmd, $pid )
+function searchRecProces( $cmd, $pid )
 {
 	$ps_output = shell_exec( PS_CMD );
 	$rarr      = explode( "\n", $ps_output );
@@ -27,6 +22,8 @@ function searchProces( $cmd, $pid )
 	}
 	return ESRCH;
 }
+
+$settings = Settings::factory();
 
 if( isset( $_GET['reserve_id'] ) ){
 	$reserve_id = $_GET['reserve_id'];
@@ -53,54 +50,101 @@ if( $pipe_mode ){
 	if( isset( $_GET['ch'] ) ){
 		// チューナー
 		$ff_input = 'pipe:0';
-		$shm_name = (int)$_GET['shm'];
-		if( $shm_name >= SEM_EX_START ){
-			if( count($EX_TUNERS_CHARA) > $shm_name-SEM_EX_START ){
-				$cmd_num = $EX_TUNERS_CHARA[$shm_name-SEM_EX_START]['reccmd'];
-				$device  = $EX_TUNERS_CHARA[$shm_name-SEM_EX_START]['device']!=='' ? ' '.trim($EX_TUNERS_CHARA[$shm_name-SEM_EX_START]['device']) : '';
-			}else{
-				reclog( 'sendstream:$EX_TUNERS_CHARAの設定数が不足($_GET[\'shm\']='.$shm_name.')', EPGREC_WARN );
-				exit();
-			}
-		}else{
-			if( $shm_name >= SEM_ST_START ){
-				$tuner = $shm_name - SEM_ST_START;
-				$type  = 'BS';
-			}else
-				if( $shm_name >= SEM_GR_START ){
-					$tuner = $shm_name - SEM_GR_START;
-					$type  = 'GR';
-				}else{
-					reclog( 'sendstream:チューナー指定が無効($_GET[\'shm\']='.$shm_name.')', EPGREC_WARN );
-					exit();
-				}
-			if( $tuner < TUNER_UNIT1 ){
-				$cmd_num = PT1_CMD_NUM;
-				$device  = '';
-			}else
-				if( count($OTHER_TUNERS_CHARA[$type]) > $tuner-TUNER_UNIT1 ){
-					$cmd_num = $OTHER_TUNERS_CHARA[$type][$tuner-TUNER_UNIT1]['reccmd'];
-					$device  = $OTHER_TUNERS_CHARA[$type][$tuner-TUNER_UNIT1]['device']!=='' ? ' '.trim($OTHER_TUNERS_CHARA[$type][$tuner-TUNER_UNIT1]['device']) : '';
-				}else{
-					reclog( 'sendstream:$OTHER_TUNERS_CHARA['.$type.']の設定数が不足($_GET[\'shm\']='.$shm_name.')', EPGREC_WARN );
-					exit();
-				}
-		}
-		$rec_cmd = $rec_cmds[$cmd_num]['cmd'].$rec_cmds[$cmd_num]['b25'].$device.' --sid '.$_GET['sid'].' '.$_GET['ch'].' - -';
-		// チューナー占有
+
+		// リアルタイム視聴の停止
 		$shm_id = shmop_open_surely();
-		$sem_id = sem_get_surely( $shm_name );
-		$rv_sem = sem_get_surely( SEM_REALVIEW );
-		while( sem_acquire( $rv_sem ) === FALSE )
-			usleep( 100 );
-		while( sem_acquire( $sem_id ) === FALSE )
-			usleep( 100 );
-		shmop_write_surely( $shm_id, $shm_name, 2 );		// リアルタイム視聴指示
-		while( sem_release( $sem_id ) === FALSE )
-			usleep( 100 );
-		shmop_write_surely( $shm_id, SEM_REALVIEW, $shm_name );		// リアルタイム視聴tunerNo set
-		while( sem_release( $rv_sem ) === FALSE )
-			usleep( 100 );
+		$rv_sem = realview_stop( $shm_id );
+		if( $rv_sem === FALSE ){
+			shmop_close( $shm_id );
+			exit;
+		}
+
+		// チューナー確保
+		if( !isset( $_GET['type'] ) ){
+			shmop_close( $shm_id );
+			exit;
+		}
+		$type = $_GET['type'];
+		switch( $type ){
+			case 'GR':
+				$sql_type = 'type="GR"';
+				$smf_key  = SEM_GR_START;
+				$tuners   = (int)$settings->gr_tuners;
+				break;
+			case 'EX':
+				$sql_type = 'type="EX"';
+				$smf_key  = SEM_EX_START;
+				$tuners   = EXTRA_TUNERS;
+				break;
+			case 'BS':
+			case 'CS':
+				$sql_type = '(type="BS" OR type="CS")';
+				$smf_key  = SEM_ST_START;
+				$tuners   = (int)$settings->bs_tuners;
+				break;
+			default:
+				shmop_close( $shm_id );
+				exit;
+		}
+		$sem_id = array();
+		for( $sem_cnt=0; $sem_cnt<$tuners; $sem_cnt++ ){
+			$rv_smph          = $smf_key + $sem_cnt;
+			$sem_id[$rv_smph] = sem_get_surely( $rv_smph );
+			if( $sem_id[$rv_smph] === FALSE ){
+				shmop_close( $shm_id );
+				exit;
+			}
+		}
+		$res_obj = new DBRecord( RESERVE_TBL );
+		$sql_cmd = 'complete=0 AND '.$sql_type.' AND endtime>now() AND starttime<addtime( now(), "00:03:00" )';
+		$lp      = 0;
+		while(1){
+			$revs       = $res_obj->fetch_array( null, null, $sql_cmd );
+			$off_tuners = count( $revs );
+			if( $off_tuners < $tuners ){
+				//空チューナー降順探索
+				for( $slc_tuner=$tuners-1; $slc_tuner>=0; $slc_tuner-- ){
+					for( $cnt=0; $cnt<$off_tuners; $cnt++ ){
+						if( $revs[$cnt]['tuner'] == $slc_tuner )
+							continue 2;
+					}
+					$shm_name = $smf_key + $slc_tuner;
+					if( sem_acquire( $sem_id[$shm_name] ) === TRUE ){
+						$smph = shmop_read_surely( $shm_id, $shm_name );
+						if( $smph === 0 ){
+							// チューナー占有
+							if( $type === 'EX' ){
+								$cmd_num = $EX_TUNERS_CHARA[$slc_tuner]['reccmd'];
+								$device  = $EX_TUNERS_CHARA[$slc_tuner]['device']!=='' ? ' '.trim($EX_TUNERS_CHARA[$slc_tuner]['device']) : '';
+							}else{
+								if( $slc_tuner < TUNER_UNIT1 ){
+									$cmd_num = PT1_CMD_NUM;
+									$device  = '';
+								}else{
+									$other_tuner = $slc_tuner-TUNER_UNIT1;
+									$cmd_num = $OTHER_TUNERS_CHARA[$type][$other_tuner]['reccmd'];
+									$device  = $OTHER_TUNERS_CHARA[$type][$other_tuner]['device']!=='' ? ' '.trim($OTHER_TUNERS_CHARA[$type][$other_tuner]['device']) : '';
+								}
+							}
+							$rec_cmd = $rec_cmds[$cmd_num]['cmd'].$rec_cmds[$cmd_num]['b25'].$device.' --sid '.$_GET['sid'].' '.$_GET['ch'].' - -';
+							break 2;	// トラコン設定へ
+						}else{
+							//占有失敗
+							while( sem_release( $sem_id[$shm_name] ) === FALSE )
+								usleep( 100 );
+						}
+					}
+				}
+			}
+			if( $lp++ > 10 ){
+				while( sem_release( $rv_sem ) === FALSE )
+					usleep( 100 );
+				shmop_close( $shm_id );
+				echo '別処理でチューナーを使用中です。';
+				exit( 1 );
+			}
+			sleep(1);
+		}
 	}else{
 		// ファイル
 		$ff_input = '\''.INSTALL_PATH.$settings->spool.'/'.$path.'\'';
@@ -140,112 +184,116 @@ if( $pipe_mode ){
 	$ts_pro = proc_open( $trans_cmd, $ts_descspec, $ts_pipes );
 	if( !is_resource( $ts_pro ) ){
 		reclog( 'ストリーミング失敗:コマンドに異常がある可能性があります<br>'.$trans_cmd, EPGREC_WARN );
+		if( $rec_cmd !== '' ){
+			while( sem_release( $sem_id[$shm_name] ) === FALSE )
+				usleep( 100 );
+			while( sem_release( $rv_sem ) === FALSE )
+				usleep( 100 );
+			shmop_close( $shm_id );
+		}
 		exit();
 	}
 	if( $rec_cmd !== '' ){
 		// 録画コマンドのPID保存
-/* シェルのPIDになるのでダメ
 		$ts_stat = proc_get_status( $ts_pro );
 		if( $ts_stat['running'] === TRUE ){
-			$handle = fopen( REALVIEW_PID, 'w' );
-			fwrite( $handle, (string)$ts_stat['pid'] );
-			fclose( $handle );
-		}else{
-			$errno = posix_get_last_error();
-			reclog( 'sendstream.php::録画コマンド常駐失敗[exitcode='.$ts_stat['exitcode'].']$errno('.$errno.')'.posix_strerror( $errno ), EPGREC_WARN );
-			goto STREAM_END;
-		}
-*/
-		// ここで少し待った方が良いかも
-		sleep(1);
-		$ps_output = shell_exec( PS_CMD );
-		$rarr      = explode( "\n", $ps_output );
-		$pid       = $ppid = 0;
-		// PID取得
-		foreach( $rarr as $cc ){
-			if( strpos( $cc, $rec_cmd ) !== FALSE ){
-				$ps      = ps_tok( $cc );
-				$tmppid  = (int)$ps->pid;
-				$tmpppid = (int)$ps->ppid;
-				if( ( $pid===0 && $ppid===0 ) || $pid===$tmpppid || $tmpppid===1 ){
-					$pid  = $tmppid;
-					$ppid = $tmpppid;
+			$ppid = (int)$ts_stat['pid'];
+			// ここで少し待った方が良いかも
+			sleep(1);
+			$ps_output = shell_exec( PS_CMD );
+			$rarr      = explode( "\n", $ps_output );
+			$stock_pid       = 0;
+			// PID取得
+			foreach( $rarr as $cc ){
+				$ps = ps_tok( $cc );
+				if( $ppid === (int)$ps->ppid ){
+					$stock_pid = (int)$ps->pid;
+					break;
 				}
 			}
-		}
-		if( $pid !== 0 ){
-			// 常駐成功
-			$handle = fopen( REALVIEW_PID, 'w' );
-			fwrite( $handle, $pid );
-			fclose( $handle );
-//			$st = proc_get_status( $ts_pro );
-//			if( $pid !== (int)$st['pid'] )
-//				reclog( 'sendstream.php::true PID['.$pid.'] get PID['.$st['pid'].']', EPGREC_WARN );
+			if( $stock_pid !== 0 ){
+				// 常駐成功
+				$handle = fopen( REALVIEW_PID, 'w' );
+				fwrite( $handle, $stock_pid );
+				fclose( $handle );
+				shmop_write_surely( $shm_id, $shm_name, 2 );		// リアルタイム視聴指示
+				while( sem_release( $sem_id[$shm_name] ) === FALSE )
+					usleep( 100 );
+				shmop_write_surely( $shm_id, SEM_REALVIEW, $shm_name );		// リアルタイム視聴tunerNo set
+				while( sem_release( $rv_sem ) === FALSE )
+					usleep( 100 );
+				goto SEND_STREAM;
+			}else{
+				// 常駐失敗? PID取得失敗
+				$errno = posix_get_last_error();
+				reclog( 'sendstream.php::録画コマンドPID取得失敗('.$errno.')'.posix_strerror( $errno ), EPGREC_WARN );
+			}
 		}else{
 			// 常駐失敗
-			$errno   = posix_get_last_error();
-			$ts_stat = proc_get_status( $ts_pro );
-			if( $ts_stat['running'] == TRUE )
-				proc_terminate( $ts_pro, 9 );
-			reclog( 'sendstream.php::録画コマンド常駐失敗('.$errno.')'.posix_strerror( $errno ), EPGREC_WARN );
-			echo '録画コマンドの常駐に失敗しました。';
-			goto STREAM_END;
+			$errno = posix_get_last_error();
+			reclog( 'sendstream.php::録画コマンド常駐失敗[exitcode='.$ts_stat['exitcode'].']$errno('.$errno.')'.posix_strerror( $errno ), EPGREC_WARN );
 		}
+		fclose( $ts_pipes[1] );
+		proc_close( $ts_pro );
+		while( sem_release( $sem_id[$shm_name] ) === FALSE )
+			usleep( 100 );
+		while( sem_release( $rv_sem ) === FALSE )
+			usleep( 100 );
+		shmop_close( $shm_id );
+		exit();
 	}
 
-	header('Content-type: video/x-mpeg');
-	header('Content-Disposition: inline; filename="'.$path.'"');
-
-	while( ob_get_level() > 0 )
-		ob_end_clean();
-	flush();
-
+SEND_STREAM:
 	ignore_user_abort( TRUE );
 	set_time_limit( 0 );
+	while( ob_get_level() > 0 )
+		ob_end_clean();
+//	flush();
 	stream_set_blocking( $ts_pipes[1], 0 );		// 必要ないかも
-	$file_end = FALSE;
+	header('Expires: Thu, 01 Dec 1994 16:00:00 GMT');
+	header('Last-Modified: '. gmdate('D, d M Y H:i:s'). ' GMT');
+	header('Cache-Control: no-cache, must-revalidate');
+	header('Cache-Control: post-check=0, pre-check=0', false);
+	header('Pragma: no-cache');
+	header('Content-type: video/mpeg');
+//	header('Content-Disposition: inline; filename="'.$path.'"');
+	header('Content-Disposition: inline');
 	do {
 		$start = microtime( true );
 		if( feof( $ts_pipes[1] ) ){
-			$file_end = TRUE;
 			break;
 		}
 		echo fread( $ts_pipes[1], 6292 );
 		@usleep( 2000 - (int)((microtime(true) - $start) * 1000 * 1000));
 	}while( connection_aborted() == 0 );
 
-STREAM_END:
 	fclose( $ts_pipes[1] );
 	proc_close( $ts_pro );
 	if( $rec_cmd !== '' ){
+		while( sem_acquire( $rv_sem ) === FALSE )
+			usleep( 100 );
 		if( file_exists( REALVIEW_PID ) ){
 			$real_view = (int)trim( file_get_contents( REALVIEW_PID ) );
-			unlink( REALVIEW_PID );
-			// 録画コマンド停止
-			$search_throw = TRUE;
-			while( searchProces( $rec_cmd, $real_view ) !== ESRCH ){
-				$search_throw = FALSE;
-				posix_kill( $real_view, 9 );
-				usleep( 100*1000 );
+			if( $real_view === $stock_pid ){
+				unlink( REALVIEW_PID );
+				// 録画コマンド停止
+				if( searchRecProces( $rec_cmd, $real_view ) !== ESRCH ){
+					posix_kill( $real_view, 9 );
+					usleep( 100*1000 );
+				}
+				if( shmop_read_surely( $shm_id, SEM_REALVIEW ) === $shm_name ){
+					// 他プロセスからの停止時はやらない
+					while( sem_acquire( $sem_id[$shm_name] ) === FALSE )
+						usleep( 100 );
+					shmop_write_surely( $shm_id, $shm_name, 0 );		// チューナー開放
+					while( sem_release( $sem_id[$shm_name] ) === FALSE )
+						usleep( 100 );
+					shmop_write_surely( $shm_id, SEM_REALVIEW, 0 );		// リアルタイム視聴tunerNo clear
+				}
 			}
-			if( $search_throw )
-				$file_end = shmop_read_surely( $shm_id, SEM_REALVIEW )==0;
 		}
-		if( $file_end === FALSE ){
-			// 他プロセスからの停止時はやらない
-			// チューナー開放
-			while( sem_acquire( $sem_id ) === FALSE )
-				usleep( 100 );
-			shmop_write_surely( $shm_id, $shm_name, 0 );
-			while( sem_release( $sem_id ) === FALSE )
-				usleep( 100 );
-			// リアルタイム視聴tunerNo clear
-			while( sem_acquire( $rv_sem ) === FALSE )
-				usleep( 100 );
-			shmop_write_surely( $shm_id, SEM_REALVIEW, 0 );
-			while( sem_release( $rv_sem ) === FALSE )
-				usleep( 100 );
-		}
+		while( sem_release( $rv_sem ) === FALSE )
+			usleep( 100 );
 		shmop_close( $shm_id );
 	}
 
@@ -269,13 +317,17 @@ STREAM_END:
 		$size        = 3 * 1024 * 1024 * $duration;	// 1秒あたり3MBと仮定
 	}
 
+	while( ob_get_level() > 0 )
+		ob_end_clean();
+//	flush();
+	header('Expires: Thu, 01 Dec 1994 16:00:00 GMT');
+	header('Last-Modified: '. gmdate('D, d M Y H:i:s'). ' GMT');
+	header('Cache-Control: no-cache, must-revalidate');
+	header('Cache-Control: post-check=0, pre-check=0', false);
+	header('Pragma: no-cache');
 	header('Content-type: video/mpeg');
 	header('Content-Disposition: inline; filename="'.$filename.'"');
 	header('Content-Length: ' . $size );
-
-	while (ob_get_level() > 0)
-		ob_end_clean();
-	flush();
 
 	$fp = @fopen( $target_path, 'r' );
 	if( $fp !== false ) {

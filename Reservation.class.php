@@ -1312,9 +1312,9 @@ LOG_THROW:;
 			fwrite($pipes[0], 'echo $$ >/tmp/tuner_'.$rrec->type.$tuner."\n" );		//ATジョブのPID
 			if( $sleep_time ){
 				if( $program_id && $sleep_time > $settings->rec_switch_time )
-					fwrite($pipes[0], "echo 'temp' > ".$spool_path.'/'.$add_dir.'/tmp & sync & '.INSTALL_PATH.'/scoutEpg.php '.$rrec->id." &\n" );		//HDD spin-up + 単発EPG更新
+					fwrite($pipes[0], "echo 'temp' > ./".$add_dir.'/tmp & sync & '.INSTALL_PATH.'/scoutEpg.php '.$rrec->id." &\n" );		//HDD spin-up + 単発EPG更新
 				else
-					fwrite($pipes[0], "echo 'temp' > ".$spool_path.'/'.$add_dir."/tmp & sync &\n" );		//HDD spin-up
+					fwrite($pipes[0], "echo 'temp' > ./".$add_dir."/tmp & sync &\n" );		//HDD spin-up
 				fwrite($pipes[0], $settings->sleep.' '.$sleep_time."\n" );
 			}
 
@@ -1376,7 +1376,7 @@ LOG_THROW:;
 			}
 			// エラー
 			$rrec->delete();
-			reclog( 'ジョブNoの取得に失敗', EPGREC_ERROR );
+			reclog( 'ジョブNoの取得に失敗<br>/etc/at.denyに'.HTTPD_USER.'が登録されていたら'.HTTPD_USER.'を削除してください。', EPGREC_ERROR );
 			throw new Exception( 'ジョブNoの取得に失敗' );
 		}
 		catch( Exception $e ) {

@@ -70,6 +70,7 @@ class Settings extends SimpleXMLElement {
 			else{
 				$part_path = explode( '/', $_SERVER['PHP_SELF'] );
 				array_pop( $part_path );
+				array_pop( $part_path );
 				$base_path = implode( '/', $part_path );
 				$xml->install_url = 'http://localhost'.$base_path;
 			}

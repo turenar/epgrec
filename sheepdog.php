@@ -48,8 +48,6 @@ if( $usable_tuners != 0 ){
 	$loop_tim = 10;
 	$sql_cmd  = 'complete=0 AND type="GR"'.create_sql_time( $base_time + $settings->rec_switch_time + $settings->former_time + $loop_tim + 2 );
 	$sql_chk  = 'complete=0 AND type="GR" AND starttime>now() AND starttime<addtime( now(), sec_to_time('.( $base_time + PADDING_TIME ).') )';
-//	$sql_cmd  = "complete = '0' AND type = 'GR'".create_sql_time( $base_time + $settings->rec_switch_time + $settings->former_time + $loop_tim + 2 );
-//	$sql_chk  = "complete = '0' AND type = 'GR'".' AND starttime > now() AND starttime < addtime( now(), sec_to_time('.( $base_time + PADDING_TIME ).') )';
 	$use_cnt  = 0;
 	$release_cnt = 0;
 	$res_obj = new DBRecord( RESERVE_TBL );

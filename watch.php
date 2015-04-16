@@ -314,10 +314,41 @@ if( $now_type === 'EX' )
 	$cmd_num = $EX_TUNERS_CHARA[$slc_tuner]['reccmd'];
 else
 	$cmd_num = $slc_tuner<TUNER_UNIT1 ? PT1_CMD_NUM : $OTHER_TUNERS_CHARA[$now_type][$slc_tuner-TUNER_UNIT1]['reccmd'];
-if( $rec_cmds[$cmd_num]['httpS'] )
-	$asf_buf .= "<REF HREF=\"http://".$_SERVER['SERVER_NAME'].':'.REALVIEW_HTTP_PORT.'/'.$channel."/".$sid."\" />";
-else
-	$asf_buf .= "<REF HREF=\"http://".$_SERVER['SERVER_NAME'].':'.REALVIEW_HTTP_PORT."/\" />";
+
+if( $NET_AREA==='G' && strpos( $settings->install_url, '://192.168.' )===FALSE && strpos( $settings->install_url, '://localhost/' )===FALSE ){
+	$view_url  = 'http://';
+	$host_name = parse_url( $settings->install_url, PHP_URL_HOST );
+}else{
+	$view_url = ( isset($_SERVER['HTTPS']) && $_SERVER['HTTPS']==='on' ) ? 'https://' : 'http://';
+	if( isset( $_SERVER['HTTP_REFERER'] ) && strpos( $_SERVER['HTTP_REFERER'], '://' ) !== FALSE ){
+		$host_name = parse_url( $_SERVER['HTTP_REFERER'], PHP_URL_HOST );
+	}else{
+		if( isset( $_SERVER['HTTP_HOST'] ) ){
+			$host_part = explode( ':', $_SERVER['HTTP_HOST'] );
+			$host_name = $host_part[0];
+		}else
+			if( isset( $_SERVER['REQUEST_URI'] ) && strpos( $_SERVER['REQUEST_URI'], '://' )!==FALSE )
+				$host_name = parse_url( $_SERVER['REQUEST_URI'], PHP_URL_HOST );
+			else
+				if( $NET_AREA==='G' && get_net_area( $_SERVER['SERVER_ADDR'] )!=='G' ){
+					$name_stat = get_net_area( $_SERVER['SERVER_NAME'] );
+					if( $name_stat==='T' || $name_stat==='G' )
+						$host_name = $_SERVER['SERVER_NAME'];
+					else{
+						// ここは適当 たぶんダメ
+						if( isset( $_SERVER['HTTP_X_FORWARDED_FOR'] ) )
+							$host_name = $_SERVER['REMOTE_ADDR'];	// proxy
+						else
+							$host_name = $_SERVER['SERVER_ADDR'];	// NAT
+					}
+				}else
+					$host_name = $_SERVER['SERVER_ADDR'];
+	}
+}
+if( STREAMURL_INC_PW && $AUTHORIZED && isset($_SERVER['PHP_AUTH_USER']) )
+	$view_url .= $_SERVER['PHP_AUTH_USER'].':'.$_SERVER['PHP_AUTH_PW'].'@';
+$host_name .= ':'.REALVIEW_HTTP_PORT;
+$asf_buf .= '<REF HREF="'.$view_url.$host_name.( $rec_cmds[$cmd_num]['httpS'] ? '/'.$channel.'/'.$sid.'" />' : '/" />' );
 $asf_buf .= "</ENTRY>";
 $asf_buf .= "</ASX>";
 if( !isset( $_GET['mode'] ) ){

@@ -44,11 +44,11 @@ class Keyword extends DBRecord {
 
 		if( $keyword != '' ){
 			if( $ena_title ){
-				$search_sorce = $ena_desc ? ' AND CONCAT(title, \' \', description)' : ' AND title';
+				$search_sorce = $ena_desc ? ' AND CONCAT(title, " ", description)' : ' AND title';
 			}else
 				$search_sorce = ' AND description';
 			if( $use_regexp ){
-				$options .= $search_sorce.' REGEXP \''.self::sql_escape( $keyword ).'\'';
+				$options .= $search_sorce.' REGEXP "'.self::sql_escape( $keyword ).'"';
 			}
 			else {
 				if( $collate_ci )
@@ -63,13 +63,20 @@ class Keyword extends DBRecord {
 					}
 					if( $key[0]==='"' && $k_len>2 && $key[$k_len-1]==='"' )
 						$key = substr( $key, 1, $k_len-2 );
-					$options .= ' LIKE \'%'.self::sql_escape( $key ).'%\'';
+					$options .= ' LIKE "%'.self::sql_escape( $key ).'%"';
 				}
 			}
 		}
 
 		if( $channel_id != 0 ){
-			$options .= ' AND channel_id='.$channel_id;
+			if( $typeGR ){
+				// sub-channel間での移動対策
+				$ch_obj   = new DBRecord( CHANNEL_TBL );
+				$crec     = $ch_obj->fetch_array( 'id', $channel_id );
+				$ch_list  = $ch_obj->distinct( 'id', 'WHERE channel LIKE "'.$crec[0]['channel'].'" AND skip=0' );
+				$options .= ' AND channel_id IN ('.implode( ',', $ch_list ).')';
+			}else
+				$options .= ' AND channel_id='.$channel_id;
 		}else{
 			// TYPE
 			if( self::$__settings === FALSE )
@@ -80,7 +87,7 @@ class Keyword extends DBRecord {
 			if( (int)self::$__settings->gr_tuners ){
 				$t_total++;
 				if( $typeGR ){
-					$types .= '\'GR\'';
+					$types .= '"GR"';
 					$t_cnt++;
 				}
 			}
@@ -89,7 +96,7 @@ class Keyword extends DBRecord {
 				if( $typeBS ){
 					if( $types !== '' )
 						$types .= ',';
-					$types .= '\'BS\'';
+					$types .= '"BS"';
 					$t_cnt++;
 				}
 				if( (boolean)self::$__settings->cs_rec_flg ){
@@ -97,7 +104,7 @@ class Keyword extends DBRecord {
 					if( $typeCS ){
 						if( $types !== '' )
 							$types .= ',';
-						$types .= '\'CS\'';
+						$types .= '"CS"';
 						$t_cnt++;
 					}
 				}
@@ -107,7 +114,7 @@ class Keyword extends DBRecord {
 				if( $typeEX ){
 					if( $types !== '' )
 						$types .= ',';
-					$types .= '\'EX\'';
+					$types .= '"EX"';
 					$t_cnt++;
 				}
 			}
@@ -151,10 +158,10 @@ class Keyword extends DBRecord {
 		if( $prgtime != 24 ){
 			if( $prgtime+$period <= 24 ){
 				$options .= self::setWeekofdays( $weekofday );
-				$options .= ' AND time(starttime) BETWEEN cast(\''.sprintf( '%02d:00:00', $prgtime ).'\' as time) AND cast(\''.sprintf( '%02d:59:59', $prgtime+($period-1) ).'\' as time)';
+				$options .= ' AND time(starttime) BETWEEN cast("'.sprintf( '%02d:00:00', $prgtime ).'" as time) AND cast("'.sprintf( '%02d:59:59', $prgtime+($period-1) ).'" as time)';
 			}else{
-				$top_que = ' time(starttime) BETWEEN cast(\'00:00:00\' as time) AND cast(\''.sprintf( '%02d:59:59', ($period-(24-$prgtime)-1) ).'\' as time) ';
-				$btm_que = ' time(starttime) BETWEEN cast(\''.sprintf( '%02d:00:00', $prgtime ).'\' as time) AND cast(\'23:59:59\' as time) ';
+				$top_que = ' time(starttime) BETWEEN cast("00:00:00" as time) AND cast("'.sprintf( '%02d:59:59', ($period-(24-$prgtime)-1) ).'" as time) ';
+				$btm_que = ' time(starttime) BETWEEN cast("'.sprintf( '%02d:00:00', $prgtime ).'" as time) AND cast("23:59:59" as time) ';
 				if( $weekofday == 0x7f )
 					$options .= ' AND ('.$btm_que.'OR'.$top_que.')';
 				else{
