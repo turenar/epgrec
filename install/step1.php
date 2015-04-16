@@ -59,7 +59,7 @@ $run_ginfo = posix_getgrgid( $run_gid );
 $usr_ginfo = posix_getgrnam( HTTPD_GROUP );
 $usr_stat  = posix_getpwuid( posix_getuid() );
 if( $usr_ginfo===FALSE || $run_gid!==$usr_ginfo['gid'] ){
-	echo 'config.phpのHTTPD_GROUPの設定が違います。'.HTTPD_GROUP.'に変更してください。<br>';
+	echo 'config.phpのHTTPD_GROUPの設定が違います。'.$run_ginfo['name'].'に変更してください。<br>';
 	$exit_stat = TRUE;
 }
 if( HTTPD_USER !== $usr_stat['name'] ){

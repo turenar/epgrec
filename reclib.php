@@ -20,8 +20,9 @@ define( 'SEM_EPGSTORE', (SEM_REALVIEW+2) );				// 63:   EPGのDB展開
 define( 'SEM_REBOOT',   (SEM_REALVIEW+3) );				// 64:   リブート・フラグ
 define( 'SEM_TRANSCODE',(SEM_REALVIEW+4) );				// 65:   トランスコードマネージャ起動確認
 define( 'SEM_PW_REDUCE',(SEM_REALVIEW+5) );				// 66:   間欠運用管理資源
-define( 'SEM_EPGDUMPF', (SEM_REALVIEW+6) );				// 62:   epgdump(強制)
-define( 'SEM_EPGSTOREF',(SEM_REALVIEW+7) );				// 63:   EPGのDB展開(強制)
+define( 'SEM_EPGDUMPF', (SEM_REALVIEW+6) );				// 67:   epgdump(強制)
+define( 'SEM_EPGSTOREF',(SEM_REALVIEW+7) );				// 68:   EPGのDB展開(強制)
+define( 'SEM_DISKCHECK',(SEM_REALVIEW+8) );				// 69:   DISK残量チェック
 define( 'SEM_KW_START', (SEM_REALVIEW+10) );			// 71-80:キーワード予約排他処理用(キーワードID)
 define( 'SEM_MAX',      (SEM_KW_START+SEM_KW_MAX-1) );	// 
 define( 'SHM_ID',      255 );							// 共用メモリー
@@ -155,7 +156,7 @@ function search_reccmd( $rec_id ){
 		$catch_cmd  = $slc_cmd['cmd'].$slc_cmd['b25'].( $device!=='' ? $device : $sid.' '.$prev_recs[0]['channel'].' ' );	// $deviceが長いと途切れる可能性があるので
 		$catch_path = ' '.$prev_recs[0]['path'];		// 途中から電子の藻屑となる場合が多いので特定材料にならない
 
-		$atjob_pid = (int)trim( file_get_contents( '/tmp/tuner_'.$type.$tuner ) );
+		$atjob_pid = (int)trim( file_get_contents( '/tmp/tuner_'.$rec_id ) );
 		foreach( $rarr as $cc ){
 			$ps = ps_tok( $cc );
 //			if( strpos( $cc, 'apache2' )===FALSE )
@@ -683,7 +684,62 @@ function storage_free_space( $path )
 {
 	$piece = explode( '/', $path );
 	array_pop( $piece );
-	return disk_free_space( implode( '/', $piece ) );
+	$dir_path  = implode( '/', $piece );
+	$disk_size = disk_free_space( $dir_path );
+
+	$mail_settings = INSTALL_PATH.'/settings/mail_config.php';
+	if( file_exists( $mail_settings ) ){
+		$sem_id = sem_get_surely( SEM_DISKCHECK );
+		while(1){
+			if( sem_acquire( $sem_id ) === TRUE ){
+				include_once( $mail_settings );
+
+				if( DATA_UNIT_RADIX_BINARY ){
+					$unit_radix = 1024;
+					$byte_unit  = 'GiB';
+				}else{
+					$unit_radix = 1000;
+					$byte_unit  = 'GB';
+				}
+				$stat           = stat( $dir_path );
+				$dvnum          = (int)$stat['dev'];
+				$dname          = get_device_name( $dvnum );
+				$disk_nm        = str_replace( '/dev/', '', $dname );
+				$disk_stat_path = INSTALL_PATH.'/settings/disk_'.$disk_nm;
+				$warning_limit  = isset( $DISK_LIMIT_SET[$disk_nm] ) ? $DISK_LIMIT_SET[$disk_nm] : $DISK_LIMIT_SET['default'];
+				$space_lmt      = $warning_limit * $unit_radix * $unit_radix * $unit_radix;
+				if( $disk_size < $space_lmt ){
+					$now_date = date( 'Ymd' );
+					if( file_exists( $disk_stat_path ) && $now_date===trim( file_get_contents( $disk_stat_path ) ) ){
+						while( sem_release( $sem_id ) === FALSE )
+							usleep( 100 );
+						return $disk_size;
+					}
+					$trans = array( '%DISKNAME%'  => $dname,
+									'%DISKLIMIT%' => $warning_limit.$byte_unit,
+									'%DISKSIZE%'  => number_format( ((int)$disk_size/($unit_radix*$unit_radix))/$unit_radix, 1 ).$byte_unit,
+							);
+					$gen_message = strtr( DISK_LIMIT_MASSAGE, $trans );
+					$gen_from    = FROM_NAME!=='' ? 'From: '.FROM_NAME : null;
+					if( mb_send_mail( SEND_TO, DISK_LIMIT_SUBJECT, $gen_message, $gen_from ) ){
+						$handle = fopen( $disk_stat_path, 'w' );
+						fwrite( $handle, $now_date );
+						fclose( $handle );
+					}else
+						$gen_message .= '<br>メール送信に失敗しました。';
+					$gen_message = str_replace( "\n", '<br>', str_replace( "\r", '', $gen_message ) );
+					reclog( $gen_message, EPGREC_WARN );
+				}else
+					if( file_exists( $disk_stat_path ) )
+						unlink( $disk_stat_path );
+				while( sem_release( $sem_id ) === FALSE )
+					usleep( 100 );
+				break;
+			}
+			usleep( 100 );
+		}
+	}
+	return $disk_size;
 }
 
 function rate_time( $minute )
