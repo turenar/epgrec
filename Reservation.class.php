@@ -1309,12 +1309,12 @@ LOG_THROW:;
 				reclog( 'atの実行に失敗した模様', EPGREC_ERROR);
 				throw new Exception('AT実行エラー');
 			}
-			fwrite($pipes[0], 'echo $$ >/tmp/tuner_'.$rrec->type.$tuner."\n" );		//ATジョブのPID
+			fwrite($pipes[0], 'echo $$ >/tmp/tuner_'.$rrec->id."\n" );		//ATジョブのPID保存ファイルの作成
 			if( $sleep_time ){
 				if( $program_id && $sleep_time > $settings->rec_switch_time )
-					fwrite($pipes[0], "echo 'temp' > ".$spool_path.'/'.$add_dir.'/tmp & sync & '.INSTALL_PATH.'/scoutEpg.php '.$rrec->id." &\n" );		//HDD spin-up + 単発EPG更新
+					fwrite($pipes[0], "echo 'temp' > './".$add_dir.'/tmp\' & sync & '.INSTALL_PATH.'/scoutEpg.php '.$rrec->id." &\n" );		//HDD spin-up + 単発EPG更新
 				else
-					fwrite($pipes[0], "echo 'temp' > ".$spool_path.'/'.$add_dir."/tmp & sync &\n" );		//HDD spin-up
+					fwrite($pipes[0], "echo 'temp' > './".$add_dir."/tmp' & sync &\n" );		//HDD spin-up
 				fwrite($pipes[0], $settings->sleep.' '.$sleep_time."\n" );
 			}
 
@@ -1342,6 +1342,7 @@ LOG_THROW:;
 			if( $settings->use_thumbs == 1 ) {
 				fwrite($pipes[0], $gen_thumbnail."\n" );
 			}
+			fwrite($pipes[0], 'rm /tmp/tuner_'.$rrec->id."\n" );		//ATジョブのPID保存ファイルを削除
 			fclose($pipes[0]);
 			// 標準エラーを取る
 			$rstring = stream_get_contents( $pipes[2]);
@@ -1376,7 +1377,7 @@ LOG_THROW:;
 			}
 			// エラー
 			$rrec->delete();
-			reclog( 'ジョブNoの取得に失敗', EPGREC_ERROR );
+			reclog( 'ジョブNoの取得に失敗<br>/etc/at.denyに'.HTTPD_USER.'が登録されていたら'.HTTPD_USER.'を削除してください。', EPGREC_ERROR );
 			throw new Exception( 'ジョブNoの取得に失敗' );
 		}
 		catch( Exception $e ) {
@@ -1456,11 +1457,13 @@ LOG_THROW:;
 						//sleep待機中の予約解除or録画停止を伴うDB削除
 						if( !$db_clean && $rec_at>=$now_tm )
 							sleep(3);
-						$atjob_pid = (int)trim( file_get_contents( '/tmp/tuner_'.$rec['type'].$rec['tuner'] ) );
+						$atpidfile = '/tmp/tuner_'.$rec['id'];
+						$atjob_pid = (int)trim( file_get_contents( $atpidfile ) );
 						$ps_output = shell_exec( PS_CMD );
 						$rarr      = explode( "\n", $ps_output );
 						$my_pid    = $db_clean ? 0 : posix_getpid();
 						$stop_stk  = killtree( $rarr, $atjob_pid, FALSE, $my_pid );
+						unlink( $atpidfile );
 						if( $stop_stk ){
 							reclog( '[予約ID:'.$rec['id'].' 削除] '.$rec['channel_disc'].'(T'.$rec['tuner'].'-'.$rec['channel'].') '.$rec['starttime'].' 『'.$rec['title'].'』' );
 							$rev_obj->force_delete( $rec['id'] );

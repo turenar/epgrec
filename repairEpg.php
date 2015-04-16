@@ -158,8 +158,8 @@ reclog( 'repairEPG::rec strat['.$type.':'.$value.':'.$sid.']'.toDatetime(time())
 						$sid_opt  = $rec_cmds[$cmd_num]['epgTs'] ? ' --sid epg' : '';
 						$falldely = $rec_cmds[$cmd_num]['falldely']>0 ? ' || sleep '.$rec_cmds[$cmd_num]['falldely'] : '';
 						$temp_ts  = $pre_temp_ts.$slc_tuner.'_'.$pid;
-						$cmdline  = $rec_cmds[$cmd_num]['cmd'].$rec_cmds[$cmd_num]['b25'].$device.$sid_opt.' '.$value.' '.$rec_tm.' '.$temp_ts.' >/dev/null 2>&1'.$falldely;
-						exe_start( $cmdline, $rec_tm, 6 );
+						$cmdline  = $rec_cmds[$cmd_num]['cmd'].$rec_cmds[$cmd_num]['b25'].$device.$sid_opt.' '.$value.' '.$rec_tm.' '.$temp_ts.$falldely;
+						exe_start( $cmdline, $rec_tm, 10, FALSE );
 						//チューナー占有解除
 						while( sem_acquire( $sem_id[$slc_tuner] ) === FALSE )
 							usleep( 100 );

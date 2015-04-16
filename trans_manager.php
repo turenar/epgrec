@@ -21,6 +21,7 @@ function daemon() {
 	posix_setsid();
 	if( pcntl_fork() != 0 )
 		exit;
+	declare( ticks = 1 );
 	pcntl_signal(SIGTERM, 'handler');
 }
 
@@ -144,7 +145,7 @@ while(1){
 						reclog( $trans_stack[$key]['hd'].'終了(code='.$st['exitcode'].')'.$trans_stack[$key]['tl'] );
 						if( $trans_stack[$key]['ts_del'] && DBRecord::countRecords( TRANSCODE_TBL, 'WHERE rec_id='.$trans_stack[$key]['rec_id'].' AND status IN (0,1,3)' )==0 ){
 							// 元TSのファイルとパスの削除
-							@unlink( $trans_stack[$key]['ts'] );
+							@unlink( INSTALL_PATH.$settings->spool.$trans_stack[$key]['ts'] );
 //							$wrt_set = array();
 //							$wrt_set['path'] = '';
 //							$res_obj->force_update( $trans_stack[$key]['rec_id'], $wrt_set );

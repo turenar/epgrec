@@ -55,10 +55,10 @@ $old_error_handler = set_error_handler("myErrorHandler");
 
 	$cnt = 0;
 	$shm_id = shmop_open_surely();
-	for( $tuner=1; $tuner<=80; $tuner++ ){
+	for( $tuner=1; $tuner<=SEM_MAX; $tuner++ ){
 		$rv_smph = shmop_read_surely( $shm_id, $tuner );
 		if( $rv_smph )
-			echo $tuner."::".$rv_smph."\n";
+			printf( "[% 3d] %s\n", $tuner, $rv_smph );
 	}
 	shmop_close( $shm_id );
 	exit();

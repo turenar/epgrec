@@ -82,10 +82,10 @@ function sig_handler()
 	}
 	$sid      = $rec_cmds[$cmd_num]['epgTs'] ? ' --sid epg' : '';
 	$falldely = $rec_cmds[$cmd_num]['falldely']>0 ? ' || sleep '.$rec_cmds[$cmd_num]['falldely'] : '';
-	$cmd_ts   = $rec_cmds[$cmd_num]['cmd'].$rec_cmds[$cmd_num]['b25'].$device.$sid.' '.$value.' '.$rec_time.' '.$temp_ts.' >/dev/null 2>&1'.$falldely;
+	$cmd_ts   = $rec_cmds[$cmd_num]['cmd'].$rec_cmds[$cmd_num]['b25'].$device.$sid.' '.$value.' '.$rec_time.' '.$temp_ts.$falldely;
 	// プライオリティ低に
 	pcntl_setpriority(20);
-	exe_start( $cmd_ts, (int)$rec_time, 6 );
+	exe_start( $cmd_ts, (int)$rec_time, 10, FALSE );
 
 	//チューナー占有解除
 	$shm_id   = shmop_open_surely();
