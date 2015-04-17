@@ -252,6 +252,8 @@ define( 'LOG_TBL', 'logTbl' );								// ログテーブル
 define( 'TRANSCODE_TBL', 'transcodeTbl' );					// トランスコードテーブル
 define( 'TRANSEXPAND_TBL', 'transexpandTbl' );					// トランスコード拡張設定テーブル
 
+define( 'REC_TIMEZONE', 'Asia/Tokyo' );						// タイムゾーン
+
 // 全国用BSデジタルチャンネルマップ
 check_ch_map( 'bs_channel.php' );
 include_once( INSTALL_PATH.'/settings/bs_channel.php' );
@@ -289,6 +291,8 @@ if( file_exists( INSTALL_PATH.'/settings/trans_config.php' ) ){
 	define( 'TRANSCODE_STREAM', FALSE );
 	$TRANSSIZE_SET = array();
 }
+
+date_default_timezone_set(REC_TIMEZONE);
 
 
 // セキュリティ強化

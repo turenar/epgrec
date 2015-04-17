@@ -28,12 +28,13 @@ if( $chk_shmop==='0' || $chk_sem==='0' || $chk_pcntl_setpriority==='0' || $chk_p
 	$exit_stat = TRUE;
 }
 
+/*
 $php_timezone = date_default_timezone_get();
 if( $php_timezone !== 'Asia/Tokyo' ){
 	echo 'timezoneが"'.$php_timezone.'"に設定されています。<br>';
 	echo '/etc/php5/cli/php.iniと/etc/php5/apache2/php.ini中の date.timezoneを"Asia/Tokyo"に変更してください。<br>;date.timezone =<br>↓<br>date.timezone = "Asia/Tokyo"<br><br>';
 	$exit_stat = TRUE;
-}
+}*/
 
 echo '<p><b>epgrecのインストール状態をチェックします</b></p>';
 
