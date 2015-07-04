@@ -9,11 +9,11 @@ PHP Noticeメッセージが表示されないようにetc...
 epgrec本家及びkatauna氏版のREADME、 README.epgrec.txt および 3／22fix版のブランチです.txt
 も読んでください。
 
-Based on epgrec-una 20150409 fix1 (Released 2015/4/16)
+Based on epgrec-una 150509 fix1 (Released 2015-06-29)
 Branch una-orig has original code
 
-epgrecと連携したトラコンやCM Cutは https://github.com/turenar/rectool
-を参照していただきたい。こちらはPublic Licenseである。
+trans_manager.phpと連携したトラコンやCM Cutは https://github.com/turenar/rectool
+を参照していただきたい。こちらはMIT Licenseである。
 
 === ライセンスについて ===
 LGPL3.0
