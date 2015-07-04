@@ -12,7 +12,8 @@ define( "RESERVE_STRUCT",
 	"channel varchar(10) not null default '0',".					// チャンネル
 	"title varchar(512) not null default 'none',".					// タイトル
 	"description varchar(512) not null default 'none',".			// 説明 text->varchar
-	"category_id integer not null default '0',".					// カテゴリID
+	"category_id integer not null default '0',".					// ジャンル
+	"sub_genre integer not null default '16',".						// サブジャンル
 	"starttime datetime not null default '1970-01-01 00:00:00',".	// 開始時刻
 	"endtime datetime not null default '1970-01-01 00:00:00',".		// 終了時刻
 	"shortened boolean not null default '0',".						// 隣接短縮フラグ

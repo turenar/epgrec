@@ -37,12 +37,13 @@ $settings = Settings::factory();
 $week_tb = array( '日', '月', '火', '水', '木', '金', '土' );
 
 
-$search      = '';
-$category_id = 0;
-$station     = 0;
-$key_id      = FALSE;
-$page        = 1;
-$full_mode   = FALSE;
+$search       = '';
+$category_id  = 0;
+$station      = 0;
+$key_id       = FALSE;
+$page         = 1;
+$pager_option = '';
+$full_mode    = FALSE;
 
 
 $options = 'starttime<\''. date('Y-m-d H:i:s').'\'';	// ながら再生は無理っぽい？
@@ -53,48 +54,43 @@ $act_trans = array_key_exists( 'tsuffix', end($RECORD_MODE) );
 if( $act_trans )
 	$trans_obj = new DBRecord( TRANSCODE_TBL );
 
-if( isset( $_GET['key']) )
-	$key_id = (int)trim($_GET['key']);
-else
-	if( isset( $_POST['key_id']) )
-		$key_id = (int)$_POST['key_id'];
+if( isset( $_REQUEST['key']) )
+	$key_id = (int)$_REQUEST['key'];
 
 $rev_opt = $key_id!==FALSE ? ' AND autorec='.$key_id : '';
 
 
-if( isset($_POST['do_search']) ){
-	if( isset($_POST['search']) ){
-		if( $_POST['search'] != '' ){
-			$search = $_POST['search'];
-			foreach( explode( ' ', trim($search) ) as $key ){
-				$k_len = strlen( $key );
-				if( $k_len>1 && $key[0]==='-' ){
-					$k_len--;
-					$key      = substr( $key, 1 );
-					$rev_opt .= ' AND CONCAT(title,\' \', description) NOT LIKE ';
-				}else
-					$rev_opt .= ' AND CONCAT(title,\' \', description) LIKE ';
-				if( $key[0]==='"' && $k_len>2 && $key[$k_len-1]==='"' )
-					$key = substr( $key, 1, $k_len-2 );
-				$rev_opt .= '\'%'.$rev_obj->sql_escape( $key ).'%\'';
-			}
+if( isset($_REQUEST['search']) ){
+	if( $_REQUEST['search'] !== '' ){
+		$search = $_REQUEST['search'];
+		foreach( explode( ' ', trim($search) ) as $key ){
+			$k_len = strlen( $key );
+			if( $k_len>1 && $key[0]==='-' ){
+				$k_len--;
+				$key      = substr( $key, 1 );
+				$rev_opt .= ' AND CONCAT(title,\' \', description) NOT LIKE ';
+			}else
+				$rev_opt .= ' AND CONCAT(title,\' \', description) LIKE ';
+			if( $key[0]==='"' && $k_len>2 && $key[$k_len-1]==='"' )
+				$key = substr( $key, 1, $k_len-2 );
+			$rev_opt .= '\'%'.$rev_obj->sql_escape( $key ).'%\'';
 		}
 	}
-	if( isset($_POST['category_id']) ){
-		if( $_POST['category_id'] != 0 ){
-			$category_id = $_POST['category_id'];
-			$rev_opt    .= ' AND category_id='.$_POST['category_id'];
-		}
-	}
-	if( isset($_POST['station']) ){
-		if( $_POST['station'] != 0 ){
-			$station  = $_POST['station'];
-			$rev_opt .= ' AND channel_id='.$_POST['station'];
-		}
-	}
-	if( isset($_POST['full_mode']) )
-		$full_mode = $_POST['full_mode'];
 }
+if( isset($_REQUEST['category_id']) ){
+	if( $_REQUEST['category_id'] != 0 ){
+		$category_id = $_REQUEST['category_id'];
+		$rev_opt    .= ' AND category_id='.$_REQUEST['category_id'];
+	}
+}
+if( isset($_REQUEST['station']) ){
+	if( $_REQUEST['station'] != 0 ){
+		$station  = $_REQUEST['station'];
+		$rev_opt .= ' AND channel_id='.$_REQUEST['station'];
+	}
+}
+if( isset($_REQUEST['full_mode']) )
+	$full_mode = $_REQUEST['full_mode']==1;
 
 if( isset($_POST['do_delete']) ){
 	$delete_file = isset($_POST['delrec']);
@@ -106,6 +102,7 @@ if( isset($_POST['do_delete']) ){
 		$category_id = 0;
 		$station     = 0;
 		$key_id      = FALSE;
+		$full_mode   = FALSE;
 	}else{
 		$del_list = array();
 		foreach( $id_list as $del_id ){
@@ -312,6 +309,14 @@ try{
 	}else{
 		$start_record = ( $page - 1 ) * $separate_records;
 		$end_record   = $page * $separate_records;
+		if( $key_id !== FALSE )
+			$pager_option .= 'key='.$key_id.'&';
+		if( $search !== '' )
+			$pager_option .= 'search='.htmlspecialchars($search,ENT_QUOTES).'&';
+		if( $category_id !== 0 )
+			$pager_option .= 'category_id='.$category_id.'&';
+		if( $station !== 0 )
+			$pager_option .= 'station='.$station.'&';
 	}
 
 	$part_path = explode( '/', $_SERVER['PHP_SELF'] );
@@ -440,7 +445,7 @@ try{
 	$smarty->assign('sitetitle','録画済一覧' );
 	$smarty->assign( 'menu_list', link_menu_create() );
 	$smarty->assign( 'spool_freesize', spool_freesize() );
-	$smarty->assign( 'pager', $full_mode ? '' : make_pager( 'recordedTable.php', $separate_records, $stations[0]['count'], $page ) );
+	$smarty->assign( 'pager', $full_mode ? '' : make_pager( 'recordedTable.php', $separate_records, $stations[0]['count'], $page, $pager_option ) );
 	$smarty->assign( 'full_mode', $full_mode );
 	$smarty->assign( 'records', $records );
 	$smarty->assign( 'search', $search );

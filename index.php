@@ -103,7 +103,6 @@ $cats   = array();
 $num    = 0;
 foreach( $genres as $val ) {
 	$cats[$num]['id']      = $num + 1;
-	$cats[$num]['name_en'] = $val->name_en;
 	$cats[$num]['name_jp'] = $val->name_jp;
 	$num++;
 }
@@ -173,49 +172,50 @@ for( $i = 0; $i < $lp_lmt; $i++ ){
 					$start_str  = $prg['starttime'];
 					$start      = toTimestamp( $start_str );
 					if( $start > $prev_end ){
-						$programs[$st]['list'][$num]['category_name'] = 'none';
-						$programs[$st]['list'][$num]['genre']         = 0;
-						$programs[$st]['list'][$num]['sub_genre']     = 0;
-						$programs[$st]['list'][$num]['height']        = (int)( ($start-$prev_end) * $height_per_sec );
-						$programs[$st]['list'][$num]['title'] = '';
-						$programs[$st]['list'][$num]['starttime'] = '';
+						$programs[$st]['list'][$num]['genre']       = 0;
+						$programs[$st]['list'][$num]['sub_genre']   = 0;
+						$programs[$st]['list'][$num]['height']      = (int)( ($start-$prev_end) * $height_per_sec );
+						$programs[$st]['list'][$num]['title']       = '';
+						$programs[$st]['list'][$num]['starttime']   = '';
 						$programs[$st]['list'][$num]['description'] = '';
 						$num++;
 					}
 					$prev_end = toTimestamp( $prg['endtime'] );
-        
+
 					// プログラムを埋める
-					$programs[$st]['list'][$num]['category_name'] = $cats[$prg['category_id']-1]['name_en'];
-					$programs[$st]['list'][$num]['genre']         = $prg['category_id'];
-					$programs[$st]['list'][$num]['sub_genre']     = $prg['sub_genre'];
-					$programs[$st]['list'][$num]['height']        =
+					$programs[$st]['list'][$num]['genre']       = $prg['category_id'];
+					$programs[$st]['list'][$num]['sub_genre']   = $prg['sub_genre'];
+					$programs[$st]['list'][$num]['height']      =
 						(int)( ( ($prev_end>=$ch_last_time ? $ch_last_time : $prev_end) - ($start<=$ch_top_time ? $ch_top_time : $start) ) * $height_per_sec );
-					$programs[$st]['list'][$num]['title']         = $prg['title'];
-					$programs[$st]['list'][$num]['starttime']     = date('H:i:s', $start );
-					$programs[$st]['list'][$num]['description']   = $prg['description'];
-					$programs[$st]['list'][$num]['prg_start']     = str_replace( '-', '/', $start_str);
-					$programs[$st]['list'][$num]['duration']      = (string)($prev_end - $start);
-					$programs[$st]['list'][$num]['channel']       = $ch_num;
-					$programs[$st]['list'][$num]['id']            = $program_id;
-					$programs[$st]['list'][$num]['autorec']       = $prg['autorec'];
+					$programs[$st]['list'][$num]['title']       = $prg['title'];
+					$programs[$st]['list'][$num]['starttime']   = date('H:i:s', $start );
+					$programs[$st]['list'][$num]['description'] = $prg['description'];
+					$programs[$st]['list'][$num]['prg_start']   = str_replace( '-', '/', $start_str);
+					$programs[$st]['list'][$num]['duration']    = (string)($prev_end - $start);
+					$programs[$st]['list'][$num]['channel']     = $ch_num;
+					$programs[$st]['list'][$num]['id']          = $program_id;
+					$programs[$st]['list'][$num]['autorec']     = $prg['autorec'];
 					if( $program_id ){
 						$rev = DBRecord::createRecords( RESERVE_TBL, 'WHERE complete=0 AND program_id='.$program_id.' ORDER BY starttime' );
 						$programs[$st]['list'][$num]['rec'] = $rec_cnt = count( $rev );
 						if( $rec_cnt ){
-							$programs[$st]['list'][$num]['tuner'] = $rev[0]->tuner;
+							$programs[$st]['list'][$num]['tuner']  = $rev[0]->tuner;
+							$programs[$st]['list'][$num]['key_id'] = $rev[0]->autorec;
 							// 複数ある場合の対処無し
 							$pri_list = array();
 							foreach( $rev as $re )
 								$pri_list[] = $re->priority;
 							$programs[$st]['list'][$num]['prios'] = 'P('.implode( ',', $pri_list ).')';
 						}else{
-							$programs[$st]['list'][$num]['tuner'] = '';
-							$programs[$st]['list'][$num]['prios'] = '';
+							$programs[$st]['list'][$num]['tuner']  = '';
+							$programs[$st]['list'][$num]['key_id'] = 0;
+							$programs[$st]['list'][$num]['prios']  = '';
 						}
 					}else{
-						$programs[$st]['list'][$num]['rec']   = 0;
-						$programs[$st]['list'][$num]['tuner'] = '';
-						$programs[$st]['list'][$num]['prios'] = '';
+						$programs[$st]['list'][$num]['rec']    = 0;
+						$programs[$st]['list'][$num]['tuner']  = '';
+						$programs[$st]['list'][$num]['key_id'] = 0;
+						$programs[$st]['list'][$num]['prios']  = '';
 					}
 					$programs[$st]['list'][$num]['keyword'] = putProgramHtml( $prg['title'], $crec->type, $ch_id, $prg['category_id'], $prg['sub_genre'] );
 					$num++;
@@ -225,12 +225,11 @@ for( $i = 0; $i < $lp_lmt; $i++ ){
 			}
 			// 空きを埋める
 			if( $ch_last_time > $prev_end ){
-				$programs[$st]['list'][$num]['category_name'] = 'none';
-				$programs[$st]['list'][$num]['genre']         = 0;
-				$programs[$st]['list'][$num]['sub_genre']     = 0;
-				$programs[$st]['list'][$num]['height']        = (int)( ( $ch_last_time - $prev_end ) * $height_per_sec );
-				$programs[$st]['list'][$num]['title'] = '';
-				$programs[$st]['list'][$num]['starttime'] = '';
+				$programs[$st]['list'][$num]['genre']       = 0;
+				$programs[$st]['list'][$num]['sub_genre']   = 0;
+				$programs[$st]['list'][$num]['height']      = (int)( ( $ch_last_time - $prev_end ) * $height_per_sec );
+				$programs[$st]['list'][$num]['title']       = '';
+				$programs[$st]['list'][$num]['starttime']   = '';
 				$programs[$st]['list'][$num]['description'] = '';
 			}
 			$st++;
@@ -362,7 +361,7 @@ $smarty->assign( 'pre8link', $get_param2.'&time='.date('YmdH', $top_time - 8*360
 $smarty->assign( 'prelink', $get_param2.'&time='.date('YmdH', $top_time - 3600 ) );
 
 $smarty->assign( 'programs', $programs );
-$smarty->assign( 'ch_set_width', (int)($settings->ch_set_width) );
+$smarty->assign( 'ch_set_width', $ch_set_width );
 $smarty->assign( 'chs_width', $chs_width );
 $smarty->assign( 'height_per_hour', $height_per_hour );
 $smarty->assign( 'height_per_min', $height_per_hour / 60 );
@@ -380,8 +379,8 @@ $smarty->assign( 'TRANS_SCRN_ADJUST', $transcode&&TRANS_SCRN_ADJUST ? 1 : 0 );
 $smarty->assign( 'realview_cmd', REALVIEW  ? 'transwatch.php' : 'watch.php' );
 $smarty->assign( 'transsize_set', $TRANSSIZE_SET );
 
-$sitetitle = date( 'Y', $top_time ) . '年' . date( 'm', $top_time ) . '月' . date( 'd', $top_time ) . '日'. date( 'H', $top_time ) .
-              '時～'.( $type==='SELECT' ? '選別番組表' : ( $type==='GR' ? '地上' : $type ).'デジタル番組表'.($single_ch_disc ? '['.$single_ch_name.']' : '') );
+$sitetitle = ( $type==='SELECT' ? '選別番組表' : ( $type==='GR' ? '地上' : $type ).'デジタル番組表'.($single_ch_disc ? '['.$single_ch_name.']' : '') ).' '.
+			date( 'Y', $top_time ) . '年' . date( 'm', $top_time ) . '月' . date( 'd', $top_time ) . '日'. date( 'H', $top_time ) .'時～';
 
 $smarty->assign('sitetitle', $sitetitle );
 

@@ -593,7 +593,7 @@ table#reservation_table tr.resvd_child {display: none;}
   <td {if $program.rev_id}class="tuner{$program.rec-1}"{/if}>{$program.type}{if $program.rev_id}{$program.rec-1}{/if}</td>
   <td>{$program.station_name}</td>
   <td><a href="index.php?type={$program.type}&length=8&time={$program.prg_top}" title="EPG番組表へジャンプ">{$program.date}</a></td>
-  <td>{$program.starttime}{$program.endtime}<br>({$program.duration})</td>
+  <td><a href="revchartTable.php?length=8&time={$program.prg_top}" title="予約遷移一覧へジャンプ">{$program.starttime}{$program.endtime}<br>({$program.duration})</td>
   <td style="text-align: left;">{$program.title|escape}</td>
   <td style="text-align: left;">{$program.description|escape}</td>
   <td class="autoid" style="padding: 1px 0;">{if $program.excl}{if $program.excl>1}*{/if}{if !$program.key_id}□{else}<a href="programTable.php?keyword_id={$program.key_id}" title="自動キーワード編集にジャンプ">{$program.key_id}</a>{/if}{/if}{if !$program.rev_id}<br><input type="button" value={if $program.autorec}"禁止"{else}"許可"{/if} onClick="javascript:PRG.tgl_autorec('{$program.no}','{$program.id}')" style="padding:0;">{/if}</td>

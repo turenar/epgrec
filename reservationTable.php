@@ -89,7 +89,7 @@ try{
 			$arr['starttime']    = date( 'H:i:s-', $start_time );
 			$arr['endtime']      = !$r['shortened'] ? date( 'H:i:s', $end_time ) : '<font color="#0000ff">'.date( 'H:i:s', $end_time ).'</font>';
 			$arr['duration']     = date( 'H:i:s', $end_time-$start_time-9*60*60 );
-			$arr['prg_top']      = date( 'YmdH', $start_time-60*60*1 );
+			$arr['prg_top']      = date( 'YmdH', ((int)$start_time/60)%60 ? $start_time : $start_time-60*60*1 );
 			$arr['channel_name'] = '<a href="index.php?ch='.$ch_disc[$r['channel_id']].'&time='.$arr['prg_top'].'" title="単局EPG番組表へジャンプ">'.$ch_name[$r['channel_id']].'</a>';
 			$arr['mode']         = $RECORD_MODE[$r['mode']]['name'];
 			$arr['title']        = $r['title'];
