@@ -135,7 +135,7 @@ while(1){
 						// 不具合が出る場合は、以下を入れ替えること
 //						if( (int)trim(exec("stat -c %s '".$trans_stack[$key]['path']."'")) )
 						if( filesize($trans_stack[$key]['path']) )
-							$wrt_set['status'] = (!$trans_stack[$key]['succode'] || $st['exitcode']===$trans_stack[$key]['succode']) ? 2 : 3;	// FFmpegの終了値で成否を判断
+							$wrt_set['status'] = ($trans_stack[$key]['succode'] === FALSE || $st['exitcode']===$trans_stack[$key]['succode']) ? 2 : 3;	// FFmpegの終了値で成否を判断
 						else
 							$wrt_set['status'] = 3;
 					}else
