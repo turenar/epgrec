@@ -169,7 +169,13 @@ if( $usable_tuners != 0 ){
 									if( $hit > 0 )
 										$cmdline .= ' '.implode( ',', $cut_sids );
 
-									$pro[$key] = sheep_release( $cmdline );
+									$rec_pro = sheep_release( $cmdline );
+									if( $rec_pro !== FALSE )
+										$pro[$key] = $rec_pro;
+									else{
+										reclog( 'collie.php::コマンドに異常がある可能性があります<br>'.$cmdline, EPGREC_WARN );
+										break 4;		// 終了
+									}
 									$use_cnt++;
 
 									if( ++$key < $sheep_lmt )

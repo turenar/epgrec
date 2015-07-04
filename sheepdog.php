@@ -118,7 +118,13 @@ if( $usable_tuners != 0 ){
 									}
 
 									$cmdline = INSTALL_PATH.'/airwavesSheep.php GR '.$slc_tuner.' '.$value.' '.$rec_time.' '.$ch_disk;
-									$pro[$release_cnt++] = sheep_release( $cmdline );
+									$rec_pro = sheep_release( $cmdline );
+									if( $rec_pro !== FALSE )
+										$pro[$release_cnt++] = $rec_pro;
+									else{
+										reclog( 'sheepdog.php::コマンドに異常がある可能性があります<br>'.$cmdline, EPGREC_WARN );
+										break 4;		// 終了
+									}
 									$use_cnt++;
 
 									// 受信CH更新

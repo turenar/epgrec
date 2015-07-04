@@ -202,20 +202,23 @@ for( $i = 0; $i < $lp_lmt; $i++ ){
 						$rev = DBRecord::createRecords( RESERVE_TBL, 'WHERE complete=0 AND program_id='.$program_id.' ORDER BY starttime' );
 						$programs[$st]['list'][$num]['rec'] = $rec_cnt = count( $rev );
 						if( $rec_cnt ){
-							$programs[$st]['list'][$num]['tuner'] = $rev[0]->tuner;
+							$programs[$st]['list'][$num]['tuner']  = $rev[0]->tuner;
+							$programs[$st]['list'][$num]['key_id'] = $rev[0]->autorec;
 							// 複数ある場合の対処無し
 							$pri_list = array();
 							foreach( $rev as $re )
 								$pri_list[] = $re->priority;
 							$programs[$st]['list'][$num]['prios'] = 'P('.implode( ',', $pri_list ).')';
 						}else{
-							$programs[$st]['list'][$num]['tuner'] = '';
-							$programs[$st]['list'][$num]['prios'] = '';
+							$programs[$st]['list'][$num]['tuner']  = '';
+							$programs[$st]['list'][$num]['key_id'] = 0;
+							$programs[$st]['list'][$num]['prios']  = '';
 						}
 					}else{
-						$programs[$st]['list'][$num]['rec']   = 0;
-						$programs[$st]['list'][$num]['tuner'] = '';
-						$programs[$st]['list'][$num]['prios'] = '';
+						$programs[$st]['list'][$num]['rec']    = 0;
+						$programs[$st]['list'][$num]['tuner']  = '';
+						$programs[$st]['list'][$num]['key_id'] = 0;
+						$programs[$st]['list'][$num]['prios']  = '';
 					}
 					$programs[$st]['list'][$num]['keyword'] = putProgramHtml( $prg['title'], $crec->type, $ch_id, $prg['category_id'], $prg['sub_genre'] );
 					$num++;
@@ -362,7 +365,7 @@ $smarty->assign( 'pre8link', $get_param2.'&time='.date('YmdH', $top_time - 8*360
 $smarty->assign( 'prelink', $get_param2.'&time='.date('YmdH', $top_time - 3600 ) );
 
 $smarty->assign( 'programs', $programs );
-$smarty->assign( 'ch_set_width', (int)($settings->ch_set_width) );
+$smarty->assign( 'ch_set_width', $ch_set_width );
 $smarty->assign( 'chs_width', $chs_width );
 $smarty->assign( 'height_per_hour', $height_per_hour );
 $smarty->assign( 'height_per_min', $height_per_hour / 60 );
@@ -380,8 +383,8 @@ $smarty->assign( 'TRANS_SCRN_ADJUST', $transcode&&TRANS_SCRN_ADJUST ? 1 : 0 );
 $smarty->assign( 'realview_cmd', REALVIEW  ? 'transwatch.php' : 'watch.php' );
 $smarty->assign( 'transsize_set', $TRANSSIZE_SET );
 
-$sitetitle = date( 'Y', $top_time ) . '年' . date( 'm', $top_time ) . '月' . date( 'd', $top_time ) . '日'. date( 'H', $top_time ) .
-              '時～'.( $type==='SELECT' ? '選別番組表' : ( $type==='GR' ? '地上' : $type ).'デジタル番組表'.($single_ch_disc ? '['.$single_ch_name.']' : '') );
+$sitetitle = ( $type==='SELECT' ? '選別番組表' : ( $type==='GR' ? '地上' : $type ).'デジタル番組表'.($single_ch_disc ? '['.$single_ch_name.']' : '') ).' '.
+			date( 'Y', $top_time ) . '年' . date( 'm', $top_time ) . '月' . date( 'd', $top_time ) . '日'. date( 'H', $top_time ) .'時～';
 
 $smarty->assign('sitetitle', $sitetitle );
 

@@ -971,6 +971,7 @@ LOG_THROW:;
 			$audio_type = (int)$prg->audio_type;
 			$bilingual  = (int)$prg->multi_type;
 			$eid        = (int)$prg->eid;
+			$sub_genre  = (int)$prg->sub_genre;
 			if( $autorec )
 				$keyword = new DBRecord( KEYWORD_TBL, 'id', $autorec );
 			$prg->key_id = 0;	// 自動予約禁止解除
@@ -981,6 +982,7 @@ LOG_THROW:;
 			$audio_type = 0;
 			$bilingual  = 0;
 			$eid        = 0;
+			$sub_genre  = 16;
 		}
 		if( !$shortened )
 			$duration += $settings->extra_time;			//重複による短縮がされてないものは糊代を付ける
@@ -1267,6 +1269,7 @@ LOG_THROW:;
 			$rrec->title         = $title;
 			$rrec->description   = $description;
 			$rrec->category_id   = $category_id;
+			$rrec->sub_genre     = $sub_genre;
 			$rrec->starttime     = toDatetime( $start_time );
 			$rrec->endtime       = toDatetime( $end_time );
 			$rrec->path          = $add_dir.$filename;

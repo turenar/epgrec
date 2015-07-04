@@ -11,10 +11,12 @@ include( INSTALL_PATH . '/realview_stop.php' );
 
 function searchRecProces( $cmd, $pid )
 {
-	$ps_output = shell_exec( PS_CMD );
-	$rarr      = explode( "\n", $ps_output );
+	$cmd_pie     = explode( ' ', $cmd );
+	$cmd_pie[0] .= ' ';
+	$ps_output   = shell_exec( PS_CMD );
+	$rarr        = explode( "\n", $ps_output );
 	foreach( $rarr as $cc ){
-		if( strpos( $cc, $cmd ) !== FALSE ){
+		if( strpos( $cc, $cmd_pie[0] ) !== FALSE ){
 			$ps = ps_tok( $cc );
 			if( (int)$ps->pid === $pid )
 				return 0;
@@ -197,18 +199,41 @@ if( $pipe_mode ){
 		// 録画コマンドのPID保存
 		$ts_stat = proc_get_status( $ts_pro );
 		if( $ts_stat['running'] === TRUE ){
-			$ppid = (int)$ts_stat['pid'];
+			$ppid            = (int)$ts_stat['pid'];
+			$rec_cmd_pie     = explode( ' ', $rec_cmd );
+			$rec_cmd_pie[0] .= ' ';
+			$pid_retry       = FALSE;
+GET_PID_RETRY:
 			// ここで少し待った方が良いかも
 			sleep(1);
 			$ps_output = shell_exec( PS_CMD );
 			$rarr      = explode( "\n", $ps_output );
-			$stock_pid       = 0;
+			$stock_pid = 0;
 			// PID取得
 			foreach( $rarr as $cc ){
-				$ps = ps_tok( $cc );
-				if( $ppid === (int)$ps->ppid ){
-					$stock_pid = (int)$ps->pid;
-					break;
+				if( strpos( $cc, $rec_cmd_pie[0] ) !== FALSE ){
+					$ps = ps_tok( $cc );
+					if( $ppid === (int)$ps->ppid ){
+						$stock_pid = (int)$ps->pid;
+						break;
+					}
+				}
+			}
+			if( $stock_pid === 0 ){
+				if( $pid_retry === FALSE ){
+					$pid_retry = TRUE;
+					goto GET_PID_RETRY;
+				}else{
+					foreach( $rarr as $cc ){
+						if( strpos( $cc, $rec_cmd_pie[0] ) !== FALSE ){
+							$ps = ps_tok( $cc );
+							// shellのPIDで代用
+							if( $ppid === (int)$ps->pid ){
+								$stock_pid = (int)$ps->pid;
+								break;
+							}
+						}
+					}
 				}
 			}
 			if( $stock_pid !== 0 ){

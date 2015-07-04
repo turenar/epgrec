@@ -6,6 +6,10 @@ $MENU_LIST = array(
 		'url'  => 'reservationTable.php',
 	),
 	array(
+		'name' => '予約遷移一覧',
+		'url'  => 'revchartTable.php',
+	),
+	array(
 		'name' => '録画済一覧',
 		'url'  => 'recordedTable.php',
 	),
