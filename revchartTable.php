@@ -55,7 +55,7 @@ if( isset( $_GET['time'] ) && sscanf( $_GET['time'], '%04d%2d%2d%2d', $y, $mon, 
 	$reca     = $prec->fetch_array( null, null, 'complete=0 ORDER BY starttime' );
 	if( count($reca) ){
 		$rev_top = (int)(toTimestamp( $reca[0]['starttime'] )/(60*60)) * 60 * 60;
-		if( $top_time < $rev_top )
+		if( $top_time < $rev_top-1 )
 			$top_time = $rev_top;
 	}
 }
@@ -69,7 +69,6 @@ $cats   = array();
 $num    = 0;
 foreach( $genres as $val ){
 	$cats[$num]['id']      = $num + 1;
-	$cats[$num]['name_en'] = $val->name_en;
 	$cats[$num]['name_jp'] = $val->name_jp;
 	$num++;
 }
@@ -124,28 +123,26 @@ for( $st=0; $st<$lp_lmt; $st++ ){
 				$start     = toTimestamp( $start_str );
 				// 前プログラムとの空きを調べる
 				if( $start > $prev_end ){
-					$program['list'][$num]['category_name'] = 'none';
-					$program['list'][$num]['genre']         = 0;
-					$program['list'][$num]['sub_genre']     = 0;
-					$program['list'][$num]['height']        = (int)( ($start-$prev_end) * $height_per_sec );
-					$program['list'][$num]['title']         = '';
-					$program['list'][$num]['starttime']     = '';
-					$program['list'][$num]['description']   = '';
+					$program['list'][$num]['genre']       = 0;
+					$program['list'][$num]['sub_genre']   = 0;
+					$program['list'][$num]['height']      = (int)( ($start-$prev_end) * $height_per_sec );
+					$program['list'][$num]['title']       = '';
+					$program['list'][$num]['starttime']   = '';
+					$program['list'][$num]['description'] = '';
 					$num++;
 				}
 				$prev_end = toTimestamp( $prg['endtime'] );
 				// プログラムを埋める
-				$program['list'][$num]['category_name'] = $cats[$prg['category_id']-1]['name_en'];
-				$program['list'][$num]['genre']         = $prg['category_id'];
-				$program['list'][$num]['sub_genre']     = $prg['sub_genre'];
-				$program['list'][$num]['height']        =
+				$program['list'][$num]['genre']       = $prg['category_id'];
+				$program['list'][$num]['sub_genre']   = $prg['sub_genre'];
+				$program['list'][$num]['height']      =
 					(int)( ( ($prev_end>=$ch_last_time ? $ch_last_time : $prev_end) - ($start<=$ch_top_time ? $ch_top_time : $start) ) * $height_per_sec );
-				$program['list'][$num]['title']         = $prg['title'];
-				$program['list'][$num]['starttime']     = date('H:i:s', $start );
-				$program['list'][$num]['description']   = $prg['description'];
-				$program['list'][$num]['prg_start']     = str_replace( '-', '/', $start_str);
-				$program['list'][$num]['duration']      = (string)($prev_end - $start);
-				$program['list'][$num]['type']          = $prg['type'];
+				$program['list'][$num]['title']       = $prg['title'];
+				$program['list'][$num]['starttime']   = date('H:i:s', $start );
+				$program['list'][$num]['description'] = $prg['description'];
+				$program['list'][$num]['prg_start']   = str_replace( '-', '/', $start_str);
+				$program['list'][$num]['duration']    = (string)($prev_end - $start);
+				$program['list'][$num]['type']        = $prg['type'];
 				if( !isset( $ch[$prg['channel_id']] ) ){
 					try {
 						$tmp_ch = $ch_obj->fetch_array( 'id', $prg['channel_id'] );
@@ -183,13 +180,12 @@ for( $st=0; $st<$lp_lmt; $st++ ){
 			}
 			// 空きを埋める
 			if( $ch_last_time > $prev_end ){
-				$program['list'][$num]['category_name'] = 'none';
-				$program['list'][$num]['genre']         = 0;
-				$program['list'][$num]['sub_genre']     = 0;
-				$program['list'][$num]['height']        = (int)( ( $ch_last_time - $prev_end ) * $height_per_sec );
-				$program['list'][$num]['title']         = '';
-				$program['list'][$num]['starttime']     = '';
-				$program['list'][$num]['description']   = '';
+				$program['list'][$num]['genre']       = 0;
+				$program['list'][$num]['sub_genre']   = 0;
+				$program['list'][$num]['height']      = (int)( ( $ch_last_time - $prev_end ) * $height_per_sec );
+				$program['list'][$num]['title']       = '';
+				$program['list'][$num]['starttime']   = '';
+				$program['list'][$num]['description'] = '';
 			}
 			array_push( $programs, $program );
 		}
@@ -210,8 +206,8 @@ $index_links = array();
 if( $single_tuner === FALSE ){
 	$tmp_link = str_replace( 'revchartTable', 'index', $get_param2 ).'&time='.date('YmdH', $top_time ).'&type=';
 	if( (int)$settings->gr_tuners > 0 ){
-		$work['name']  = 'GR';
-		$work['link']  = $tmp_link.$work['name'];
+		$work['name']  = '地デジ';
+		$work['link']  = $tmp_link.'GR';
 		$index_links[] = $work;
 	}
 	if( (int)$settings->bs_tuners > 0 ){

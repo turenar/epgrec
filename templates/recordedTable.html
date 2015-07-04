@@ -140,7 +140,9 @@ select.autokeys option{white-space:pre;}
 <fieldset>
 <legend><b>絞り込み</b></legend>
 <form method="post" action="recordedTable.php" >
-<input type="hidden" name="do_search" value="1">
+{if $key_id!==false}
+  <input type="hidden" name="key" value="{$key_id}">
+{/if}
 <b>検索語句</b><input type="text" name="search" value="{$search|escape}" class="example1" title="ワイルドカードは'%'・半角スペースは'_'です。 NOT検索は語彙冒頭に'-'を付加してください。"><br>
 <b>放送局</b><select name="station">
   {foreach from=$stations item=st}
@@ -153,6 +155,7 @@ select.autokeys option{white-space:pre;}
   {/foreach}
   </select>
 <input type="submit" value="絞り込む">
+<b>　</b><input type="button" value="条件クリア" onClick="location.href='recordedTable.php'">
 </form>
 </fieldset>
 </div>
@@ -166,14 +169,12 @@ select.autokeys option{white-space:pre;}
 <b><input type="submit" value="一括削除"></b>
 </div>
 <input type="hidden" name="do_delete" value="1">
-{if $key_id===false}
-  <input type="hidden" name="do_search" value="1">
-  <input type="hidden" name="search" value="{$search}">
-  <input type="hidden" name="station" value="{$station}">
-  <input type="hidden" name="category_id" value="{$category_id}">
-  <input type="hidden" name="full_mode" value="{$full_mode}">
-{else}
-  <input type="hidden" name="key_id" value="{$key_id}">
+<input type="hidden" name="search" value="{$search}">
+<input type="hidden" name="station" value="{$station}">
+<input type="hidden" name="category_id" value="{$category_id}">
+<input type="hidden" name="full_mode" value="{$full_mode}">
+{if $key_id!==false}
+  <input type="hidden" name="key" value="{$key_id}">
 {/if}
 <table id="reservation_table">
  <tr>
@@ -228,7 +229,7 @@ select.autokeys option{white-space:pre;}
 {/if}
 
 <div id="floatBox4Dialog">jQuery UI Dialog</div>
-<div id="pagetop" style="right:150px;"><img src="imgs/b_pagetop.png" alt="TOP"></div>
+<div id="pagetop" style="right:110px;"><img src="imgs/b_pagetop.png" alt="TOP"></div>
 
 {literal}
 <script type="text/javascript">

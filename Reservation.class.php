@@ -191,8 +191,9 @@ class Reservation {
 					$duration = $end_time - $start_time;
 				if( (int)$keyword->criterion_dura && $duration!=(int)$keyword->criterion_dura ){
 					if( (int)$keyword->criterion_dura > 1 )
-						reclog( autoid_button($autorec).'にヒットした'.$crec->channel_disc.'-Ch'.$crec->channel.
-								' <a href="index.php?type='.$crec->type.'&length='.$settings->program_length.'&time='.date( 'YmdH', $start_time ).'">'.$starttime.
+						$st_time = toTimestamp( $starttime );
+						reclog( autoid_button($autorec).'にヒットした'.$crec->channel_disc.'-Ch'.$crec->channel.' <a href="index.php?type='.$crec->type.
+								'&length='.$settings->program_length.'&time='.date( 'YmdH', ((int)$st_time/60)%60 ? $st_time : $st_time-1*60*60 ).'">'.$starttime.
 								'</a>『'.htmlspecialchars($title).'』は、収録時間が'.
 								($keyword->criterion_dura/60).'分間から'.($duration/60).'分間に変動しています。', EPGREC_WARN );
 					$keyword->criterion_dura = $duration;
@@ -469,8 +470,9 @@ PRIORITY_CHECK:
 							goto LOG_THROW;
 						$event->key_id = $autorec;
 						$event->update();
-						reclog( autoid_button($autorec).'にヒットした'.$crec->channel_disc.'-Ch'.$crec->channel.
-								' <a href="index.php?type='.$crec->type.'&length='.$settings->program_length.'&time='.date( 'YmdH', toTimestamp( $starttime ) ).'">'.$starttime.
+						$st_time = toTimestamp( $starttime );
+						reclog( autoid_button($autorec).'にヒットした'.$crec->channel_disc.'-Ch'.$crec->channel.' <a href="index.php?type='.$crec->type.
+								'&length='.$settings->program_length.'&time='.date( 'YmdH', ((int)$st_time/60)%60 ? $st_time : $st_time-1*60*60 ).'">'.$starttime.
 								'</a>『'.htmlspecialchars($title).'』は重複により予約できません', EPGREC_WARN );
 LOG_THROW:;
 					}

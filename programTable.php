@@ -356,11 +356,11 @@ if( $do_keyword ){
 		$duration            = $end_time - $start_time;
 		if( $duration > $criterion_dura )
 			$criterion_dura = $duration;
-		$arr['date']        = date( 'm/d(', $start_time ).$week_tb[date( 'w', $start_time )].')';
-		$arr['starttime']   = date( 'H:i:s-', $start_time );
-		$arr['endtime']     = date( 'H:i:s', $end_time );
-		$arr['duration']    = date( 'H:i:s', $duration-9*60*60 );
-		$arr['prg_top']     = date( 'YmdH', $start_time-60*60*1 );
+		$arr['date']         = date( 'm/d(', $start_time ).$week_tb[date( 'w', $start_time )].')';
+		$arr['starttime']    = date( 'H:i:s-', $start_time );
+		$arr['endtime']      = date( 'H:i:s', $end_time );
+		$arr['duration']     = date( 'H:i:s', $duration-9*60*60 );
+		$arr['prg_top']      = date( 'YmdH', ((int)$start_time/60)%60 ? $start_time : $start_time-60*60*1 );
 		$station_point       = array_search( (int)$p->channel_id, $chid_list );
 		$arr['station_name'] = '<a href="index.php?ch='.$stations[$station_point]['disc'].'&time='.$arr['prg_top'].'" title="単局EPG番組表へジャンプ">'.$stations[$station_point]['name'].'</a>';
 		$arr['title']       = $p->title;
@@ -413,7 +413,7 @@ EXIT_REV:;
 				$arr['starttime']    = date( 'H:i:s-', $start_time );
 				$arr['endtime']      = date( 'H:i:s', $end_time );
 				$arr['duration']     = date( 'H:i:s', $duration-9*60*60 );
-				$arr['prg_top']      = date( 'YmdH', $start_time-60*60*1 );
+				$arr['prg_top']      = date( 'YmdH', ((int)$start_time/60)%60 ? $start_time : $start_time-60*60*1 );
 				$arr['rev_id']       = $r->id;
 				$arr['rec']          = $r->tuner + 1;
 				$arr['key_id']       = (int)$r->autorec;

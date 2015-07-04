@@ -154,7 +154,7 @@ class DBRecord {
 				foreach( $this->__record_data as $property => $value ){
 					if( $property === 'id' )
 						continue;
-					$sqlstr .= ' '.$property.'=\''.mysql_real_escape_string($value).'\',';
+					$sqlstr .= ' '.$property.'=\''.(is_bool($value) ? ($value ? '1' : '0') : mysql_real_escape_string($value)).'\',';
 				}
 				$sqlstr  = rtrim( $sqlstr, ',' );
 				$sqlstr .= ' WHERE id='.$this->__id;
@@ -178,7 +178,7 @@ class DBRecord {
 		}
 		$sqlstr = 'UPDATE '.$this->__table.' SET';
 		foreach( $update_set as $property => $value ){
-			$sqlstr .= ' '.$property.'=\''.mysql_real_escape_string($value).'\',';
+			$sqlstr .= ' '.$property.'=\''.(is_bool($value) ? ($value ? '1' : '0') : mysql_real_escape_string($value)).'\',';
 		}
 		$this->__query( rtrim( $sqlstr, ',' ).' WHERE id='.$id );
 	}

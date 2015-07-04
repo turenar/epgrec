@@ -193,7 +193,8 @@ PUT_LOG:
 				}else{
 					reclog( $rev_id.' 手動中断] '.$rev_ds.$syslog );
 					$rrec->autorec = $rrec->autorec * -1 - 1;
-					$rec_success = TRUE;
+					$rrec->endtime = toDatetime( $get_time );
+					$rec_success   = TRUE;
 				}
 			}
 			$rrec->complete = '1';

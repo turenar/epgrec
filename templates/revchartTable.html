@@ -579,7 +579,7 @@ h2 {padding: 4px}
    <div id="tv_chs_{$program.name}" class="ch_set{if count($program.list) == 1 && !$program.list[0].rec_id } ch_set_skip{/if}" >
     <div class="ch_programs" >
     {foreach from=$program.list item=item }
-      <div {if $item.rec_id}id="prgID_{$item.rec_id}"{/if} class="prg {if !$item.rec_id}prg_none{else} ctg_{$item.category_name}{if !$item.autorec} freeze{/if}{/if}" style="height:{$item.height}px;">
+      <div {if $item.rec_id}id="prgID_{$item.rec_id}"{/if} class="prg {if !$item.rec_id}prg_none{else} ctg_{$item.genre}{if !$item.autorec} freeze{/if}{/if}" style="height:{$item.height}px;">
         <div class="prg_dummy">
           <div class="prg_channel">{if $item.channel}{$item.channel}{/if}</div>
           <div class="prg_subtitle">

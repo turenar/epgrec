@@ -915,7 +915,7 @@ h2 {padding: 4px}
    <div id="tv_chs_{$program.ch_hash}" class="ch_set{if $program.skip == 1 || count($program.list) == 1 && !$program.list[0].id } ch_set_skip{/if}" >
     <div class="ch_programs" >
     {foreach from=$program.list item=item }
-      <div {if $item.id}id="prgID_{$item.id}"{/if} class="prg {if ! $item.id}prg_none {/if} ctg_{$item.category_name}{if $item.rec gt 0 } prg_rec{$item.tuner}{/if}{if ! $item.autorec} freeze{/if}" style="height:{if $item.rec gt 0 }{if $item.height-10 gt 0}{$item.height-10}{else}0{/if}{else}{$item.height}{/if}px;">
+      <div {if $item.id}id="prgID_{$item.id}"{/if} class="prg {if ! $item.id}prg_none {/if} ctg_{$item.genre}{if $item.rec gt 0 } prg_rec{$item.tuner}{/if}{if ! $item.autorec} freeze{/if}" style="height:{if $item.rec gt 0 }{if $item.height-10 gt 0}{$item.height-10}{else}0{/if}{else}{$item.height}{/if}px;">
         <div class="prg_dummy">
           <div class="prg_title">{$item.title|escape}</div>
           <div class="prg_subtitle">
