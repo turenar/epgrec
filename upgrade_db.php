@@ -9,22 +9,22 @@ include_once(INSTALL_PATH . '/tableStruct.inc.php' );
 include_once(INSTALL_PATH . '/reclib.php' );
 
 $settings = Settings::factory();
-$dbh = mysql_connect( $settings->db_host, $settings->db_user, $settings->db_pass );
+$dbh = mysqli_connect( $settings->db_host, $settings->db_user, $settings->db_pass );
 if( $dbh !== FALSE ) {
 
 	$sqlstr = "use ".$settings->db_name;
-	mysql_query( $sqlstr );
+	mysqli_query( $dbh, $sqlstr );
 
 	$sqlstr = "set NAMES 'utf8'";
-	mysql_query( $sqlstr );
+	mysqli_query( $dbh, $sqlstr );
 
 	// KEYWORD_TBL
-	mysql_query( "ALTER TABLE ".$settings->tbl_prefix.KEYWORD_TBL." ADD split_time integer not null default '0' AFTER overlap" );
-	mysql_query( "ALTER TABLE ".$settings->tbl_prefix.KEYWORD_TBL." ADD duration_chg boolean not null default '0' AFTER discontinuity " );
+	mysqli_query( $dbh, "ALTER TABLE ".$settings->tbl_prefix.KEYWORD_TBL." ADD split_time integer not null default '0' AFTER overlap" );
+	mysqli_query( $dbh, "ALTER TABLE ".$settings->tbl_prefix.KEYWORD_TBL." ADD duration_chg boolean not null default '0' AFTER discontinuity " );
 
 	// PROGRAM_TBL
-	mysql_query( "ALTER TABLE ".$settings->tbl_prefix.PROGRAM_TBL." ADD split_time integer not null default '0' AFTER key_id" );
-	mysql_query( "ALTER TABLE ".$settings->tbl_prefix.PROGRAM_TBL." ADD rec_ban_parts integer not null default '0' AFTER split_time" );
+	mysqli_query( $dbh, "ALTER TABLE ".$settings->tbl_prefix.PROGRAM_TBL." ADD split_time integer not null default '0' AFTER key_id" );
+	mysqli_query( $dbh, "ALTER TABLE ".$settings->tbl_prefix.PROGRAM_TBL." ADD rec_ban_parts integer not null default '0' AFTER split_time" );
 }
 else
 	exit( "DBの接続に失敗\n" );

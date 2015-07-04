@@ -14,17 +14,17 @@ try {
   $recs = DBRecord::createRecords(RESERVE_TBL );
 
 // DB接続
-  $dbh = mysql_connect( $settings->db_host, $settings->db_user, $settings->db_pass );
-  if( $dbh === false ) exit( "mysql connection fail" );
-  mysql_select_db($settings->db_name);
-  mysql_set_charset('utf8');
+  $dbh = mysqli_connect( $settings->db_host, $settings->db_user, $settings->db_pass );
+  if( mysqli_connect_error() ) exit( "mysql connection fail: ".mysqli_connect_error() );
+  mysqli_select_db($dbh, $settings->db_name);
+  mysqli_set_charset($dbh, 'utf8');
 
   foreach( $recs as $rec ) {
-	  $title = mysql_real_escape_string($rec->title)."(".date("Y/m/d", toTimestamp($rec->starttime)).")";
-      $sqlstr = "update mt_cds_object set metadata='dc:description=".mysql_real_escape_string($rec->description)."&epgrec:id=".$rec->id."' where dc_title='".$rec->path."'";
-      mysql_query( $sqlstr );
+	  $title = mysqli_real_escape_string($dbh, $rec->title)."(".date("Y/m/d", toTimestamp($rec->starttime)).")";
+      $sqlstr = "update mt_cds_object set metadata='dc:description=".mysqli_real_escape_string($dbh, $rec->description)."&epgrec:id=".$rec->id."' where dc_title='".$rec->path."'";
+      mysqli_query( $dbh, $sqlstr );
       $sqlstr = "update mt_cds_object set dc_title='".$title."' where dc_title='".$rec->path."'";
-      mysql_query( $sqlstr );
+      mysqli_query( $dbh, $sqlstr );
   }
 }
 catch( Exception $e ) {

@@ -40,7 +40,8 @@ function doKeywordReservation( $wave_type = '*', $shm_id ) {
 /*	// 4PROGRAM_TBLのoptimaize
 	if( $wave_type==='*' && date('wH')==='100' ){
 		global $settings;
-		mysql_query( 'ALTER TABLE '.$settings->tbl_prefix.PROGRAM_TBL.' ENGINE MyISAM' );
+		// mysqli化によりdb handleが必要となったので下の行は動かない
+		// mysqli_query( 'ALTER TABLE '.$settings->tbl_prefix.PROGRAM_TBL.' ENGINE MyISAM' );
 	}
 */
 	// キーワード自動録画予約

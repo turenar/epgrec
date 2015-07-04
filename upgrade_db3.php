@@ -8,18 +8,18 @@ include_once(INSTALL_PATH . '/DBRecord.class.php' );
 include_once(INSTALL_PATH . '/tableStruct.inc.php' );
 
 $settings = Settings::factory();
-$dbh = mysql_connect( $settings->db_host, $settings->db_user, $settings->db_pass );
+$dbh = mysqli_connect( $settings->db_host, $settings->db_user, $settings->db_pass );
 if( $dbh !== FALSE ) {
 
 	$sqlstr = "use ".$settings->db_name;
-	mysql_query( $sqlstr );
+	mysqli_query( $dbh, $sqlstr );
 
 	$sqlstr = "set NAMES 'utf8'";
-	mysql_query( $sqlstr );
+	mysqli_query( $dbh, $sqlstr );
 
 	// インデックス追加
 	// RESERVE_TBL
-	mysql_query( "ALTER TABLE ".$settings->tbl_prefix.RESERVE_TBL." add sub_genre integer not null default '16' AFTER category_id" );
+	mysqli_query( $dbh, "ALTER TABLE ".$settings->tbl_prefix.RESERVE_TBL." add sub_genre integer not null default '16' AFTER category_id" );
 	$resobj = new DBRecord(RESERVE_TBL);
 	$prgobj = new DBRecord(PROGRAM_TBL);
 	$recs = $resobj->fetch_array( 'complete', 0 );

@@ -388,8 +388,8 @@ class Keyword extends DBRecord {
 		catch( Exception $e ){
 			throw $e;
 		}
-		if( $result === false ) throw new exception('レコードが存在しません');
-		while ($row = mysql_fetch_array($result, MYSQL_ASSOC)){
+		if( !$result ) throw new exception('レコードが存在しません');
+		while ($row = mysqli_fetch_array($result, MYSQL_ASSOC)){
 			array_push( $retval, new self('id', $row['id'], $row) );
 		}
 		return $retval;

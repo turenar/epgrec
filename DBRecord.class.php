@@ -19,9 +19,9 @@ class DBRecord {
 
 		if( self::$__dbh === FALSE ){
 			self::$__settings = Settings::factory();
-			self::$__dbh      = @mysql_connect( self::$__settings->db_host, self::$__settings->db_user, self::$__settings->db_pass );
-			if( self::$__dbh === FALSE )
-				throw new exception( 'construct:データベースに接続できない' );
+			self::$__dbh      = @mysqli_connect( self::$__settings->db_host, self::$__settings->db_user, self::$__settings->db_pass );
+			if( mysqli_connect_error() )
+				throw new exception( 'construct:データベースに接続できない'.mysqli_connect_error() );
 			$sqlstr = 'use '.self::$__settings->db_name;
 			$res = $this->__query($sqlstr);
 			if( $res === FALSE )
@@ -36,9 +36,9 @@ class DBRecord {
 			$this->__id = 0;
 		}else
 		if( $row === null ){
-			$sqlstr              = 'SELECT * FROM '.$this->__table.' WHERE '.$property.'=\''.mysql_real_escape_string( $value ).'\'';
+			$sqlstr              = 'SELECT * FROM '.$this->__table.' WHERE '.$property.'=\''.mysqli_real_escape_string( self::$__dbh, $value ).'\'';
 			$res                 = $this->__query( $sqlstr );
-			$this->__record_data = mysql_fetch_array( $res, MYSQL_ASSOC );
+			$this->__record_data = mysqli_fetch_array( $res, MYSQL_ASSOC );
 			if( $this->__record_data === FALSE )
 				throw new exception( 'construct:'.$this->__table.'に['.$property.'( '.$value.' )]はありません' );
 			// 最初にヒットした行のidを使用する
@@ -64,15 +64,15 @@ class DBRecord {
 	protected function __query( $sqlstr ){
 		if( self::$__dbh === FALSE )
 			throw new exception( '__query:DBに接続されていない' );
-		$res = @mysql_query( $sqlstr, self::$__dbh );
+		$res = @mysqli_query( self::$__dbh, $sqlstr);
 		if( $res === FALSE )
-			throw new exception( sprintf('__query:DBクエリ失敗 (%d|%s): %s', mysql_errno(), mysql_error(), $sqlstr));
+			throw new exception( sprintf('__query:DBクエリ失敗 (%d|%s): %s', mysqli_errno(self::$__dbh), mysqli_error(self::$__dbh), $sqlstr));
 		return $res;
 	}
 
 	function fetch_array( $property, $value, $options = null ){
 		if( $property !== null ){
-			$sqlstr = 'SELECT * FROM '.$this->__table.' WHERE '.$property.'=\''.mysql_real_escape_string( $value ).'\'';
+			$sqlstr = 'SELECT * FROM '.$this->__table.' WHERE '.$property.'=\''.mysqli_real_escape_string( self::$__dbh, $value ).'\'';
 			if( $options !== null )
 				$sqlstr .= 'AND '.$options;
 		}else
@@ -80,7 +80,7 @@ class DBRecord {
 
 		$retval = array();
 		$res    = $this->__query( $sqlstr );
-		while( $row = mysql_fetch_array( $res, MYSQL_ASSOC ) ){
+		while( $row = mysqli_fetch_array( $res, MYSQL_ASSOC ) ){
 			array_push( $retval, $row );
 		}
 		return $retval;
@@ -90,7 +90,7 @@ class DBRecord {
 		$sqlstr = 'SELECT DISTINCT '.$property.' FROM '.$this->__table.' '.$options.' ORDER BY '.$property;
 		$res    = $this->__query( $sqlstr );
 		$retval = array();
-		while( $row = mysql_fetch_array( $res, MYSQL_ASSOC ) ){
+		while( $row = mysqli_fetch_array( $res, MYSQL_ASSOC ) ){
 			$retval[] = $row[$property];
 		}
 		return $retval;
@@ -103,12 +103,12 @@ class DBRecord {
 		if( $this->__id == 0 ){
 			$sqlstr     = 'INSERT INTO '.$this->__table.' VALUES ( )';
 			$res        = $this->__query( $sqlstr );
-			$this->__id = mysql_insert_id();
+			$this->__id = mysqli_insert_id(self::$__dbh);
 
 			// $this->__record_data読み出し
 			$sqlstr              = 'SELECT * FROM '.$this->__table.' WHERE id='.$this->__id;
 			$res                 = $this->__query( $sqlstr );
-			$this->__record_data = mysql_fetch_array( $res, MYSQL_ASSOC );
+			$this->__record_data = mysqli_fetch_array( $res, MYSQL_ASSOC );
 		}
 		if( $this->__record_data === FALSE )
 			throw new exception( 'set: DBの異常？' );
@@ -154,7 +154,7 @@ class DBRecord {
 				foreach( $this->__record_data as $property => $value ){
 					if( $property === 'id' )
 						continue;
-					$sqlstr .= ' '.$property.'=\''.(is_bool($value) ? ($value ? '1' : '0') : mysql_real_escape_string($value)).'\',';
+					$sqlstr .= ' '.$property.'=\''.(is_bool($value) ? ($value ? '1' : '0') : mysqli_real_escape_string(self::$__dbh, $value)).'\',';
 				}
 				$sqlstr  = rtrim( $sqlstr, ',' );
 				$sqlstr .= ' WHERE id='.$this->__id;
@@ -174,11 +174,11 @@ class DBRecord {
 		if( (int)$id == 0 ){
 			$sqlstr = 'INSERT INTO '.$this->__table.' VALUES ( )';
 			$this->__query( $sqlstr );
-			$id = mysql_insert_id();
+			$id = mysqli_insert_id(self::$__dbh);
 		}
 		$sqlstr = 'UPDATE '.$this->__table.' SET';
 		foreach( $update_set as $property => $value ){
-			$sqlstr .= ' '.$property.'=\''.(is_bool($value) ? ($value ? '1' : '0') : mysql_real_escape_string($value)).'\',';
+			$sqlstr .= ' '.$property.'=\''.(is_bool($value) ? ($value ? '1' : '0') : mysqli_real_escape_string(self::$__dbh, $value)).'\',';
 		}
 		$this->__query( rtrim( $sqlstr, ',' ).' WHERE id='.$id );
 	}
@@ -187,12 +187,12 @@ class DBRecord {
 		if( self::$__dbh === FALSE ){
 			if( self::$__settings === FALSE )
 				self::$__settings = Settings::factory();
-			self::$__dbh = @mysql_connect( self::$__settings->db_host, self::$__settings->db_user, self::$__settings->db_pass );
-			if( self::$__dbh === FALSE )
+			self::$__dbh = @mysqli_connect( self::$__settings->db_host, self::$__settings->db_user, self::$__settings->db_pass );
+			if( mysqli_connect_error() )
 				throw new exception( 'construct:データベースに接続できない[HOST:'.
 					self::$__settings->db_host.'][USER:'.self::$__settings->db_user.'][PW:'.self::$__settings->db_pass.'][DB:'.self::$__settings->db_name.']' );
 		}
-		return mysql_real_escape_string( $str );
+		return mysqli_real_escape_string( self::$__dbh, $str );
 	}
 
 	// countを実行する
@@ -207,7 +207,7 @@ class DBRecord {
 		}
 		if( $result === FALSE )
 			throw new exception( 'COUNT失敗' );
-		$retval = mysql_fetch_row( $result );
+		$retval = mysqli_fetch_row( $result );
 		return (int)$retval[0];
 	}
 
@@ -226,7 +226,7 @@ class DBRecord {
 			if( !$ret_false )
 				throw new exception( 'レコードが存在しません' );
 		}else
-			while( $row = mysql_fetch_array($result, MYSQL_ASSOC) ){
+			while( $row = mysqli_fetch_array($result, MYSQL_ASSOC) ){
 				array_push( $retval, new self( $table, 'id', $row['id'], $row ) );
 			}
 		return $retval;
