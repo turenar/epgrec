@@ -142,6 +142,7 @@ if( $usable_tuners !== 0 ){
 										if( $rec_pro !== FALSE )
 											$pro[] = $rec_pro;
 										else{
+											shmop_write_surely( $shm_id, $shm_name, 0 );
 											reclog( 'sheepdog.php::コマンドに異常がある可能性があります<br>'.$cmdline, EPGREC_WARN );
 											$end_flag = TRUE;
 											goto GATHER_SHEEPS;		// 終了
