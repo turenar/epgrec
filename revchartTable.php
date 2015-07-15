@@ -44,18 +44,18 @@ $prec = new DBRecord(RESERVE_TBL);
 if( isset( $_GET['time'] ) && sscanf( $_GET['time'], '%04d%2d%2d%2d', $y, $mon, $day, $h )==4 ){
 	$get_time = mktime( $h, 0, 0, $mon, $day, $y );
 	$today    = mktime( $h, 0, 0 );
-	if( $get_time >= $today-3600*(24+$h) ){
+//	if( $get_time >= $today-3600*(24+$h) ){
 		if( $single_tuner!==FALSE && $get_time>$today+3600*(24-$h) )
 			$top_time = $today;
 		else
 			$top_time = $get_time>$today+3600*(24*8-1-$h) ? $today+3600*(24*8-$program_length-$h) : $get_time;
-	}
+//	}
 }else{
 	$top_time = mktime( date('H'), 0 , 0 );
 	$reca     = $prec->fetch_array( null, null, 'complete=0 ORDER BY starttime' );
 	if( count($reca) ){
 		$rev_top = (int)(toTimestamp( $reca[0]['starttime'] )/(60*60)) * 60 * 60;
-		if( $top_time < $rev_top-1 )
+		if( $top_time < $rev_top-3600 )
 			$top_time = $rev_top;
 	}
 }

@@ -446,21 +446,19 @@ PRIORITY_CHECK:
 						//優先度判定
 						$pri_ret = $res_obj->fetch_array( 'complete', 0, $type_str.' AND priority<'.$priority.
 															' AND starttime<=\''.toDatetime($end_time).
-															'\' AND endtime>=\''.toDatetime($start_time).'\' ORDER BY priority ASC' );
-						$pri_lmt = count( $pri_ret );
-						if( $pri_lmt ){
-							for( $cnt=$pri_c=0; $cnt<count($trecs) ; $cnt++ )
-								if( $trecs[$cnt]['id'] === (int)$pri_ret[$pri_c]['id'] ){
-									if( $trecs[$cnt]['status'] ){
-										//優先度の低い予約を仮無効化
-										$trecs[$cnt]['status'] = 0;
-										unset( $t_tree );
-//file_put_contents( '/tmp/debug.txt', "RETRY\n\n", FILE_APPEND );
-										goto RETRY;
+															'\' AND endtime>=\''.toDatetime($start_time).'\' ORDER BY priority ASC, starttime ASC' );
+						if( count( $pri_ret ) ){
+							foreach( $pri_ret as $pri_chk )
+								for( $cnt=0; $cnt<count($trecs) ; $cnt++ )
+									if( $trecs[$cnt]['id'] === (int)$pri_chk['id'] ){
+										if( $trecs[$cnt]['status'] ){
+											//優先度の低い予約を仮無効化
+											$trecs[$cnt]['status'] = 0;
+											unset( $t_tree );
+											goto RETRY;
+										}else
+											continue 2;
 									}
-									if( ++$pri_c === $pri_lmt )
-										break;
-								}
 						}
 						//自動予約禁止
 						$event = new DBRecord( PROGRAM_TBL, 'id', $program_id );
@@ -1094,6 +1092,28 @@ LOG_THROW:;
 				if( $tran_date!==FALSE && $tran_date!==$split_tls[1] )
 					$filename = mb_str_replace( '%%'.$split_tls[1].'%%', $tran_date, $filename );
 			}
+			// %CUT(A)% ファイル名全体から文字列Aを削除 文字列Aは、CSVフォーマットで記述(複数指定も可能)
+			$magic_c = strpos( $filename, '%CUT(' );
+			if( $magic_c !== FALSE ){
+				$csv_word = strstr( substr( $filename, $magic_c+5 ), ')%', TRUE );
+				if( $csv_word !== FALSE ){
+					$filename = str_replace( '%CUT('.$csv_word.')%', '', $filename );
+					$cut_strs = str_getcsv( $csv_word );
+					if( $cut_strs !== FALSE )
+						$filename = str_replace( $cut_strs, '', $filename );
+				}
+			}
+			// %REPLACE(A,B)% ファイル名全体から 文字列Aを文字列Bに置換 文字列はCSVフォーマットで記述
+			$magic_c = strpos( $filename, '%REPLACE(' );
+			if( $magic_c !== FALSE ){
+				$csv_word = strstr( substr( $filename, $magic_c+9 ), ')%', TRUE );
+				if( $csv_word !== FALSE ){
+					$filename = str_replace( '%REPLACE('.$csv_word.')%', '', $filename );
+					$parts    = str_getcsv( $csv_word );
+					if( count($parts) === 2 )
+						$filename = str_replace( $parts[0], $parts[1], $filename );
+				}
+			}
 
 			if( defined( 'KATAUNA' ) ){
 				// しょぼかるからサブタイトル取得(しょぼかるのスケジュール未登録分用)
@@ -1117,7 +1137,7 @@ LOG_THROW:;
 											for( $loop=1; $loop<count($tl_list); $loop++ ){
 												if( strpos( $tl_list[$loop], '">'.$search_nm.'</a>' ) !== FALSE ){
 													list( $tid, ) = explode( '">', $tl_list[$loop] );
-													$data = array( (int)$tid, 1, $title_piece[0], $trans, str_replace( '・', '', $trans ) );
+													$data = array( (int)$tid, 1, 1, $title_piece[0], $trans, str_replace( '・', '', $trans ) );
 													fputcsv( $handle, $data );
 													break 2;
 												}
@@ -1143,9 +1163,9 @@ LOG_THROW:;
 									case 22:	// 海外
 									case 23:	// SD非視聴
 										$num = count( $data );
-										for( $loop=2; $loop<$num; $loop++ ){
-											if( $loop === 2 ){
-												$official = str_replace( '^', '', $data[2] );
+										for( $loop=3; $loop<$num; $loop++ ){
+											if( $loop === 3 ){
+												$official = str_replace( '^', '', $data[3] );
 												$dte      = str_replace( ' ', '', $official );
 											}else
 												$dte = $data[$loop];

@@ -27,22 +27,35 @@ function scout_wait()
 
 function sig_handler()
 {
-	global	$shm_name,$temp_xml,$temp_ts;
+	global	$temp_xml,$temp_ts;
 
 	// シャットダウンの処理
-	if( isset( $shm_name ) ){
-		//テンポラリーファイル削除
-		if( isset( $temp_ts ) && file_exists( $temp_ts ) )
-			@unlink( $temp_ts );
-		if( isset( $temp_xml ) && file_exists( $temp_xml ) )
-			@unlink( $temp_xml );
-		//共有メモリー変数初期化
-		$shm_id = shmop_open_surely();
-		if( shmop_read_surely( $shm_id, $shm_name ) ){
-			shmop_write_surely( $shm_id, $shm_name, 0 );
-		}
-		shmop_close( $shm_id );
+	//テンポラリーファイル削除
+	if( isset( $temp_ts ) && file_exists( $temp_ts ) )
+		@unlink( $temp_ts );
+	if( isset( $temp_xml ) && file_exists( $temp_xml ) )
+		@unlink( $temp_xml );
+	//共有メモリー変数初期化
+	switch( $_SERVER['argv'][1] ){
+		case 'GR':
+			$shm_name = SEM_GR_START;
+			break;
+		case 'BS':
+		case 'CS':
+			$shm_name = SEM_ST_START;
+			break;
+		case 'EX':
+			$shm_name = SEM_EX_START;
+			break;
+		default:
+			exit;
 	}
+	$shm_name += (int)$_SERVER['argv'][2];
+	$shm_id    = shmop_open_surely();
+	if( shmop_read_surely( $shm_id, $shm_name ) ){
+		shmop_write_surely( $shm_id, $shm_name, 0 );
+	}
+	shmop_close( $shm_id );
 	exit;
 }
 
@@ -50,19 +63,35 @@ function sig_handler()
 	declare( ticks = 1 );
 	pcntl_signal( SIGTERM, 'sig_handler' );
 
-	$settings = Settings::factory();
 	$type     = $argv[1];	//GR/BS/CS/EX
-	$tuner    = $argv[2];
+	$tuner    = (int)$argv[2];
 	$value    = $argv[3];	//ch
-	$rec_time = $argv[4];
+	$rec_time = (int)$argv[4];
 	$ch_disk  = $argv[5];
 	$slp_time = isset( $argv[6] ) ? (int)$argv[6] : 0;
 	$cut_sids = isset( $argv[7] ) ? $argv[7] : '';
 
-	$shm_nm   = array( 'GR' => SEM_GR_START, 'BS' => SEM_ST_START, 'EX' => SEM_EX_START );
-	$smf_type = $type=='CS' ? 'BS' : $type;
-	$dmp_type = $type=='GR' ? $ch_disk : '/'.$type;								// 無改造でepgdumpのプレミアム対応が出来ればこのまま
-//	$dmp_type = $type=='GR' ? $ch_disk : '/'.($type==='EX' ? 'CS' : $type);
+	$smf_type = $type==='CS' ? 'BS' : $type;
+	switch( $smf_type ){
+		case 'GR':
+			$shm_name = SEM_GR_START;
+			break;
+		case 'BS':
+//		case 'CS':
+			$shm_name = SEM_ST_START;
+			break;
+		case 'EX':
+			$shm_name = SEM_EX_START;
+			break;
+		default:
+			reclog( 'airwavesSheep.php::チューナー種別エラー "'.$type.'"は未定義です。<br>チューナー占有フラグが残留している可能性があります。', EPGREC_ERROR );
+			exit;
+	}
+	$shm_name += $tuner;
+	$dmp_type = $type==='GR' ? $ch_disk : '/'.$type;								// 無改造でepgdumpのプレミアム対応が出来ればこのまま
+//	$dmp_type = $type==='GR' ? $ch_disk : '/'.($type==='EX' ? 'CS' : $type);
+
+	$settings = Settings::factory();
 	$temp_xml = $settings->temp_xml.'_'.$type.$value;
 	$temp_ts  = $settings->temp_data.'_'.$smf_type.$tuner.$type.$value;
 
@@ -88,9 +117,8 @@ function sig_handler()
 	exe_start( $cmd_ts, (int)$rec_time, 10, FALSE );
 
 	//チューナー占有解除
-	$shm_id   = shmop_open_surely();
-	$shm_name = $shm_nm[$smf_type] + $tuner;
-	$sem_id   = sem_get_surely( $shm_name );
+	$shm_id = shmop_open_surely();
+	$sem_id = sem_get_surely( $shm_name );
 	while( sem_acquire( $sem_id ) === FALSE )
 		sleep( 1 );
 	shmop_write_surely( $shm_id, $shm_name, 0 );
@@ -151,7 +179,7 @@ function sig_handler()
 		reclog( 'EPG受信失敗:TSファイル"'.$temp_ts.'"がありません(放送間帯でないなら問題ありません)<br>'.$cmd_ts, EPGREC_WARN );
 		if( $type!=='EX' && $tuner<TUNER_UNIT1 ){
 			$smph = shmop_read_surely( $shm_id, SEM_REBOOT );
-			if( $smph == 0 )
+			if( $smph === 0 )
 				shmop_write_surely( $shm_id, SEM_REBOOT, 1 );
 		}
 	}

@@ -36,7 +36,7 @@ function rest_check( $ch_disk, $sql_time ){
 	$pro_list  = $pro_obj->fetch_array( null, null, $pro_sql.
 				' AND title NOT LIKE "%放送%休止%" AND title NOT LIKE "%放送設備%" AND title NOT LIKE "%試験放送%" AND title NOT LIKE "%メンテナンス%" ORDER BY channel_disc, starttime' );
 	if( count($pro_list) == 0 )
-		return DBRecord::countRecords( PROGRAM_TBL, $pro_sql )===0 ? FALSE : TRUE;		//初回起動:停波中
+		return DBRecord::countRecords( PROGRAM_TBL, 'WHERE '.$pro_sql )===0 ? FALSE : TRUE;		//初回起動:停波中
 	$chk_disc   = '';
 	$rec_joint = '';
 	foreach( $pro_list as $event ){
@@ -182,7 +182,8 @@ if( $usable_tuners !== 0 ){
 										if( $rec_pro !== FALSE )
 											$pro[] = $rec_pro;
 										else{
-										reclog( 'greatpyrenees.php::コマンドに異常がある可能性があります<br>'.$cmdline, EPGREC_WARN );
+											shmop_write_surely( $shm_id, $shm_name, 0 );
+											reclog( 'greatpyrenees.php::コマンドに異常がある可能性があります<br>'.$cmdline, EPGREC_WARN );
 											$end_flag = TRUE;
 											goto GATHER_SHEEPS;		// 終了
 										}
